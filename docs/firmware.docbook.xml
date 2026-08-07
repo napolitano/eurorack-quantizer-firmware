@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook"
+         xmlns:xlink="http://www.w3.org/1999/xlink"
+         version="5.0" xml:lang="en">
+  <info>
+    <title>FM Quantizer Firmware — Technical Documentation</title>
+    <subtitle>C++ / PlatformIO reimplementation for the Arduino Nano (ATmega328P)</subtitle>
+    <author>
+      <personname><firstname>Axel</firstname><surname>Napolitano</surname></personname>
+      <contrib>C++ / PlatformIO reimplementation</contrib>
+    </author>
+    <othercredit>
+      <personname><firstname>Quinn</firstname><surname>Freedman</surname></personname>
+      <contrib>Original concept and Rust firmware</contrib>
+    </othercredit>
+    <legalnotice>
+      <para>Licensed under GPL-3.0-or-later, the same terms as the original
+      firmware.</para>
+    </legalnotice>
+    <abstract>
+      <para>This document describes the architecture, modules, persistence
+      format and user-facing features of the FM Quantizer firmware. The firmware
+      is a deterministic, hardware-independent core wired to a thin AVR hardware
+      abstraction layer, which makes the entire signal and UI logic testable on a
+      development host.</para>
+    </abstract>
+  </info>
+
+  <section xml:id="overview">
+    <title>Overview</title>
+    <para>The FM Quantizer is a two-channel Eurorack module that rounds an
+    incoming v/oct control voltage to the nearest note of a user-defined scale.
+    Each channel supports transposition before and after quantization, a
+    scale-degree shift, portamento (glide), a trigger-driven delay, and a choice
+    of track-and-hold, sample-and-hold or continuous quantization. The two
+    channels can run independently or be linked to share one configuration.</para>
+    <para>This implementation is a clean reimplementation of the original Rust
+    firmware rather than a mechanical port. The behaviour was reproduced from an
+    analysis of the original, several defects were corrected, and new features
+    were added (see <xref linkend="changes"/>).</para>
+  </section>
+
+  <section xml:id="architecture">
+    <title>Architecture</title>
+    <para>The firmware is split into three layers with a strict dependency
+    direction: the core depends only on the abstract HAL interfaces, and the
+    concrete AVR layer depends on both. Nothing in the core includes an Arduino
+    or AVR header, so it compiles and runs on a host.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><filename>lib/core</filename> — hardware-independent core</term>
+        <listitem>
+          <para>All signal processing, the menu state machine, LED frame
+          encoding and the persistence logic. Pure C++ with no platform
+          dependencies; fully unit-tested.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>lib/hal</filename> — abstract hardware interfaces</term>
+        <listitem>
+          <para>Small pure-virtual interfaces: <interfacename>IClock</interfacename>,
+          <interfacename>IDigitalOutput</interfacename>,
+          <interfacename>IDigitalInput</interfacename>,
+          <interfacename>ISpiBus</interfacename>,
+          <interfacename>IEeprom</interfacename> and
+          <interfacename>IAnalogInputs</interfacename>. The core is written
+          against these, and tests provide fakes.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>src/hal_avr</filename> — concrete AVR layer</term>
+        <listitem>
+          <para>Arduino-backed implementations of the HAL interfaces plus the
+          two SPI chip drivers (<classname>Mcp4922Dac</classname> and
+          <classname>Tlc5947LedDriver</classname>). One file per hardware
+          element.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><filename>src/main.cpp</filename> — composition and real-time loop</term>
+        <listitem>
+          <para>Instantiates the objects, restores state, plays the startup
+          animation and runs the 1&#160;kHz processing loop.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </section>
+
+  <section xml:id="core-modules">
+    <title>Core modules</title>
+    <para>Each core module is a single responsibility with a speaking name and a
+    documented public interface.</para>
+    <informaltable frame="all">
+      <tgroup cols="2">
+        <thead>
+          <row><entry>Module</entry><entry>Responsibility</entry></row>
+        </thead>
+        <tbody>
+          <row><entry><classname>FixedPoint</classname></entry>
+            <entry>Fixed-point pitch types (Q8.8 semitones, Q8.24 glide) and
+            shared constants.</entry></row>
+          <row><entry><classname>PitchConversion</classname></entry>
+            <entry>ADC&#8594;semitone and semitone&#8594;DAC conversions
+            (exact integer relationships).</entry></row>
+          <row><entry><classname>ScaleMath</classname></entry>
+            <entry>Nearest-note search and scale-degree stepping within a
+            scale.</entry></row>
+          <row><entry><classname>Quantizer</classname></entry>
+            <entry>Two-channel engine: hysteresis, shifts, sample/track-and-hold,
+            delay and glide.</entry></row>
+          <row><entry><classname>Menu</classname></entry>
+            <entry>UI state machine: scale editing, sub-menus, save/load,
+            erase and the brightness-calibration mode.</entry></row>
+          <row><entry><classname>Button</classname></entry>
+            <entry>Principled debouncer and long-press decoder.</entry></row>
+          <row><entry><classname>ButtonLadder</classname></entry>
+            <entry>Decodes the twelve note buttons from a single ADC ladder and
+            emits press/hold/release events.</entry></row>
+          <row><entry><classname>LedColor</classname> / <classname>LedFrameEncoder</classname></entry>
+            <entry>Colour model and encoding of a 12-LED frame into the 36-byte
+            TLC5947 shift order (with the panel's physical rotation).</entry></row>
+          <row><entry><classname>BrightnessCalibration</classname></entry>
+            <entry>Red/green brightness steps (1&#8211;12) and their mapping to
+            12-bit PWM levels.</entry></row>
+          <row><entry><classname>StartupAnimation</classname></entry>
+            <entry>Pure time&#8594;frame function for the power-on ring
+            animation.</entry></row>
+          <row><entry><classname>Crc16</classname></entry>
+            <entry>CRC-16/CCITT-FALSE used to protect every persisted
+            record.</entry></row>
+          <row><entry><classname>Serialization</classname></entry>
+            <entry>Fixed-layout encoding/decoding of channel configs and full
+            state.</entry></row>
+          <row><entry><classname>SaveSlotStore</classname> / <classname>LiveStateStore</classname></entry>
+            <entry>Slot-based scale/config storage and the wear-levelled
+            "last state" ring.</entry></row>
+        </tbody>
+      </tgroup>
+    </informaltable>
+  </section>
+
+  <section xml:id="signal-path">
+    <title>Signal path</title>
+    <procedure>
+      <step><para>The CV input is read by the ADC (0&#8211;1023) and converted to
+      a Q8.8 semitone value: <code>semitones = adc &#215; 30</code>, which maps
+      the full ADC range onto ten octaves exactly.</para></step>
+      <step><para>Pre-shift (whole semitones) is applied, then the value is
+      quantized to the nearest selected scale note with hysteresis to prevent
+      flicker at note boundaries.</para></step>
+      <step><para>A scale-degree shift moves the result by whole scale steps;
+      post-shift then transposes the CV output without changing which note the
+      LEDs display.</para></step>
+      <step><para>Sample-and-hold (on trigger edge) or track-and-hold selects
+      when a new value is latched; an optional delay defers the output by a number
+      of samples.</para></step>
+      <step><para>Glide integrates the output toward its target for portamento.
+      The result is converted to a 12-bit DAC code with round-to-nearest.</para></step>
+    </procedure>
+    <para>Channel B may operate in absolute mode (its own input) or relative mode
+    (its input added to channel A's). The loop runs at 1&#160;kHz, so the sample
+    counts used for delay and trigger widths correspond to milliseconds.</para>
+  </section>
+
+  <section xml:id="persistence">
+    <title>Persistence format</title>
+    <para>The ATmega328P has 1&#160;KiB of internal EEPROM. Every record is framed
+    with a start marker and a trailing CRC-16 so a corrupt or partially written
+    record is detected and ignored rather than trusted.</para>
+
+    <segmentedlist>
+      <segtitle>Region</segtitle>
+      <segtitle>Layout</segtitle>
+      <seglistitem>
+        <seg>Scale slots (12)</seg>
+        <seg>5 bytes each: marker, 12-bit note mask, CRC-16.</seg>
+      </seglistitem>
+      <seglistitem>
+        <seg>Config slots (12)</seg>
+        <seg>20 bytes each: marker, serialized full configuration, CRC-16.</seg>
+      </seglistitem>
+      <seglistitem>
+        <seg>Live "last state" ring</seg>
+        <seg>26 slots of 27 bytes: marker, 32-bit sequence number, version,
+        17-byte state, 2-byte brightness calibration, CRC-16.</seg>
+      </seglistitem>
+    </segmentedlist>
+
+    <para>The live state is written round-robin across the ring, each write
+    carrying a monotonically increasing sequence number. On load, the valid slot
+    with the highest sequence number wins; if none is valid, safe defaults are
+    used. This spreads erase/write wear across the ring and guarantees that a
+    power loss mid-write cannot corrupt the previously good state. Writes use the
+    EEPROM's update semantics (a cell is only physically written when its value
+    changes), and the working configuration is mirrored to the ring only a few
+    seconds after the last change, further reducing wear.</para>
+
+    <para>The exact byte offsets and sizes are defined in
+    <classname>PersistenceLayout</classname> and checked at compile time with
+    <function>static_assert</function>, so any change to the serialized structures
+    that would overflow a region fails the build rather than silently corrupting
+    memory.</para>
+  </section>
+
+  <section xml:id="features">
+    <title>User-facing features</title>
+
+    <section xml:id="startup">
+      <title>Power-on behaviour</title>
+      <para>At power-on a single amber dot travels once around the twelve LEDs as
+      a self-test, then the last saved channel A/B configuration and LED
+      calibration are restored.</para>
+    </section>
+
+    <section xml:id="calibration">
+      <title>LED brightness calibration mode</title>
+      <para>Red and green brightness can be set independently so amber and the
+      two primaries look balanced on the builder's specific LEDs.</para>
+      <orderedlist>
+        <listitem><para><emphasis>Enter:</emphasis> hold Shift + Load + Save
+        together for five seconds; the LEDs blink to confirm.</para></listitem>
+        <listitem><para><emphasis>Adjust:</emphasis> the twelve note buttons pick
+        a brightness level (1&#8211;12, clockwise) for the selected colour; all
+        LEDs preview it live.</para></listitem>
+        <listitem><para><emphasis>Switch colour:</emphasis> Shift + A selects green (channel A),
+        Shift + B selects red (channel B).</para></listitem>
+        <listitem><para><emphasis>Save:</emphasis> hold Shift alone for five
+        seconds; the ring blinks three times and normal operation
+        resumes.</para></listitem>
+      </orderedlist>
+    </section>
+  </section>
+
+  <section xml:id="changes">
+    <title>Corrections and additions relative to the original</title>
+    <itemizedlist>
+      <listitem><para>Fixed a bit-vector clear that never turned a bit off.</para></listitem>
+      <listitem><para>Replaced a glide-integrator assertion (a potential hang)
+      with clamping.</para></listitem>
+      <listitem><para>Removed an inline-assembly workaround that depended on
+      undefined behaviour.</para></listitem>
+      <listitem><para>Pitch&#8594;DAC conversion rounds to the nearest code
+      instead of truncating.</para></listitem>
+      <listitem><para>Corrected the 1&#160;kHz timer reload for an exact sample
+      rate.</para></listitem>
+      <listitem><para>Added the startup ring animation, automatic state restore,
+      CRC-protected and wear-levelled storage, and the brightness-calibration
+      mode.</para></listitem>
+    </itemizedlist>
+  </section>
+
+  <section xml:id="build-test">
+    <title>Building and testing</title>
+    <para>The project uses PlatformIO. Three environments are defined:
+    <literal>nanoatmega328new</literal> (default) and
+    <literal>nanoatmega328</literal> for the two Nano bootloader variants, and
+    <literal>native</literal> for the host unit tests.</para>
+    <programlisting language="bash">pio run -e nanoatmega328new            # build firmware
+pio run -e nanoatmega328new -t upload  # flash
+pio test -e native                     # run unit tests</programlisting>
+    <para>The host test suite exercises the whole core: pitch and scale math, the
+    quantizer, CRC, persistence (including wear-levelling and corruption
+    detection), the debouncer and long-press logic, the full menu state machine
+    including the calibration flow, and the startup animation. The thin AVR glue in
+    <filename>src/</filename> is compiled by the firmware build and verified on
+    hardware.</para>
+  </section>
+</article>
