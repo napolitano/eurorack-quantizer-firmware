@@ -169,16 +169,17 @@ static void test_ui_change_can_suppress_next_output_trigger(void) {
   QuantizerChannel ch;
   ChannelConfig c = ChannelConfig::makeDefault();
   ch.setConfig(c);
-  ch.step(semis(0.0), false);
+  // Track-and-Hold follows the input while the normalized trigger input is HIGH.
+  ch.step(semis(0.0), true);
 
   ch.suppressNextOutputTrigger();
-  ChannelOutput o = ch.step(semis(4.0), false);
+  ChannelOutput o = ch.step(semis(4.0), true);
   TEST_ASSERT_EQUAL_INT8(4, o.nominalSemitones);
   TEST_ASSERT_FALSE(o.outputTrigger);
   TEST_ASSERT_FALSE(o.outputTriggerUi);
 
   // Suppression is one-shot; a subsequent real pitch change triggers normally.
-  o = ch.step(semis(7.0), false);
+  o = ch.step(semis(7.0), true);
   TEST_ASSERT_TRUE(o.outputTrigger);
   TEST_ASSERT_TRUE(o.outputTriggerUi);
 }

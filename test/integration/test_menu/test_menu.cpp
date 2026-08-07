@@ -81,6 +81,9 @@ static void test_toggle_note(void) {
   menu.begin(store);
   QuantizerState q;
   clearScale(q);
+  // The firmware deliberately prevents disabling the last active scale note.
+  // Keep C active so note 3 can be toggled on and off in this test.
+  q.channels[0].config().notes[0] = true;
   QuantizationResult r = QuantizationResult::makeZero();
 
   MenuOutput out = menu.update(q, keyPress(3), r, 100, store);
@@ -153,7 +156,7 @@ static void test_sample_mode_matches_original_ui_cycle(void) {
 
   // After the configured feedback interval the menu returns to normal, then a
   // second SHIFT+4 toggles back to Track-and-Hold.
-  menu.update(q, MenuInput(), r,
+  menu.update(q, noInput(), r,
               100 + config::kBoolOptionFeedbackMs + 1, store);
   MenuOutput secondToggle = menu.update(
       q, keyPress(4, /*shift=*/true), r,
@@ -171,6 +174,9 @@ static void test_save_and_load_config(void) {
   menu.begin(store);
   QuantizerState q;
   clearScale(q);
+  // Keep one anchor note active so note 1 can later be toggled back off; the
+  // UI intentionally refuses to remove the final active scale note.
+  q.channels[0].config().notes[0] = true;
   QuantizationResult r = QuantizationResult::makeZero();
 
   // Edit, then SAVE (shift => full config) into slot 4.
@@ -182,6 +188,9 @@ static void test_save_and_load_config(void) {
   menu.update(q, saveDown, r, 200, store);       // open full-config save menu
   menu.update(q, keyPress(4, true), r, 260, store);  // save into slot 4
   menu.update(q, keyRelease(true), r, 270, store);
+  // Production services the asynchronous EEPROM writer from the main loop.
+  // The host test completes the queued write explicitly before loading it.
+  store.flush();
 
   // The "saved" splash blocks input for ~1 s; advance past it.
   menu.update(q, noInput(), r, 1400, store);
@@ -217,7 +226,10 @@ static void test_brightness_calibration_flow(void) {
   TEST_ASSERT_TRUE(menu.inCalibration());
 
   // Advance past the entry blink so the editor becomes active.
-  MenuOutput calibrationView = menu.update(q, noInput(), r, 7000, store);
+  // The transition cycle finishes the entry animation; the following cycle
+  // renders the active calibration bar.
+  menu.update(q, noInput(), r, 7000, store);
+  MenuOutput calibrationView = menu.update(q, noInput(), r, 7001, store);
   const uint8_t initialGreenStep = menu.activeBrightness().greenDisplayStep();
   TEST_ASSERT_EQUAL_INT(static_cast<int>(LedColor::Green),
                         static_cast<int>(calibrationView.frame[initialGreenStep]));

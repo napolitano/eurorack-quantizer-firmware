@@ -13,7 +13,7 @@
 
 #include "fmq/persistence/StartupSequenceStore.h"
 #include "fmq/persistence/PersistenceLayout.h"
-#include "test/support/FakeEeprom.h"
+#include "FakeEeprom.h"
 
 using namespace fmq;
 using fmqtest::FakeEeprom;

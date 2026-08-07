@@ -50,14 +50,14 @@ static void test_real_adc_press_toggles_note(void) {
   QuantizerState q;
   QuantizationResult r = QuantizationResult::makeZero();
   ControlInputProcessor controls;
-  controls.calibrateLadderRest(1023);
+  controls.calibrateLadderRest(558);
   uint32_t t = 0;
 
-  feed(controls, menu, q, r, store, t, raw(1023), 30);
-  // Nominal key 3 is 236/558 of rest => about 433 at a 1023-count rest.
-  feed(controls, menu, q, r, store, t, raw(433), 35);
+  feed(controls, menu, q, r, store, t, raw(558), 70);
+  // Original hardware uses the proven absolute AVCC-referenced ladder values.
+  feed(controls, menu, q, r, store, t, raw(236), 70);
   TEST_ASSERT_FALSE(q.channels[0].config().notes[3]);
-  feed(controls, menu, q, r, store, t, raw(1023), 35);
+  feed(controls, menu, q, r, store, t, raw(558), 70);
 }
 
 static void test_debounced_shift_plus_b_selects_channel_b(void) {
@@ -72,13 +72,13 @@ static void test_debounced_shift_plus_b_selects_channel_b(void) {
   controls.calibrateLadderRest(558);
   uint32_t t = 0;
 
-  feed(controls, menu, q, r, store, t, raw(558), 30);
-  feed(controls, menu, q, r, store, t, raw(558, true), 30);
-  feed(controls, menu, q, r, store, t, raw(536, true), 30); // SHIFT+B
-  feed(controls, menu, q, r, store, t, raw(558, true), 30);
-  feed(controls, menu, q, r, store, t, raw(558, false), 30);
+  feed(controls, menu, q, r, store, t, raw(558), 70);
+  feed(controls, menu, q, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, r, store, t, raw(536, true), 70); // SHIFT+B
+  feed(controls, menu, q, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, r, store, t, raw(558, false), 70);
 
-  feed(controls, menu, q, r, store, t, raw(171), 30); // toggle note 2
+  feed(controls, menu, q, r, store, t, raw(171), 70); // toggle note 2
   TEST_ASSERT_FALSE(q.channels[1].config().notes[2]);
   TEST_ASSERT_TRUE(q.channels[0].config().notes[2]);
 }
@@ -95,11 +95,11 @@ static void test_shift_glide_menu_through_raw_controls(void) {
   controls.calibrateLadderRest(558);
   uint32_t t = 0;
 
-  feed(controls, menu, q, r, store, t, raw(558), 30);
-  feed(controls, menu, q, r, store, t, raw(558, true), 30);
-  feed(controls, menu, q, r, store, t, raw(171, true), 30); // SHIFT+2
-  feed(controls, menu, q, r, store, t, raw(558, true), 30);
-  feed(controls, menu, q, r, store, t, raw(421, true), 30); // set 7
+  feed(controls, menu, q, r, store, t, raw(558), 70);
+  feed(controls, menu, q, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, r, store, t, raw(171, true), 70); // SHIFT+2
+  feed(controls, menu, q, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, r, store, t, raw(421, true), 70); // set 7
 
   TEST_ASSERT_EQUAL_UINT8(7, q.channels[0].config().glideAmount);
 }

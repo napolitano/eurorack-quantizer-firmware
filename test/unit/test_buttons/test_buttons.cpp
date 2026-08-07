@@ -23,13 +23,14 @@ void tearDown(void) {}
 
 static void test_ladder_nearest_value(void) {
   TEST_ASSERT_EQUAL_UINT8(0, closestButtonIndex(0));
-  TEST_ASSERT_EQUAL_UINT8(12, closestButtonIndex(40));   // outside all valid windows
+  TEST_ASSERT_EQUAL_UINT8(0, closestButtonIndex(40));    // nearest-value decoder: 0 is closest
   TEST_ASSERT_EQUAL_UINT8(1, closestButtonIndex(90));    // ~93
   TEST_ASSERT_EQUAL_UINT8(5, closestButtonIndex(340));   // ~341
   TEST_ASSERT_EQUAL_UINT8(12, closestButtonIndex(558));  // rest value -> none
   TEST_ASSERT_EQUAL_UINT8(12, closestButtonIndex(1023)); // far -> none
-  // The same ladder powered/read at a different reference scale still decodes.
-  TEST_ASSERT_EQUAL_UINT8(5, buttonIndexForAdc(626, 1023));
+  // Rest normalization is deliberately disabled on the original hardware.
+  // A scaled 1023-count rest therefore does not reinterpret the ladder values.
+  TEST_ASSERT_EQUAL_UINT8(12, buttonIndexForAdc(626, 1023));
   TEST_ASSERT_EQUAL_UINT8(12, buttonIndexForAdc(1023, 1023));
 }
 

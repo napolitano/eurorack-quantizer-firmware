@@ -12,12 +12,15 @@ A new section should be added when a release version is explicitly declared.
 
 ## 0.1.1 — 2026-08-07
 
-Patch release correcting the repository test layout. Firmware behaviour is unchanged from 0.1.0.
+Patch release correcting and restoring the native CI test suite. Intended quantizer runtime behaviour is unchanged from 0.1.0.
 
 ### Fixed
 
 - Renamed PlatformIO test-suite directories to the required `test_*` convention so `pio test -e native` discovers and builds the native unit, integration and regression tests correctly.
-- Restored GitHub Actions native-test execution, which previously failed with `Nothing to build` because PlatformIO did not recognise the test-suite directory names.
+- Aligned stale native tests with the firmware's established hardware behaviour: original absolute resistor-ladder values, 64 ms ladder debounce, normalized-HIGH Track-and-Hold semantics, full-range ADC pitch conversion, last-note protection, and asynchronous EEPROM writes.
+- Corrected the startup-sequence-store test include path.
+- Added safe defaults to `MenuInput` so a value-initialized input represents no key, no SAVE/LOAD press, and SHIFT released.
+- Restored GitHub Actions native-test execution.
 
 ## 0.1.0 — 2026-08-07
 

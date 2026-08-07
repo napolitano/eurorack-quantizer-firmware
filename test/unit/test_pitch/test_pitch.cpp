@@ -23,11 +23,12 @@ static void test_adc_zero_is_zero(void) {
   TEST_ASSERT_EQUAL_INT16(0, adcToSemitones(0));
 }
 
-// The exact integer relationship: one ADC code == 30 raw Q8.8 units.
+// The conversion is linear over the full 10-bit ADC range and maps the
+// endpoint exactly to the configured 120-semitone input range.
 static void test_adc_scale_is_exact(void) {
   TEST_ASSERT_EQUAL_INT16(30, adcToSemitones(1));
   TEST_ASSERT_EQUAL_INT16(300, adcToSemitones(10));
-  TEST_ASSERT_EQUAL_INT16(30690, adcToSemitones(1023));
+  TEST_ASSERT_EQUAL_INT16(120 * kSemitoneOneQ8_8, adcToSemitones(1023));
 }
 
 // Out-of-range ADC values are clamped to the top code.

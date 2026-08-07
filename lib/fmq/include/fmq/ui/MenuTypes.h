@@ -16,10 +16,10 @@
 #include "fmq/domain/LedColor.h"
 namespace fmq {
 struct MenuInput {
-  ButtonEvent keyEvent;
-  LongPressButtonState loadButton;
-  LongPressButtonState saveButton;
-  bool shiftPressed;
+  ButtonEvent keyEvent{ButtonEventType::None, 0};
+  LongPressButtonState loadButton = LongPressButtonState::ButtonIsUp;
+  LongPressButtonState saveButton = LongPressButtonState::ButtonIsUp;
+  bool shiftPressed = false;
 };
 struct MenuOutput {
   LedFrame frame;

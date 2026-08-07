@@ -43,10 +43,10 @@ struct ButtonEvent {
 constexpr uint8_t kButtonLadderNoButton = config::kLadderNoButton;
 constexpr uint16_t kButtonLadderNominalRest = config::kLadderNominalRest;
 
-/** Decode a value already normalised to the nominal 558-count rest level. */
+/** Decode a raw ADC value against the original nominal ladder values. */
 uint8_t closestButtonIndex(uint16_t adcValue);
 
-/** Decode using an explicitly measured unpressed/rest ADC value. */
+/** Decode with an optional measured rest value; normalization is board-configurable. */
 uint8_t buttonIndexForAdc(uint16_t adcValue, uint16_t restAdc);
 
 class ButtonLadder {

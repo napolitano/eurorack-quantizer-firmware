@@ -196,7 +196,9 @@ static void test_live_wear_levelling_spreads_writes(void) {
   // them, proving writes were distributed rather than hammering one cell.
   int occupied = 0;
   for (int i = 0; i < kLiveSlotCount; ++i) {
-    if (eep.readByte(kLiveRingBase + i * kLiveSlotSize) == kRecordMarker) {
+    const uint16_t address = static_cast<uint16_t>(
+        kLiveRingBase + static_cast<uint16_t>(i) * kLiveSlotSize);
+    if (eep.readByte(address) == kRecordMarker) {
       ++occupied;
     }
   }
