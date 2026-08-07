@@ -15,3 +15,7 @@ _test_build/
 .idea/
 *.swp
 .DS_Store
+
+# Local compilation database (may contain absolute/private paths)
+compile_commands.json
+**/compile_commands.json

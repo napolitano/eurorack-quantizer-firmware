@@ -57,6 +57,37 @@ The original Rust firmware remains the behavioural and hardware reference. Platf
 
 This repository is an independent reimplementation and is **not an official Free Modular repository**.
 
+## Corrected issues and implementation fixes
+
+Compatibility with the original hardware was treated as a behavioural requirement rather than as a reason to reproduce accidental implementation defects. During the reimplementation and hardware review, several problems were identified either in early C++ revisions or in assumptions that did not match the original module. The most relevant corrections are documented here so that the resulting behaviour is explicit and reproducible.
+
+| Area | Problem | Correction |
+|---|---|---|
+| ADC reference | Early C++ revisions assumed an external AREF because the original Rust setup initially constructs the ADC that way. The original `fm-lib` subsequently overwrites `ADMUX`, however, so the effective reference on the real module is AVCC. Using a different reference changes CV scaling. | The original board profile now explicitly uses **AVCC**, matching the effective behaviour of the original firmware and hardware. |
+| ADC filtering | An early implementation averaged three ADC samples. The original firmware instead selects the median of three, which rejects an isolated outlier without shifting the result. | CV acquisition now uses **median-of-three** sampling. |
+| ADC channel switching | Free-running/multiplexed ADC handling could associate a conversion with the wrong channel immediately after a MUX change. | Acquisition was replaced by an interrupt-driven scanner with explicit channel selection and a discarded settling conversion after each MUX change. |
+| Trigger input semantics | The first C++ implementation treated an unpatched trigger input as inactive. On the original PCB, the trigger/sample jack is externally normalised to **+5 V / HIGH**. This caused Track-and-Hold to behave unlike the physical module. | Trigger inputs are interpreted as active-high signals and the documented board behaviour assumes the original HIGH normalisation. With no cable inserted, Track-and-Hold therefore follows CV continuously. |
+| Track-and-Hold timing | Trigger delay and the input-activity LED originally shared timing state. While a gate remained HIGH, refreshing the visual indicator could interfere with delayed quantizer updates. | Trigger-delay timing and input-trigger UI timing now use independent timers. A sustained HIGH gate can track continuously while the activity LED remains lit. |
+| Sample-and-Hold edge handling | A latched trigger edge could remain pending while a sustained HIGH level was processed, causing a stale edge to be consumed later as a phantom sample. | External-interrupt edge latches are consumed independently of the current gate level so old edges cannot be replayed later. |
+| Missed control ticks | Replaying accumulated scheduler ticks using the *current* ADC samples created fictitious historical samples after a timing overrun. | Missed ticks are counted diagnostically rather than replayed. The firmware processes current data once instead of inventing a backlog of past measurements. |
+| SHIFT modifier ordering | Debouncing/processing order allowed a note event to be handled before SHIFT had been recognised. This could toggle a scale note instead of invoking the corresponding SHIFT shortcut. | SHIFT is handled as an immediate modifier, while the resistor-ladder buttons retain their debounce period. Simultaneous SHIFT+note gestures therefore match the original interaction model. |
+| Resistor-ladder decoding | Experimental normalisation of the ladder around an assumed idle value did not match the original PCB and caused incorrect button decoding. | The original absolute ADC ladder targets `0, 93, 171, 236, 292, 341, 384, 421, 455, 485, 512, 536, 558` are used with nearest-value decoding and the original 64 ms debounce behaviour. |
+| Runtime state during UI edits | Applying a changed channel configuration by fully resetting the quantizer runtime state caused A/B activity LEDs and trigger behaviour to react to front-panel note edits. | UI/configuration changes now update configuration without resetting trigger timers or channel runtime state. Editing a scale no longer generates false trigger activity. |
+| Output-trigger generation | Configuration changes could indirectly produce DAC/output-trigger events even though the incoming CV had not crossed to a new quantized note. | DAC updates are cached at the final 12-bit code and output-trigger generation is tied to actual quantized-note changes rather than arbitrary UI reconfiguration. |
+| Track/Sample indication | The four discrete A/B LEDs were at one stage treated as mode indicators, which contradicted the original design. | The four discrete LEDs are strictly **input/output activity indicators**. Track/Sample state is reported on ring position 4 after `SHIFT+4`: green for Track, red for Sample. |
+| Scale safety | A user could disable the final active note and leave a channel with no valid quantization target. | The UI prevents removal of the last active pitch class. Empty/invalid scales loaded from persistence are also rejected or replaced by valid fallback data. |
+| EEPROM ownership | Earlier revisions had more than one EEPROM writer and could wait synchronously for EEPROM completion, creating avoidable runtime stalls and possible write contention. | Persistence now uses one shared **non-blocking EEPROM writer** with queued writes. Save/erase confirmation is only shown after the operation has actually been accepted. |
+| EEPROM corruption/stale data | Raw persisted values could survive firmware changes or contain invalid enum/range values. Automatic live-state restoration could also make fresh firmware appear to ignore new defaults. | Save records are versioned and CRC-checked, persisted ranges are validated, and automatic live-state restore/autosave is disabled by default. Invalid or erased full-config slots fall back to built-in factory presets. |
+| LED calibration range | A previous 12-step mapping did not make the final calibration position correspond exactly to the TLC5947 maximum. | The twelve positions now span the complete **0…4095** PWM range, with nearest-position reconstruction and the final step exactly equal to 4095. |
+| LED calibration colours | Channel/colour semantics were temporarily reversed during calibration work. | Calibration consistently uses **Channel A = green** and **Channel B = red**, matching the normal UI. |
+| LED calibration display | A single illuminated marker made the selected brightness step harder to read, particularly at low PWM values. | Calibration now renders a filled clockwise bar from 12 o'clock through the selected step. |
+| LED brightness assumptions | Calculating red/green balance from resistor values alone produced misleading expectations because LED efficiency, wavelength and the fitted parts differ substantially. | Red and green PWM maxima are explicit configuration values and are intended to be calibrated empirically on the finished module. Startup effects use those calibrated levels as their full-scale reference. |
+| Startup persistence | Startup-sequence rotation needed a deterministic next sequence without consuming a normal configuration slot. | The last EEPROM byte stores only the **next startup-sequence index**. Erased/invalid data starts at sequence 0; after each boot the following index is stored modulo four. |
+| AVR portability | `<limits>` compiled on the host but was unavailable in the user's AVR/PlatformIO toolchain. | The dependency was removed from AVR-facing code and replaced with explicit fixed-width constants. A duplicate local declaration found during the same AVR review was also removed. |
+| Native test discovery | PlatformIO initially reported `Nothing to build` because suite directories did not follow its `test_*` naming convention. | Unit, integration and regression suites were renamed to PlatformIO-discoverable `test_*` directories, and stale expectations were aligned with the final hardware semantics. |
+
+These corrections are intentionally documented separately from the release history. [`CHANGELOG.md`](CHANGELOG.md) records **when** a change entered a public version; this section explains **what was wrong and how the implementation was corrected**.
+
 ## Hardware compatibility
 
 The default board profile follows the original Free Modular Quantizer hardware.
@@ -171,20 +202,22 @@ The firmware prevents the final active note of a scale from being disabled accid
 
 ### SHIFT shortcuts
 
-| Combination | Function | Feedback |
-|---|---|---|
-| SHIFT + 0 | Rotate scale one step left | updated scale |
-| SHIFT + 1 | Rotate scale one step right | updated scale |
-| SHIFT + 2 | Glide | scalar display |
-| SHIFT + 3 | Trigger delay | scalar display |
-| SHIFT + 4 | Toggle Track-and-Hold / Sample-and-Hold | green = Track, red = Sample |
-| SHIFT + 5 | Post-shift | signed scalar display |
-| SHIFT + 6 | Scale-degree shift | signed scalar display |
-| SHIFT + 7 | Pre-shift | signed scalar display |
-| SHIFT + 8 | Channel-B Relative / Absolute mode | green = Relative, red = Absolute |
-| SHIFT + 9 | Link / unlink channels | green = linked, red = unlinked |
-| SHIFT + 10 | Select Channel A | A / green |
-| SHIFT + 11 | Select Channel B | B / red |
+The symbols below match the function pictograms used for the module documentation and panel reference.
+
+| Symbol | Combination | Function | Feedback |
+|:---:|---|---|---|
+| <img src="docs/assets/01_rotate-ccw-transpose-down.svg" width="34" alt="Rotate counterclockwise / transpose down"> | SHIFT + 0 | Rotate scale one step left | updated scale |
+| <img src="docs/assets/02_rotate-cw-transpose-up.svg" width="34" alt="Rotate clockwise / transpose up"> | SHIFT + 1 | Rotate scale one step right | updated scale |
+| <img src="docs/assets/03_glide-portamento.svg" width="34" alt="Glide / portamento"> | SHIFT + 2 | Glide | scalar display |
+| <img src="docs/assets/04_sample-delay.svg" width="34" alt="Sample delay"> | SHIFT + 3 | Trigger delay | scalar display |
+| <img src="docs/assets/05_track-sample-toggle.svg" width="34" alt="Track / sample toggle"> | SHIFT + 4 | Toggle Track-and-Hold / Sample-and-Hold | green = Track, red = Sample |
+| <img src="docs/assets/06_post-shift.svg" width="34" alt="Post shift"> | SHIFT + 5 | Post-shift | signed scalar display |
+| <img src="docs/assets/07_scale-shift.svg" width="34" alt="Scale shift"> | SHIFT + 6 | Scale-degree shift | signed scalar display |
+| <img src="docs/assets/08_pre-shift.svg" width="34" alt="Pre shift"> | SHIFT + 7 | Pre-shift | signed scalar display |
+| <img src="docs/assets/09_relative-pitch-toggle.svg" width="34" alt="Relative pitch toggle"> | SHIFT + 8 | Channel-B Relative / Absolute mode | green = Relative, red = Absolute |
+| <img src="docs/assets/10_channels-linked-toggle.svg" width="34" alt="Channels linked toggle"> | SHIFT + 9 | Link / unlink channels | green = linked, red = unlinked |
+| <img src="docs/assets/11_select-channel-a.svg" width="34" alt="Select Channel A"> | SHIFT + 10 | Select Channel A | A / green |
+| <img src="docs/assets/12_select-channel-b.svg" width="34" alt="Select Channel B"> | SHIFT + 11 | Select Channel B | B / red |
 
 When channels are linked, edits apply to both channels. Linking copies Channel A's current configuration to Channel B and returns selection to Channel A.
 
@@ -392,6 +425,12 @@ Release history is maintained in [CHANGELOG.md](CHANGELOG.md).
 - [README_CONFIGURATION.md](README_CONFIGURATION.md) — firmware configuration reference
 - [README_CALIBRATION.md](README_CALIBRATION.md) — detailed hardware and LED calibration workflow
 - [CHANGELOG.md](CHANGELOG.md) — public release history
+- [.github/SECURITY.md](.github/SECURITY.md) — vulnerability reporting and supported-version policy
+- [`docs/assets/`](docs/assets/) — panel artwork and UI pictograms used by the documentation
+
+## Security
+
+Please report suspected vulnerabilities privately rather than through public issues or discussions. See the repository [Security Policy](.github/SECURITY.md) for scope, supported versions and reporting instructions.
 
 ## Source headers and maintenance metadata
 
