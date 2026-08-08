@@ -27,6 +27,7 @@ Patch release correcting and restoring the native CI test suite. Intended quanti
 - Corrected the startup-sequence-store test include path.
 - Added safe defaults to `MenuInput` so a value-initialized input represents no key, no SAVE/LOAD press, and SHIFT released.
 - Restored GitHub Actions native-test execution.
+- Fixed the native coverage job by explicitly linking the GCC gcov runtime for `--coverage` instrumented test binaries.
 - Standardised the root `LICENSE` file for GitHub licence detection and added a GitHub security policy.
 - Prevented local `compile_commands.json` files from being tracked because compilation databases may contain machine-specific absolute paths.
 

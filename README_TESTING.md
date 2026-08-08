@@ -179,6 +179,8 @@ gcovr --root . --filter lib/fmq/src --exclude test --txt
 
 Coverage is a secondary metric. A high line percentage is not considered sufficient when a timing edge, state transition, corruption case or externally observable requirement is untested.
 
+`scripts/platformio_coverage.py` explicitly adds GCC's `--coverage` option to the final native link step. This is required because instrumented objects reference the gcov runtime (`__gcov_init`, `__gcov_exit`, `__gcov_merge_add`); compile-time instrumentation without the matching link flag produces unresolved-symbol linker failures in CI.
+
 ## What native tests cannot prove
 
 Native tests cannot validate analogue or physical effects such as:
