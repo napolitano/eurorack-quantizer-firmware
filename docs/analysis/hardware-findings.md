@@ -66,7 +66,7 @@ Static gain error can be calibrated in software. Fast supply/reference noise can
 
 A5, A6 and A7 share the ATmega328P's multiplexed ADC. The firmware cycles through the channels; they are not sampled by independent ADCs.
 
-We have already added native tests showing that the C++ quantizer logic does not digitally route A into B when B is in Absolute mode. Because a real unit was observed producing activity on B while A was patched, the analogue path and ADC multiplexing deserve a closer look.
+I have already added native tests showing that the C++ quantizer logic does not digitally route A into B when B is in Absolute mode. Because a real unit was observed producing activity on B while A was patched, the analogue path and ADC multiplexing deserve a closer look.
 
 I do **not** have enough evidence to call this a hardware defect. The useful bench checks are straightforward:
 
@@ -76,7 +76,7 @@ I do **not** have enough evidence to call this a hardware defect. The useful ben
 4. Measure the B analogue-stage output before the Nano while A is swept.
 5. Repeat with different source impedances if the behaviour changes.
 
-That should tell us whether we are looking at ADC settling, analogue crosstalk, a floating/unpatched input effect, or something else entirely.
+That should help me determine whether I am looking at ADC settling, analogue crosstalk, a floating/unpatched input effect, or something else entirely.
 
 ## CV inputs
 
@@ -135,7 +135,7 @@ The MCP4922 and TLC5947 share clock/data lines. That is a sensible way to save M
 
 DAC traffic can alter the TLC5947 shift register without changing its visible output latch. That is harmless as long as the firmware always sends a complete 288-bit LED frame before the next latch operation.
 
-The original firmware follows this full-frame approach. Our reimplementation should continue treating this as a hardware invariant and keep it covered by tests where possible.
+The original firmware follows this full-frame approach. My reimplementation should continue treating this as a hardware invariant and keep it covered by tests where possible.
 
 ### PowerPAD soldering on the TLC5947
 
@@ -180,13 +180,13 @@ There may be further small discrepancies hidden in the published prose, so for a
 
 ### Builder notes: precision resistors, LEDs and parts quality
 
-A few choices from our own build are useful to record here, but they should not be confused with requirements of the original design. They are practical decisions made while trying to build the module reproducibly rather than cheaply at any cost.
+A few choices from my own build are useful to record here, but they should not be confused with requirements of the original design. They are practical decisions made while trying to build the module reproducibly rather than cheaply at any cost.
 
-For the resistor pairs that materially affect CV scaling, we used **0.1% precision resistors**. That is probably more accuracy than the basic DIY design strictly requires, especially because trim and firmware calibration can remove part of the static error. I still think it is a sensible place to spend a small amount of money. Good ratio accuracy reduces the amount of error that has to be corrected later and, unlike many cosmetic upgrades, directly supports the function of a quantizer. If a future BOM keeps this choice, it should identify exactly which positions require the tighter tolerance instead of silently turning every resistor into a precision part.
+For the resistor pairs that materially affect CV scaling, I used **0.1% precision resistors**. That is probably more accuracy than the basic DIY design strictly requires, especially because trim and firmware calibration can remove part of the static error. I still think it is a sensible place to spend a small amount of money. Good ratio accuracy reduces the amount of error that has to be corrected later and, unlike many cosmetic upgrades, directly supports the function of a quantizer. If a future BOM keeps this choice, it should identify exactly which positions require the tighter tolerance instead of silently turning every resistor into a precision part.
 
 The LED resistors deserve much stronger wording than a normal fixed-value BOM entry. The values published with the original assembly notes were evidently appropriate for the LEDs used by Quinn Freedman when that BOM was written, but they should not be assumed to transfer unchanged to another batch. Forward voltage, luminous efficiency and the red/green brightness ratio can differ substantially between parts that are all sold under a generic description such as "3 mm red/green common-anode LED". This is particularly difficult with inexpensive parts whose manufacturer and optical bin are not traceable.
 
-In our current batch, the values that produced the desired balance were **150 Ω for green and 1.5 kΩ for red**. Those numbers are empirical values for that batch, not recommended universal replacements. A builder should determine the resistor values for the actual LEDs before committing to the full assembly, ideally with one sample on a breadboard or other current-limited test setup. The polarity/color assignment should be checked at the same time.
+In my current batch, the values that produced the desired balance were **150 Ω for green and 1.5 kΩ for red**. Those numbers are empirical values for that batch, not recommended universal replacements. A builder should determine the resistor values for the actual LEDs before committing to the full assembly, ideally with one sample on a breadboard or other current-limited test setup. The polarity/color assignment should be checked at the same time.
 
 This is also a good example of why "cheap component" and "equivalent component" are not synonyms. For non-critical passives, anonymous stock may be perfectly adequate. In the precision CV path, voltage reference, semiconductors, switches with mechanical constraints, and LEDs where brightness balance matters, a traceable manufacturer part number has real value: tolerance, temperature behaviour, package dimensions, absolute ratings and optical/electrical characteristics are at least specified and repeatable. With untraceable marketplace parts, the issue is not that they are automatically bad; it is that the builder often has no reliable specification against which a failure or variation can be judged.
 
@@ -217,7 +217,7 @@ The second option is probably the most maintainable. Distributor columns can the
 
 My current read is that the published documentation is **buildable but not fully reproducible from the BOM alone**. An experienced builder can get the module together successfully because the schematic/KiCad data, interactive BOM and assembly notes fill in the gaps. A less experienced builder is more likely to have to infer things that should ideally be explicit.
 
-That distinction matters. The original documentation is clearly written as practical DIY guidance, not as a contract-manufacturing package. Judged on that basis it works reasonably well. If we are using the design as the starting point for a more polished revision, though, the BOM is one of the places where a relatively small documentation effort would improve the experience a lot.
+That distinction matters. The original documentation is clearly written as practical DIY guidance, not as a contract-manufacturing package. Judged on that basis it works reasonably well. If I use the design as the starting point for a more polished revision, though, the BOM is one of the places where a relatively small documentation effort would improve the experience a lot.
 
 ## Notes for a possible hardware revision
 
@@ -246,7 +246,7 @@ These are not change requests. They are the items I would put on the table befor
 
 My overall impression is favourable. The circuit is clearly optimized for a low-cost, buildable DIY module, and within that constraint it achieves a lot with relatively few parts. The DAC/reference/output section in particular is more thoughtful than one might expect from such a small BOM.
 
-The areas I would be least comfortable carrying forward unchanged are the power entry, the direct dependency on bus +5 V, the lack of clearly visible dedicated input protection, and the fairly opportunistic Sample/Gate conditioning. None of those observations proves the current board is unreliable; they simply leave less engineering margin than I would want if we were turning the design into a new revision with stronger precision and robustness goals.
+The areas I would be least comfortable carrying forward unchanged are the power entry, the direct dependency on bus +5 V, the lack of clearly visible dedicated input protection, and the fairly opportunistic Sample/Gate conditioning. None of those observations proves the current board is unreliable; they simply leave less engineering margin than I would want if I were turning the design into a new revision with stronger precision and robustness goals.
 
 The documentation has a similar character to the hardware: pragmatic and sufficient to get a determined DIY builder to a working module, but not as tightly specified as I would want for repeatable builds across different regions and suppliers. The BOM would benefit more from clarification and normalization than from being reinvented.
 

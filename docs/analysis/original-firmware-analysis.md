@@ -64,7 +64,7 @@ The TLC5947 allows a rich bi-colour ring without consuming 24 MCU pins. DAC and 
 
 On this hardware the firmware provides two channels, independent scales, linking, Relative B, Track/Sample operation, delay, glide, three transposition mechanisms, scale/config persistence and extensive LED feedback.
 
-That is the context in which the weaknesses below should be read. The project is not a failed attempt at a simple quantizer; it is an ambitious implementation that gets a lot right and has a handful of edge cases that are easy to expose once we start specifying and testing the behaviour more rigorously.
+That is the context in which the weaknesses below should be read. The project is not a failed attempt at a simple quantizer; it is an ambitious implementation that gets a lot right and has a handful of edge cases that are easy to expose once I start specifying and testing the behaviour more rigorously.
 
 ## Behaviour that appears to need correction or hardening
 
@@ -152,7 +152,7 @@ This is a good example of why tiny utility functions benefit from exhaustive tes
 
 The original AVR Rust code uses unstable features and contains assembly/compiler-related workarounds. Given the state of AVR Rust support, that is understandable.
 
-They should not be copied into the C++ implementation unless there is a current, independently demonstrated need. We are reproducing product behaviour, not historical toolchain constraints.
+They should not be copied into the C++ implementation unless there is a current, independently demonstrated need. I am reproducing product behaviour, not historical toolchain constraints.
 
 ## Additional things I would keep an eye on
 
@@ -162,7 +162,7 @@ They should not be copied into the C++ implementation unless there is a current,
 
 That means the first quantization can potentially be treated as if C had already been the previous note. If C is active and the input is near the first boundary, the initial sample can therefore be influenced by hysteresis before any real note has been established.
 
-This is one of those cases where a tiny state-model improvement (`Option<note>` / validity flag) makes the intended behaviour much clearer. We have a regression/known-failure test around this boundary in the C++ work.
+This is one of those cases where a tiny state-model improvement (`Option<note>` / validity flag) makes the intended behaviour much clearer. I have a regression/known-failure test around this boundary in the C++ work.
 
 ### The scheduler collapses missed ticks into one pending flag
 
@@ -194,7 +194,7 @@ It has no version and no CRC/checksum, though, so schema changes and silent corr
 
 The original project has useful module separation, but the application still brings GPIO, EEPROM, SPI, menu decisions and scheduling together quite tightly.
 
-That is manageable on a small firmware project, but it makes host-native testing harder. One of the goals of the C++ architecture is therefore not merely stylistic: explicit ports/interfaces let us test the musical state machine without AVR hardware attached.
+That is manageable on a small firmware project, but it makes host-native testing harder. One of the goals of the C++ architecture is therefore not merely stylistic: explicit ports/interfaces let me test the musical state machine without AVR hardware attached.
 
 ## Things that look odd but are intentional
 
