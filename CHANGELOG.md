@@ -14,6 +14,12 @@ A new section should be added when a release version is explicitly declared.
 
 Patch release correcting and restoring the native CI test suite. Intended quantizer runtime behaviour is unchanged from 0.1.0.
 
+### Added
+
+- Expanded the native test net with fine-grained two-channel isolation checks: in Absolute mode Channel B is verified at quantized-pitch and final DAC-code level while Channel A sweeps the complete 10-bit ADC range; the complementary Relative-mode behaviour is verified explicitly.
+- Added Sample-and-Hold and reverse-direction A/B independence regression coverage so activity on either CV input cannot silently leak into the other channel's digital signal path.
+- Expanded Retro Arpeggiator documentation to describe its intended fast, scale-aware 8-bit-computer-style arpeggio character.
+
 ### Fixed
 
 - Renamed PlatformIO test-suite directories to the required `test_*` convention so `pio test -e native` discovers and builds the native unit, integration and regression tests correctly.

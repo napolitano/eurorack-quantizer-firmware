@@ -19,3 +19,9 @@ _test_build/
 # Local compilation database (may contain absolute/private paths)
 compile_commands.json
 **/compile_commands.json
+
+# Native coverage reports
+coverage/
+coverage.html
+*.gcda
+*.gcno

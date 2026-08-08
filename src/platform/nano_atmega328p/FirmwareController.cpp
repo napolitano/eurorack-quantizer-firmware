@@ -27,6 +27,7 @@
 #include "fmq/persistence/StartupSequenceStore.h"
 #include "fmq/application/StartupAnimation.h"
 #include "fmq/application/RetroArpeggiator.h"
+#include "fmq/application/RetroArpeggiatorGesture.h"
 #include "platform/nano_atmega328p/AvrAnalogInputs.h"
 #include "platform/nano_atmega328p/AvrDigitalInput.h"
 #include "platform/nano_atmega328p/AvrTriggerInputs.h"
@@ -112,9 +113,7 @@ static StartupSequenceStore g_startupSequenceStore(g_eeprom, g_eepromWriter);
 static Menu g_menu;
 static RetroArpeggiator g_retroArpeggiator;
 
-constexpr uint32_t kNoRetroArpHold = 0xFFFFFFFFu;
-static uint32_t g_retroArpHoldStartMs = kNoRetroArpHold;
-static bool g_retroArpHoldConsumed = false;
+static RetroArpeggiatorGesture g_retroArpGesture;
 static uint32_t g_retroArpFeedbackUntilMs = 0u;
 static LedColor g_retroArpFeedbackColor = LedColor::Off;
 
@@ -139,44 +138,18 @@ static bool isButtonCurrentlyDown(LongPressButtonState state) {
 }
 
 static void updateRetroArpGesture(const MenuInput &input, uint32_t nowMs) {
-  if (g_menu.inCalibration()) {
-    g_retroArpHoldStartMs = kNoRetroArpHold;
-    g_retroArpHoldConsumed = false;
-    return;
-  }
-
   const bool noteButtonActive = input.keyEvent.type != ButtonEventType::None;
   const bool companionControlActive =
       noteButtonActive || isButtonCurrentlyDown(input.saveButton) ||
       isButtonCurrentlyDown(input.loadButton);
 
-  if (!input.shiftPressed) {
-    g_retroArpHoldStartMs = kNoRetroArpHold;
-    g_retroArpHoldConsumed = false;
-    return;
-  }
-
-  if (companionControlActive) {
-    // Once SHIFT has participated in a normal shortcut, require a complete
-    // release before another SHIFT-alone Retro Arpeggiator hold can begin.
-    g_retroArpHoldStartMs = kNoRetroArpHold;
-    g_retroArpHoldConsumed = true;
-    return;
-  }
-
-  if (g_retroArpHoldConsumed) {
-    return;
-  }
-  if (g_retroArpHoldStartMs == kNoRetroArpHold) {
-    g_retroArpHoldStartMs = nowMs;
-    return;
-  }
-  if (nowMs - g_retroArpHoldStartMs < config::kRetroArpToggleHoldMs) {
+  const RetroArpeggiatorGestureAction action = g_retroArpGesture.update(
+      input.shiftPressed, companionControlActive, g_menu.inCalibration(), nowMs);
+  if (action != RetroArpeggiatorGestureAction::Toggle) {
     return;
   }
 
   g_retroArpeggiator.toggle(nowMs);
-  g_retroArpHoldConsumed = true;
   g_retroArpFeedbackUntilMs = nowMs + config::kRetroArpFeedbackMs;
   g_retroArpFeedbackColor =
       g_retroArpeggiator.enabled() ? LedColor::Amber : LedColor::Red;

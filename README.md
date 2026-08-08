@@ -142,9 +142,10 @@ Two workflows are included under `.github/workflows/`.
 Runs on pushes, pull requests and manual dispatches. It:
 
 1. installs PlatformIO Core;
-2. runs the native test suite;
-3. builds both Nano environments;
-4. uploads the resulting `.hex` and `.elf` files as workflow artifacts.
+2. runs all 26 native test suites as independent matrix jobs (`fail-fast: false`);
+3. runs a separate aggregate coverage job and uploads HTML/XML/text reports;
+4. builds both Nano environments;
+5. uploads the resulting `.hex` and `.elf` files as workflow artifacts.
 
 ### `release.yml`
 
@@ -295,7 +296,7 @@ The factory presets are rooted on C and otherwise use the normal factory configu
 
 ## Retro Arpeggiator
 
-The **Retro Arpeggiator is an official performance feature** of this firmware.
+The **Retro Arpeggiator is an official performance feature** of this firmware. Its deliberately fast three-note pattern can bring back the characteristic rapid arpeggio textures associated with **classic 8-bit home computers and game music**, while remaining musically useful because the intervals are derived from the selected scale rather than from a fixed chord table.
 
 Hold **SHIFT by itself for 3 seconds** during normal operation to toggle it. If a note button, LOAD or SAVE is used while SHIFT is held, the pending long-hold is cancelled so normal SHIFT shortcuts cannot accidentally enable the feature. The gesture is disabled during LED calibration.
 
@@ -398,10 +399,11 @@ test/
   unit/
   integration/
   regression/
+  system/
   support/
 ```
 
-The native tests cover quantization, scale handling, controls, menu logic, persistence, startup behaviour, historical regressions and the Retro Arpeggiator. AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
+The native suite currently contains **26 independently runnable suites and 168 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption and the Retro Arpeggiator. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy and known specification findings. AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
 
 Release history is maintained in [CHANGELOG.md](CHANGELOG.md).
 
@@ -432,3 +434,8 @@ Licensed under **GPL-3.0-or-later**, consistent with the original firmware. See 
 This is an independent reimplementation and is not affiliated with or endorsed by Free Modular.
 
 **From Munich With Love ❤️**
+
+
+## Testing
+
+Native unit, integration and system signal-path tests are documented in [`README_TESTING.md`](README_TESTING.md).
