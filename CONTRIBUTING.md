@@ -12,6 +12,8 @@ For feature requests, describe the user-facing problem first and the proposed im
 
 ## Development environment
 
+For complete Windows 11 x64, macOS, Linux and VSCodium setup instructions, including the native host compiler, Python/`PATH` requirements, local tests and firmware upload, see [docs/development/README.md](docs/development/README.md).
+
 The project uses PlatformIO and C++17. The supported target environments are:
 
 - `nanoatmega328new` — Arduino Nano / ATmega328P with the newer bootloader;

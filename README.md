@@ -467,6 +467,7 @@ The workflow structure follows PlatformIO's documented GitHub Actions approach: 
 - [README_CONFIGURATION.md](README_CONFIGURATION.md) — firmware configuration reference
 - [README_CALIBRATION.md](README_CALIBRATION.md) — detailed hardware and LED calibration workflow
 - [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md) — complete second-layer Arpeggiator operation, timing, sync and persistence reference
+- [docs/development/README.md](docs/development/README.md) — cross-platform VSCodium/PlatformIO development setup, local tests, firmware upload and hardware smoke-test workflow
 - [README_TESTING.md](README_TESTING.md) — native unit, integration and system signal-path test strategy
 - [CHANGELOG.md](CHANGELOG.md) — public release history and queued unreleased changes
 - [.github/SECURITY.md](.github/SECURITY.md) — vulnerability reporting and supported-version policy

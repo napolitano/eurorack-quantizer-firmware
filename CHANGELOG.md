@@ -27,6 +27,8 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 
 ### Added
 
+- Added a cross-platform development-environment guide for VSCodium/PlatformIO on Windows 11 x64, macOS and Linux, including the Windows Python/`PATH` and native GCC requirements, local test/coverage workflows, Nano deployment, AVR resource checks and hardware smoke testing.
+
 - Added project community-health infrastructure for external contributions: contribution guidelines, a code of conduct, structured bug and feature issue forms, and a pull-request template.
 
 - Expanded the native test net with fine-grained two-channel isolation checks: in Absolute mode Channel B is verified at quantized-pitch and final DAC-code level while Channel A sweeps the complete 10-bit ADC range; the complementary Relative-mode behaviour is verified explicitly.
