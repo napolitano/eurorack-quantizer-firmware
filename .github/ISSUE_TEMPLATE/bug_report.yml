@@ -1,0 +1,115 @@
+name: Bug report
+description: Report a reproducible firmware, build, CI, or release problem.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please provide enough information to reproduce it. Security vulnerabilities must be reported through the repository security policy, not this form.
+
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version or commit
+      description: Use a release version such as 0.2.0 or a commit SHA.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Quantizer runtime
+        - Arpeggiator
+        - Front-panel UI / LEDs
+        - Sample / gate / trigger handling
+        - External clock
+        - Persistence / EEPROM
+        - Calibration
+        - Build / PlatformIO
+        - CI / release automation
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Channel
+      description: Select the closest match if the problem is runtime-related.
+      options:
+        - Not applicable
+        - Channel A
+        - Channel B
+        - Both channels
+        - Linked channels
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Hardware and setup
+      description: Describe the Nano/bootloader variant, relevant patches, clock/gate/CV source, and any other setup details that matter. Hardware modifications are outside this firmware project's supported scope.
+      placeholder: "Original module hardware, Nano with newer bootloader, external 5 V clock on channel A..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that triggers the problem.
+      placeholder: |
+        1. Power on with...
+        2. Select...
+        3. Patch...
+        4. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or build output
+      description: Paste only the output needed to diagnose the problem.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Measurements or other evidence
+      description: Add measurements, photographs, short recordings, or other evidence when they materially help reproduce the issue.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked that this problem is not already covered by an open issue.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+        - label: I have not assumed a hardware modification as the fix.
+          required: true

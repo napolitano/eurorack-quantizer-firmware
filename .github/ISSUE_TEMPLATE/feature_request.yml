@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose a firmware or project feature that remains compatible with the existing hardware.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are evaluated against usability, maintainability, AVR resource limits, and compatibility with the existing Free Modular Quantizer hardware.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem or goal
+      description: Describe the user-facing need before describing an implementation.
+      placeholder: "When performing with the module, I need..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe what the firmware should do from the user's point of view.
+    validations:
+      required: true
+
+  - type: textarea
+    id: interaction
+    attributes:
+      label: Suggested interaction or implementation
+      description: Optional. Include menu gestures, state behavior, or implementation ideas if useful.
+    validations:
+      required: false
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      description: Note interactions with existing quantizer/arpeggiator behavior, persistence, timing, or older saved state.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Project constraints
+      options:
+        - label: The proposal works on the existing Arduino Nano R3 / ATmega328P hardware without PCB, component, or wiring changes.
+          required: true
+        - label: I understand that flash, SRAM, timing, and UI complexity may limit otherwise useful features.
+          required: true
+        - label: I checked for an existing issue covering the same request.
+          required: true

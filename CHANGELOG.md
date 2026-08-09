@@ -27,6 +27,8 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 
 ### Added
 
+- Added project community-health infrastructure for external contributions: contribution guidelines, a code of conduct, structured bug and feature issue forms, and a pull-request template.
+
 - Expanded the native test net with fine-grained two-channel isolation checks: in Absolute mode Channel B is verified at quantized-pitch and final DAC-code level while Channel A sweeps the complete 10-bit ADC range; the complementary Relative-mode behaviour is verified explicitly.
 - Added Sample-and-Hold and reverse-direction A/B independence regression coverage so activity on either CV input cannot silently leak into the other channel's digital signal path.
 - Expanded Arpeggiator documentation to describe its intended fast, scale-aware 8-bit-computer-style arpeggio character.

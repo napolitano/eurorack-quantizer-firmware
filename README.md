@@ -276,7 +276,19 @@ Startup animation can be disabled in configuration. When sequence rotation is en
 
 The twelve-note ring portion of **every** sequence is capped at **1500 ms**; current timings are 840 ms for Color Fade, 1440 ms for Glowworm, 1440 ms for Cog and 1450 ms for Sparkles. The separate four-status-LED self-test follows afterwards and is not part of this ring-animation limit. After the ring animation, the four discrete status LEDs flash once each in physical order before normal operation begins. After sequence 4 the selector wraps back to sequence 1; invalid or erased sequence-state data also falls back to sequence 1.
 
+## Version history
+
+This firmware uses semantic versioning to distinguish compatibility fixes from larger functional releases. The entries below provide a concise user-facing history; see [CHANGELOG.md](CHANGELOG.md) for the complete release notes.
+
+- **0.1.0 — August 7, 2026:** Initial public release of the PlatformIO/C++ reimplementation for the original Arduino Nano / ATmega328P hardware. It established the complete dual-channel quantizer workflow, factory preset bank, calibrated LED handling, startup sequences, robust persistence, native tests and CI, and the first scale-aware Arpeggiator performance mode.
+- **0.1.1 — August 7, 2026:** Patch release limited to correcting and restoring native test-suite and CI execution. Intended quantizer runtime behavior remained unchanged from 0.1.0.
+- **0.2.0 — August 9, 2026:** First substantial feature expansion of the alternative firmware. It adds the full second Arpeggiator control layer, symmetric SHIFT double-click entry and exit, expanded scale-aware patterns and clocking, more complete live/full-configuration restore, tighter external-clock capture, corrected initial hysteresis and resistor-ladder validation, broader regression coverage, and the extended release/manual infrastructure.
+
 # Technical reference
+
+## Contributing and project policies
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the PlatformIO workflow, test requirements, AVR resource constraints, changelog policy, and the fixed-hardware compatibility rule. Community participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md); suspected security vulnerabilities must follow the private reporting process in [.github/SECURITY.md](.github/SECURITY.md).
 
 ## Hardware compatibility
 
