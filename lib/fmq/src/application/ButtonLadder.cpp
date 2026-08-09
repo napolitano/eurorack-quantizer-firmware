@@ -50,7 +50,27 @@ uint8_t closestButtonIndex(uint16_t adcValue) {
 }
 
 uint8_t buttonIndexForAdc(uint16_t adcValue, uint16_t restAdc) {
-  return closestButtonIndex(normalise(adcValue, restAdc));
+  const uint16_t normalized = normalise(adcValue, restAdc);
+
+  // The unpressed node is intentionally accepted as a broad high range: once
+  // the ladder approaches its measured rest voltage there is no valid key to
+  // decode. This also makes open-circuit/high ADC faults fail safe as "none".
+  if (normalized >= config::kLadderMinimumValidRest) {
+    return config::kLadderNoButton;
+  }
+
+  const uint8_t candidate = closestButtonIndex(normalized);
+  if (candidate >= config::kLadderButtonCount) {
+    return config::kLadderNoButton;
+  }
+
+  const uint16_t expected = config::kLadderExpectedValues[candidate];
+  const uint16_t delta = normalized > expected
+                             ? static_cast<uint16_t>(normalized - expected)
+                             : static_cast<uint16_t>(expected - normalized);
+  return delta <= config::kLadderButtonAcceptanceDelta
+             ? candidate
+             : config::kLadderNoButton;
 }
 
 void ButtonLadder::calibrateRest(uint16_t adcValue) {

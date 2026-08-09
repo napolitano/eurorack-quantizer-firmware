@@ -111,7 +111,7 @@ struct QuantizationResult {
  */
 class Hysteresis {
  public:
-  Hysteresis() : lastOutput_(0) {}
+  Hysteresis() : lastOutput_(0), hasLastOutput_(false) {}
 
   /**
    * @brief Quantize a pre-shifted input pitch to a selected scale note.
@@ -122,7 +122,10 @@ class Hysteresis {
   int8_t quantize(SemitoneQ8_8 inputQ8_8, const bool notes[kNoteCount]);
 
   /// Reset the remembered note (used when a channel's state is reinitialised).
-  void reset() { lastOutput_ = 0; }
+  void reset() {
+    lastOutput_ = 0;
+    hasLastOutput_ = false;
+  }
 
  private:
   /// Compute the hold band [lower, upper] (Q8.8) around the last note, if the
@@ -131,6 +134,7 @@ class Hysteresis {
                          SemitoneQ8_8 &upperQ8_8) const;
 
   int8_t lastOutput_;  ///< Last note emitted by quantize().
+  bool hasLastOutput_;  ///< False until the first real quantization result.
 };
 
 /**
@@ -154,7 +158,8 @@ class QuantizerChannel {
    * @param sampleTrigger  Current level of this channel's trigger input.
    * @return The channel output for this sample.
    */
-  ChannelOutput step(SemitoneQ8_8 inputSemitones, bool sampleTrigger);
+  ChannelOutput step(SemitoneQ8_8 inputSemitones, bool sampleTrigger,
+                     bool forceContinuous = false);
 
   /// Suppress the output-trigger pulse for the next pitch change.
   /// Used after front-panel configuration edits: changing the scale or another
@@ -214,7 +219,8 @@ class QuantizerState {
    */
   QuantizationResult step(SemitoneQ8_8 inputSemitonesA,
                           SemitoneQ8_8 inputSemitonesB, bool triggerA,
-                          bool triggerB);
+                          bool triggerB, bool forceContinuousA = false,
+                          bool forceContinuousB = false);
 
   /// Prevent the next configuration-induced pitch change from generating
   /// channel trigger pulses/LED flashes.

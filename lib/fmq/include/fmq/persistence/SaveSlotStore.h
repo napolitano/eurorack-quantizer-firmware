@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 #include "fmq/persistence/PersistenceLayout.h"
+#include "fmq/application/StoredConfiguration.h"
 #include "fmq/domain/Quantizer.h"
 #include "fmq/ports/Eeprom.h"
 #include "fmq/persistence/AsyncEepromWriter.h"
@@ -62,11 +63,11 @@ class SaveSlotStore {
   /// @return true if the slot held a valid scale (else @p notes is untouched).
   bool readScale(uint8_t slot, bool notes[kNoteCount]) const;
 
-  /// Save the full quantizer state into config slot @p slot (0..11).
-  bool writeConfig(uint8_t slot, const QuantizerState &state);
-  /// Load a full quantizer state from config slot @p slot into @p state.
+  /// Save the complete musical state into config slot @p slot (0..11).
+  bool writeConfig(uint8_t slot, const StoredConfiguration &state);
+  /// Load a complete musical state from config slot @p slot into @p state.
   /// @return true if the slot held a valid config (else @p state is untouched).
-  bool readConfig(uint8_t slot, QuantizerState &state) const;
+  bool readConfig(uint8_t slot, StoredConfiguration &state) const;
 
   /// Invalidate every scale and config slot (the "erase all" feature).
   bool eraseAll();

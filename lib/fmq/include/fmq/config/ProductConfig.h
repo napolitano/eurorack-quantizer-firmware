@@ -41,10 +41,14 @@ constexpr uint8_t kOutputTriggerLedSamples = 65;
 constexpr uint8_t kOutputTriggerCvSamples = 5;
 constexpr int16_t kHysteresisQ8_8 = 102;
 
-// Retro Arpeggiator. It cycles the root, diatonic third and
-// diatonic fifth of the currently active scale.
-constexpr uint16_t kRetroArpStepMs = 24;
-constexpr uint8_t kRetroArpDegreeCount = 3;
+// Arpeggiator limits and defaults. Factory/default operation is intentionally
+// internal and free-running: 24 ms, root/third/fifth, no external clock. CLOCK
+// is an explicit additional sync mode selected by the user.
+constexpr uint8_t kArpRateCount = 12;
+constexpr uint8_t kArpDefaultRateIndex = 3;  // 24 ms in FREE/RESET
+constexpr uint8_t kArpMaximumLength = 12;
+constexpr uint8_t kArpMaximumRange = 4;
+constexpr uint8_t kArpMaximumSwingStep = 11;
 
 static_assert((kFactoryScaleMask & 0x0FFFu) != 0,
               "factory scale must not be empty");
@@ -55,6 +59,10 @@ static_assert(kMaxTriggerDelayAmount <= 31,
               "trigger delay amount is unexpectedly large");
 static_assert(kOutputTriggerCvSamples <= kOutputTriggerLedSamples,
               "CV trigger must fit LED pulse");
+static_assert(kArpDefaultRateIndex < kArpRateCount,
+              "invalid Arpeggiator default rate");
+static_assert(kArpMaximumLength <= 12,
+              "Arpeggiator length must fit the note-button UI");
 
 }  // namespace fmq::config
 

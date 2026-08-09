@@ -11,6 +11,7 @@
 #include <unity.h>
 
 #include "FakeEeprom.h"
+#include "fmq/application/ArpeggiatorBank.h"
 #include "fmq/ui/Menu.h"
 
 using namespace fmq;
@@ -26,6 +27,7 @@ struct Fixture {
   SaveSlotStore store;
   Menu menu;
   QuantizerState quantizer;
+  ArpeggiatorBank arpeggiators;
   QuantizationResult result;
   Fixture() : writer(eeprom), store(eeprom, writer), result(QuantizationResult::makeZero()) {
     menu.begin(store);
@@ -51,16 +53,16 @@ void onlyC(ChannelConfig &cfg) {
   cfg.notes[0]=true;
 }
 void openScalarAndSet(Fixture &f, uint8_t command, uint8_t value) {
-  f.menu.update(f.quantizer, press(command,true), f.result, 100u, f.store);
-  f.menu.update(f.quantizer, release(true), f.result, 110u, f.store);
-  f.menu.update(f.quantizer, press(value,true), f.result, 200u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(command,true), f.result, 100u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, release(true), f.result, 110u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(value,true), f.result, 200u, f.store);
 }
 }
 
 // FA-083 SHIFT+C
 static void test_shift_c_rotates_scale_down_one_pitch_class(void) {
   Fixture f; onlyC(f.quantizer.channels[0].config());
-  f.menu.update(f.quantizer, press(0), f.result, 100u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(0), f.result, 100u, f.store);
   TEST_ASSERT_FALSE(f.quantizer.channels[0].config().notes[0]);
   TEST_ASSERT_TRUE(f.quantizer.channels[0].config().notes[11]);
 }
@@ -68,7 +70,7 @@ static void test_shift_c_rotates_scale_down_one_pitch_class(void) {
 // FA-084 SHIFT+C#
 static void test_shift_csharp_rotates_scale_up_one_pitch_class(void) {
   Fixture f; onlyC(f.quantizer.channels[0].config());
-  f.menu.update(f.quantizer, press(1), f.result, 100u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(1), f.result, 100u, f.store);
   TEST_ASSERT_FALSE(f.quantizer.channels[0].config().notes[0]);
   TEST_ASSERT_TRUE(f.quantizer.channels[0].config().notes[1]);
 }
@@ -89,7 +91,7 @@ static void test_shift_dsharp_opens_delay_and_accepts_0_to_11_value(void) {
 static void test_shift_e_toggles_track_and_sample(void) {
   Fixture f;
   TEST_ASSERT_EQUAL(SampleMode::TrackAndHold, f.quantizer.channels[0].config().sampleMode);
-  f.menu.update(f.quantizer, press(4), f.result, 100u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(4), f.result, 100u, f.store);
   TEST_ASSERT_EQUAL(SampleMode::SampleAndHold, f.quantizer.channels[0].config().sampleMode);
 }
 
@@ -115,7 +117,7 @@ static void test_shift_g_opens_pre_shift_and_maps_fsharp_to_plus6(void) {
 static void test_shift_gsharp_toggles_channel_b_relative_mode(void) {
   Fixture f;
   TEST_ASSERT_EQUAL(PitchMode::Absolute, f.quantizer.channelBMode);
-  f.menu.update(f.quantizer, press(8), f.result, 100u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(8), f.result, 100u, f.store);
   TEST_ASSERT_EQUAL(PitchMode::Relative, f.quantizer.channelBMode);
 }
 
@@ -127,7 +129,7 @@ static void test_shift_a_links_and_copies_entire_channel_a_config_to_b(void) {
   a.postShift=-2; a.sampleMode=SampleMode::SampleAndHold; onlyC(a);
   ChannelConfig &b=f.quantizer.channels[1].config();
   b.glideAmount=1; b.preShift=6;
-  f.menu.update(f.quantizer, press(9), f.result, 100u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(9), f.result, 100u, f.store);
   TEST_ASSERT_TRUE(f.quantizer.channelsLinked);
   const ChannelConfig &copied=f.quantizer.channels[1].config();
   TEST_ASSERT_EQUAL_UINT8(7,copied.glideAmount);
@@ -142,12 +144,12 @@ static void test_shift_a_links_and_copies_entire_channel_a_config_to_b(void) {
 // FA-093 SHIFT+A#
 static void test_shift_asharp_selects_a_for_subsequent_note_edit(void) {
   Fixture f;
-  f.menu.update(f.quantizer, press(11), f.result, 50u, f.store); // first select B
-  f.menu.update(f.quantizer, release(true), f.result, 60u, f.store);
-  f.menu.update(f.quantizer, press(10), f.result, 100u, f.store); // then A
-  f.menu.update(f.quantizer, release(true), f.result, 110u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(11), f.result, 50u, f.store); // first select B
+  f.menu.update(f.quantizer, f.arpeggiators, release(true), f.result, 60u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(10), f.result, 100u, f.store); // then A
+  f.menu.update(f.quantizer, f.arpeggiators, release(true), f.result, 110u, f.store);
   const bool beforeB=f.quantizer.channels[1].config().notes[1];
-  f.menu.update(f.quantizer, press(1,false), f.result, 200u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(1,false), f.result, 200u, f.store);
   TEST_ASSERT_FALSE(f.quantizer.channels[0].config().notes[1]);
   TEST_ASSERT_EQUAL(beforeB,f.quantizer.channels[1].config().notes[1]);
 }
@@ -156,9 +158,9 @@ static void test_shift_asharp_selects_a_for_subsequent_note_edit(void) {
 static void test_shift_b_selects_b_for_subsequent_note_edit(void) {
   Fixture f;
   const bool beforeA=f.quantizer.channels[0].config().notes[1];
-  f.menu.update(f.quantizer, press(11), f.result, 100u, f.store);
-  f.menu.update(f.quantizer, release(true), f.result, 110u, f.store);
-  f.menu.update(f.quantizer, press(1,false), f.result, 200u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(11), f.result, 100u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, release(true), f.result, 110u, f.store);
+  f.menu.update(f.quantizer, f.arpeggiators, press(1,false), f.result, 200u, f.store);
   TEST_ASSERT_EQUAL(beforeA,f.quantizer.channels[0].config().notes[1]);
   TEST_ASSERT_FALSE(f.quantizer.channels[1].config().notes[1]);
 }

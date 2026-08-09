@@ -59,7 +59,7 @@
       <varlistentry>
         <term><filename>lib/hal</filename> — abstract hardware interfaces</term>
         <listitem>
-          <para>Small pure-virtual interfaces: <interfacename>IClock</interfacename>,
+          <para>Small pure-virtual interfaces: <interfacename>IClock</interfacename> (millisecond and microsecond monotonic time),
           <interfacename>IDigitalOutput</interfacename>,
           <interfacename>IDigitalInput</interfacename>,
           <interfacename>ISpiBus</interfacename>,
@@ -174,16 +174,16 @@
       <segtitle>Layout</segtitle>
       <seglistitem>
         <seg>Scale slots (12)</seg>
-        <seg>5 bytes each: marker, 12-bit note mask, CRC-16.</seg>
+        <seg>6 bytes each: marker, version, 12-bit note mask, CRC-16.</seg>
       </seglistitem>
       <seglistitem>
         <seg>Config slots (12)</seg>
-        <seg>20 bytes each: marker, serialized full configuration, CRC-16.</seg>
+        <seg>36 bytes each: marker, version, 32-byte serialized full configuration, CRC-16. The payload includes Quantizer state, both Arpeggiators, selected channel and UI layer.</seg>
       </seglistitem>
       <seglistitem>
         <seg>Live "last state" ring</seg>
-        <seg>26 slots of 27 bytes: marker, 32-bit sequence number, version,
-        17-byte state, 2-byte brightness calibration, CRC-16.</seg>
+        <seg>12 slots of 42 bytes: marker, 32-bit sequence number, version,
+        32-byte full configuration, 2-byte brightness calibration, CRC-16.</seg>
       </seglistitem>
     </segmentedlist>
 

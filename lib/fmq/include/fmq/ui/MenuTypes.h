@@ -11,15 +11,23 @@
  */
 #ifndef FMQ_UI_MENU_TYPES_H
 #define FMQ_UI_MENU_TYPES_H
+
+#include <stdint.h>
+
 #include "fmq/application/Button.h"
 #include "fmq/application/ButtonLadder.h"
+#include "fmq/application/UiLayer.h"
 #include "fmq/domain/LedColor.h"
 namespace fmq {
+
+
 struct MenuInput {
   ButtonEvent keyEvent{ButtonEventType::None, 0};
   LongPressButtonState loadButton = LongPressButtonState::ButtonIsUp;
   LongPressButtonState saveButton = LongPressButtonState::ButtonIsUp;
   bool shiftPressed = false;
+  /** Immediate physical ladder activity, before the 64 ms key debounce. */
+  bool noteButtonDown = false;
 };
 struct MenuOutput {
   LedFrame frame;

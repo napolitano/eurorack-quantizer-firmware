@@ -26,6 +26,9 @@ class IClock {
   /// @return Milliseconds elapsed since power-on (monotonic, may wrap after
   ///         ~49 days; the firmware only ever compares small differences).
   virtual uint32_t millis() const = 0;
+  /// @return Microseconds elapsed since power-on. Wrap-around after roughly
+  ///         71 minutes is intentional; unsigned subtraction remains valid.
+  virtual uint32_t micros() const = 0;
 };
 
 }  // namespace fmq

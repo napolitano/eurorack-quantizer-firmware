@@ -49,19 +49,19 @@ The ring spans the real hardware range **0…4095 inclusive**:
 
 If the current configured PWM value falls between two displayed steps, the firmware selects the **nearest** step.
 
-The display is a filled clockwise bar: every LED from 12 o'clock through the selected position is illuminated in the colour currently being calibrated.
+During active calibration the ring deliberately stops behaving like a numeric bar. Instead it shows a repeating **green / red / amber** comparison pattern around all twelve positions. The currently stored red and green PWM levels are applied live, and amber uses both at the same time. This makes the actual balance visible while either emitter is adjusted instead of forcing the builder to remember how the other colour looked.
+
+After a note button selects a new step, that ring position is shown briefly as a dark gap. The gap is only a position marker; the full green/red/amber comparison pattern returns automatically. The two discrete status LEDs for Channel A are lit while **green** is being edited, and the Channel B pair is lit while **red** is being edited.
 
 ### Practical procedure
 
 1. Enter calibration mode.
-2. Start with Channel A / green.
-3. Select progressively higher steps until green has the desired normal operating brightness.
-4. Switch to Channel B / red with `SHIFT + B`.
-5. Adjust red until its perceived brightness is balanced with green.
-6. Switch between both colours several times to compare them directly.
-7. Check an amber indication in normal operation or during the startup colour fade. Amber should read visually as a deliberate red/green mixture rather than almost pure red or green.
-8. Repeat the red/green adjustments if necessary. This normally takes several iterations.
-9. Hold **SHIFT alone for 5 seconds** to save and leave calibration.
+2. Start with Channel A / green. The Channel A status-LED pair identifies the active editor.
+3. Choose a note position for the green PWM step while watching the green, red and amber samples together.
+4. Switch to Channel B / red with `SHIFT + B`; the Channel B status-LED pair now identifies the active editor.
+5. Adjust red while judging both the direct red/green balance and the amber mixture.
+6. Move back to green with `SHIFT + A` if another correction is useful. Because all three colours stay visible, repeated A/B switching is no longer required merely to compare brightness.
+7. Hold **SHIFT alone for 5 seconds** to save and leave calibration.
 
 Do not optimise only for maximum brightness. The target is a readable, comfortable normal level with a convincing amber mixture and sufficient headroom.
 
@@ -96,7 +96,7 @@ The original PCB uses the proven Rust-firmware ladder reference values:
 0, 93, 171, 236, 292, 341, 384, 421, 455, 485, 512, 536, 558
 ```
 
-The final value represents the released/no-button state. The original-board profile uses these absolute values with a nearest-value decoder and 64 ms debounce.
+The final value represents the released/no-button state. The original-board profile uses these absolute values with 64 ms debounce. Decoding first finds the nearest nominal key, then accepts it only when the reading is within ±10 ADC counts; implausible gap values are treated as no button. The released/high region begins at ADC 548.
 
 ### Verification procedure
 

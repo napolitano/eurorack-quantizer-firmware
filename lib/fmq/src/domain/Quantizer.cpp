@@ -75,9 +75,11 @@ QuantizationResult QuantizationResult::makeZero() {
 bool Hysteresis::computeThresholds(const bool notes[kNoteCount],
                                    SemitoneQ8_8 &lowerQ8_8,
                                    SemitoneQ8_8 &upperQ8_8) const {
-  // Hysteresis only applies while the last emitted note is still part of the
-  // scale; otherwise the band is meaningless and we must re-quantize.
-  if (!notes[lastOutput_ % kNoteCount]) {
+  // Hysteresis is meaningful only after a real note has been emitted and while
+  // that note remains part of the active scale. A fresh channel must perform
+  // ordinary nearest-note quantization; treating C as an implicit previous note
+  // biases the very first 0.5-semitone tie downward.
+  if (!hasLastOutput_ || !notes[lastOutput_ % kNoteCount]) {
     return false;
   }
 
@@ -106,6 +108,8 @@ int8_t Hysteresis::quantize(SemitoneQ8_8 inputQ8_8,
                             const bool notes[kNoteCount]) {
   // An empty scale has no notes to snap to; emit the lowest pitch.
   if (!scaleHasAnyNote(notes)) {
+    hasLastOutput_ = false;
+    lastOutput_ = 0;
     return 0;
   }
 
@@ -143,6 +147,7 @@ int8_t Hysteresis::quantize(SemitoneQ8_8 inputQ8_8,
       if (bound >= 0 && bound <= kMaxSemitone &&
           notes[bound % kNoteCount]) {
         lastOutput_ = bound;
+        hasLastOutput_ = true;
         return bound;
       }
     }
@@ -245,47 +250,56 @@ GlideQ8_24 QuantizerChannel::calculateGlide(GlideQ8_24 current,
 }
 
 ChannelOutput QuantizerChannel::step(SemitoneQ8_8 inputSemitones,
-                                     bool sampleTrigger) {
+                                     bool sampleTrigger,
+                                     bool forceContinuous) {
   // Track-and-Hold treats a HIGH gate as continuous trigger activity.
   // Sample-and-Hold treats only the LOW->HIGH edge as trigger activity.
   // Keep this UI activity timer separate from the trigger-delay timer: the
   // original hardware normalises an unpatched trigger jack HIGH, so the input
   // LED must remain lit in Track-and-Hold while the jack is unpatched.
   const bool risingEdge = !lastTriggerInput_ && sampleTrigger;
-  const bool inputTriggerActive =
-      (config_.sampleMode == SampleMode::TrackAndHold) ? sampleTrigger
-                                                       : risingEdge;
+  bool shouldUpdate = false;
 
-  if (inputTriggerActive) {
-    inputTriggerUiTimer_ = 0;
-  } else {
+  if (forceContinuous) {
+    // In Arpeggiator CLOCK mode the Sample/Gate jack is repurposed as a clock
+    // input. Keep quantization continuously responsive without rewriting the
+    // user's stored Track/Sample mode. The real gate level is still remembered
+    // so returning to the Quantizer layer cannot fabricate an edge.
     inputTriggerUiTimer_ = saturatingInc(inputTriggerUiTimer_);
-  }
-
-  const bool firstSample = !hasLastOutput_;
-  if (firstSample || risingEdge) {
     triggerDelayTimer_ = 0;
-    triggerDelayPending_ = true;
-  } else if (triggerDelayPending_) {
-    triggerDelayTimer_ = saturatingInc(triggerDelayTimer_);
-  }
-
-  const uint8_t delay =
-      config_.triggerDelayAmount > config::kMaxTriggerDelayAmount
-          ? config::kMaxTriggerDelayAmount
-          : config_.triggerDelayAmount;
-
-  bool shouldUpdate = (config_.sampleMode == SampleMode::Continuous);
-  if (triggerDelayPending_ && triggerDelayTimer_ >= delay) {
-    shouldUpdate = true;
     triggerDelayPending_ = false;
-  } else if (config_.sampleMode == SampleMode::TrackAndHold && sampleTrigger &&
-             !triggerDelayPending_) {
-    // Once any configured opening delay has elapsed, follow the CV continuously
-    // for as long as the gate remains HIGH. On the original PCB an unpatched
-    // trigger input is normalised HIGH, which gives ordinary continuous
-    // quantizer behaviour without a trigger cable.
     shouldUpdate = true;
+  } else {
+    const bool inputTriggerActive =
+        (config_.sampleMode == SampleMode::TrackAndHold) ? sampleTrigger
+                                                         : risingEdge;
+    if (inputTriggerActive) {
+      inputTriggerUiTimer_ = 0;
+    } else {
+      inputTriggerUiTimer_ = saturatingInc(inputTriggerUiTimer_);
+    }
+
+    const bool firstSample = !hasLastOutput_;
+    if (firstSample || risingEdge) {
+      triggerDelayTimer_ = 0;
+      triggerDelayPending_ = true;
+    } else if (triggerDelayPending_) {
+      triggerDelayTimer_ = saturatingInc(triggerDelayTimer_);
+    }
+
+    const uint8_t delay =
+        config_.triggerDelayAmount > config::kMaxTriggerDelayAmount
+            ? config::kMaxTriggerDelayAmount
+            : config_.triggerDelayAmount;
+
+    shouldUpdate = (config_.sampleMode == SampleMode::Continuous);
+    if (triggerDelayPending_ && triggerDelayTimer_ >= delay) {
+      shouldUpdate = true;
+      triggerDelayPending_ = false;
+    } else if (config_.sampleMode == SampleMode::TrackAndHold && sampleTrigger &&
+               !triggerDelayPending_) {
+      shouldUpdate = true;
+    }
   }
   lastTriggerInput_ = sampleTrigger;
 
@@ -345,7 +359,9 @@ QuantizerState::QuantizerState()
 
 QuantizationResult QuantizerState::step(SemitoneQ8_8 inputSemitonesA,
                                         SemitoneQ8_8 inputSemitonesB,
-                                        bool triggerA, bool triggerB) {
+                                        bool triggerA, bool triggerB,
+                                        bool forceContinuousA,
+                                        bool forceContinuousB) {
   // In relative mode channel B is offset by channel A's raw input, clamped to
   // the module's pitch ceiling. In absolute mode it stands alone.
   SemitoneQ8_8 inputB;
@@ -359,8 +375,10 @@ QuantizationResult QuantizerState::step(SemitoneQ8_8 inputSemitonesA,
   }
 
   QuantizationResult result;
-  result.channelA = channels[kChannelAIndex].step(inputSemitonesA, triggerA);
-  result.channelB = channels[kChannelBIndex].step(inputB, triggerB);
+  result.channelA = channels[kChannelAIndex].step(
+      inputSemitonesA, triggerA, forceContinuousA);
+  result.channelB = channels[kChannelBIndex].step(
+      inputB, triggerB, forceContinuousB);
   return result;
 }
 

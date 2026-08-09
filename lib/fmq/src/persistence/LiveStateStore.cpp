@@ -6,7 +6,6 @@
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
  * @copyright Copyright (C) 2026 Axel Napolitano
  * @license GPL-3.0-or-later
- *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 #include "fmq/persistence/LiveStateStore.h"
@@ -15,44 +14,35 @@
 #include "fmq/persistence/Serialization.h"
 
 namespace fmq {
-
 namespace {
-// Byte offsets within a live record.
 constexpr uint16_t kOffMarker = 0;
-constexpr uint16_t kOffSeq = 1;      // 4 bytes, little-endian
-constexpr uint16_t kOffVersion = 5;  // 1 byte
-constexpr uint16_t kOffState = 6;    // kStateBytes
-constexpr uint16_t kOffBright = 6 + kStateBytes;      // 2 bytes
-constexpr uint16_t kOffCrc = kOffBright + kBrightnessBytes;  // 2 bytes
-// Number of bytes covered by the CRC (everything before the CRC field).
+constexpr uint16_t kOffSeq = 1;
+constexpr uint16_t kOffVersion = 5;
+constexpr uint16_t kOffConfiguration = 6;
+constexpr uint16_t kOffBright = kOffConfiguration + kStoredConfigurationBytes;
+constexpr uint16_t kOffCrc = kOffBright + kBrightnessBytes;
 constexpr uint16_t kCrcCoverage = kOffCrc;
+static_assert(kOffCrc + 2u == kLiveSlotSize, "live record framing mismatch");
 
-static_assert(kOffCrc + 2 == kLiveSlotSize, "live record framing mismatch");
-
-/// Read and validate a live record into a raw buffer.
-/// @return true if marker + CRC are valid; @p seqOut then holds its sequence.
 bool readRecord(const IEeprom &eeprom, uint16_t address, uint8_t *buffer,
-                uint32_t &seqOut) {
-  if (eeprom.readByte(address) != kRecordMarker) {
-    return false;
-  }
+                uint32_t &seqOut, uint8_t &versionOut) {
+  if (eeprom.readByte(address) != kRecordMarker) return false;
   eeprom.readBytes(address, buffer, kLiveSlotSize);
-
-  if (buffer[kOffVersion] != kLiveFormatVersion) {
+  const uint8_t version = buffer[kOffVersion];
+  if (version != kLiveFormatVersion && version != kPreviousLiveFormatVersion) {
     return false;
   }
 
   const uint16_t storedCrc = static_cast<uint16_t>(
-      static_cast<uint16_t>(static_cast<uint16_t>(buffer[kOffCrc]) << 8u) |
+      (static_cast<uint16_t>(buffer[kOffCrc]) << 8u) |
       static_cast<uint16_t>(buffer[kOffCrc + 1u]));
-  if (crc16Ccitt(buffer, kCrcCoverage) != storedCrc) {
-    return false;
-  }
+  if (crc16Ccitt(buffer, kCrcCoverage) != storedCrc) return false;
 
   seqOut = static_cast<uint32_t>(buffer[kOffSeq]) |
-           (static_cast<uint32_t>(buffer[kOffSeq + 1]) << 8) |
-           (static_cast<uint32_t>(buffer[kOffSeq + 2]) << 16) |
-           (static_cast<uint32_t>(buffer[kOffSeq + 3]) << 24);
+           (static_cast<uint32_t>(buffer[kOffSeq + 1u]) << 8u) |
+           (static_cast<uint32_t>(buffer[kOffSeq + 2u]) << 16u) |
+           (static_cast<uint32_t>(buffer[kOffSeq + 3u]) << 24u);
+  versionOut = version;
   return true;
 }
 }  // namespace
@@ -61,36 +51,55 @@ bool LiveStateStore::load(LiveState &out) {
   uint8_t buffer[kLiveSlotSize];
   uint8_t bestBuffer[kLiveSlotSize];
   bool found = false;
-  uint32_t bestSeq = 0;
-  uint16_t bestIndex = 0;
+  uint32_t bestSeq = 0u;
+  uint16_t bestIndex = 0u;
+  uint8_t bestVersion = 0u;
 
   for (uint16_t i = 0; i < kLiveSlotCount; ++i) {
-    uint32_t seq;
-    if (readRecord(eeprom_, slotAddress(i), buffer, seq)) {
-      if (!found || seq > bestSeq) {
-        found = true;
-        bestSeq = seq;
-        bestIndex = i;
-        for (uint16_t b = 0; b < kLiveSlotSize; ++b) {
-          bestBuffer[b] = buffer[b];
-        }
-      }
+    uint32_t seq = 0u;
+    uint8_t version = 0u;
+    if (readRecord(eeprom_, slotAddress(i), buffer, seq, version) &&
+        (!found || seq > bestSeq)) {
+      found = true;
+      bestSeq = seq;
+      bestIndex = i;
+      bestVersion = version;
+      for (uint16_t b = 0; b < kLiveSlotSize; ++b) bestBuffer[b] = buffer[b];
     }
   }
 
   if (!found) {
-    // Blank or unrecoverable: hand back defaults and arrange for the first
-    // commit to land in slot 0.
-    out.state = QuantizerState();
+    out.configuration = StoredConfiguration();
     out.brightness = BrightnessCalibration::makeDefault();
-    head_ = static_cast<uint16_t>(kLiveSlotCount - 1);
-    seq_ = 0;
+    out.uiLayer = UiLayer::Quantizer;
+    head_ = static_cast<uint16_t>(kLiveSlotCount - 1u);
+    seq_ = 0u;
     return false;
   }
 
-  out.state = decodeState(&bestBuffer[kOffState]);
+  uint8_t configurationBytes[kStoredConfigurationBytes];
+  for (uint8_t i = 0u; i < kStoredConfigurationBytes; ++i) {
+    configurationBytes[i] = bestBuffer[kOffConfiguration + i];
+  }
+
+  out.configuration = decodeStoredConfiguration(configurationBytes);
+  out.uiLayer = out.configuration.uiLayer;
+
+  if (bestVersion == kPreviousLiveFormatVersion) {
+    // v5 did not persist the UI layer. Its layer transition semantics guarantee
+    // that leaving the Arpeggiator layer disabled both Arpeggiators, so an
+    // enabled channel is the best available migration signal. This is only a
+    // compatibility fallback; v6 stores the layer explicitly thereafter.
+    out.uiLayer =
+        out.configuration.arpeggiators[kChannelAIndex].enabled ||
+                out.configuration.arpeggiators[kChannelBIndex].enabled
+            ? UiLayer::Arpeggiator
+            : UiLayer::Quantizer;
+    out.configuration.uiLayer = out.uiLayer;
+  }
+
   out.brightness.redStep = bestBuffer[kOffBright];
-  out.brightness.greenStep = bestBuffer[kOffBright + 1];
+  out.brightness.greenStep = bestBuffer[kOffBright + 1u];
   const auto validBrightness = [](uint8_t step) {
     return step == BrightnessCalibration::kUseLegacyDefault ||
            step < BrightnessCalibration::kStepCount;
@@ -106,8 +115,9 @@ bool LiveStateStore::load(LiveState &out) {
   return true;
 }
 
-bool LiveStateStore::commit(const QuantizerState &state,
-                            const BrightnessCalibration &brightness) {
+bool LiveStateStore::commit(const StoredConfiguration &configuration,
+                            const BrightnessCalibration &brightness,
+                            UiLayer uiLayer) {
   if (writer_.busy() || pendingCommit_) return false;
   static_assert(kLiveSlotSize + 1u <= AsyncEepromWriter::kMaxOps,
                 "EEPROM queue too small for live-state record");
@@ -119,23 +129,25 @@ bool LiveStateStore::commit(const QuantizerState &state,
   uint8_t buffer[kLiveSlotSize];
   buffer[kOffMarker] = kRecordMarker;
   buffer[kOffSeq] = static_cast<uint8_t>(newSeq);
-  buffer[kOffSeq + 1u] = static_cast<uint8_t>(newSeq >> 8);
-  buffer[kOffSeq + 2u] = static_cast<uint8_t>(newSeq >> 16);
-  buffer[kOffSeq + 3u] = static_cast<uint8_t>(newSeq >> 24);
+  buffer[kOffSeq + 1u] = static_cast<uint8_t>(newSeq >> 8u);
+  buffer[kOffSeq + 2u] = static_cast<uint8_t>(newSeq >> 16u);
+  buffer[kOffSeq + 3u] = static_cast<uint8_t>(newSeq >> 24u);
   buffer[kOffVersion] = kLiveFormatVersion;
-  encodeState(state, &buffer[kOffState]);
+  StoredConfiguration persisted = configuration;
+  persisted.uiLayer = uiLayer;
+  encodeStoredConfiguration(persisted, &buffer[kOffConfiguration]);
   buffer[kOffBright] = brightness.redStep;
   buffer[kOffBright + 1u] = brightness.greenStep;
   const uint16_t crc = crc16Ccitt(buffer, kCrcCoverage);
-  buffer[kOffCrc] = static_cast<uint8_t>(crc >> 8);
+  buffer[kOffCrc] = static_cast<uint8_t>(crc >> 8u);
   buffer[kOffCrc + 1u] = static_cast<uint8_t>(crc);
 
   uint16_t addresses[AsyncEepromWriter::kMaxOps];
   uint8_t values[AsyncEepromWriter::kMaxOps];
-  uint8_t count = 0;
+  uint8_t count = 0u;
   addresses[count] = address;
   values[count++] = kErasedByte;
-  for (uint16_t i = 1; i < kLiveSlotSize; ++i) {
+  for (uint16_t i = 1u; i < kLiveSlotSize; ++i) {
     addresses[count] = static_cast<uint16_t>(address + i);
     values[count++] = buffer[i];
   }

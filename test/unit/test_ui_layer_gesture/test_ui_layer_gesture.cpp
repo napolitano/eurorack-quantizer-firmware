@@ -1,6 +1,6 @@
 /**
- * @file test_retro_arpeggiator_gesture.cpp
- * Unit tests for the official Retro Arpeggiator SHIFT-hold gesture.
+ * @file test_ui_layer_gesture.cpp
+ * Unit tests for the official Arpeggiator SHIFT-hold gesture.
  *
  * @author Axel Napolitano
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
@@ -11,7 +11,7 @@
  */
 #include <unity.h>
 
-#include "fmq/application/RetroArpeggiatorGesture.h"
+#include "fmq/application/UiLayerGesture.h"
 #include "fmq/config/UiConfig.h"
 
 using namespace fmq;
@@ -19,57 +19,57 @@ using namespace fmq;
 void setUp(void) {}
 void tearDown(void) {}
 
-static void assertAction(RetroArpeggiatorGestureAction expected,
-                         RetroArpeggiatorGestureAction actual) {
+static void assertAction(UiLayerGestureAction expected,
+                         UiLayerGestureAction actual) {
   TEST_ASSERT_EQUAL_INT(static_cast<int>(expected), static_cast<int>(actual));
 }
 
 static void test_toggles_once_after_exact_hold_time(void) {
-  RetroArpeggiatorGesture gesture;
-  assertAction(RetroArpeggiatorGestureAction::None,
+  UiLayerGesture gesture;
+  assertAction(UiLayerGestureAction::None,
                gesture.update(true, false, false, 1000));
-  assertAction(RetroArpeggiatorGestureAction::None,
+  assertAction(UiLayerGestureAction::None,
                gesture.update(true, false, false,
-                              1000 + config::kRetroArpToggleHoldMs - 1u));
-  assertAction(RetroArpeggiatorGestureAction::Toggle,
+                              1000 + config::kUiLayerToggleHoldMs - 1u));
+  assertAction(UiLayerGestureAction::ToggleLayer,
                gesture.update(true, false, false,
-                              1000 + config::kRetroArpToggleHoldMs));
-  assertAction(RetroArpeggiatorGestureAction::None,
+                              1000 + config::kUiLayerToggleHoldMs));
+  assertAction(UiLayerGestureAction::None,
                gesture.update(true, false, false,
-                              1000 + config::kRetroArpToggleHoldMs + 1000u));
+                              1000 + config::kUiLayerToggleHoldMs + 1000u));
 }
 
 static void test_normal_shift_shortcut_cancels_until_release(void) {
-  RetroArpeggiatorGesture gesture;
+  UiLayerGesture gesture;
   (void)gesture.update(true, false, false, 0);
   (void)gesture.update(true, true, false, 100);
-  assertAction(RetroArpeggiatorGestureAction::None,
+  assertAction(UiLayerGestureAction::None,
                gesture.update(true, false, false,
-                              config::kRetroArpToggleHoldMs + 500u));
+                              config::kUiLayerToggleHoldMs + 500u));
 
   (void)gesture.update(false, false, false,
-                       config::kRetroArpToggleHoldMs + 501u);
+                       config::kUiLayerToggleHoldMs + 501u);
   (void)gesture.update(true, false, false,
-                       config::kRetroArpToggleHoldMs + 600u);
-  assertAction(RetroArpeggiatorGestureAction::Toggle,
+                       config::kUiLayerToggleHoldMs + 600u);
+  assertAction(UiLayerGestureAction::ToggleLayer,
                gesture.update(true, false, false,
-                              2u * config::kRetroArpToggleHoldMs + 600u));
+                              2u * config::kUiLayerToggleHoldMs + 600u));
 }
 
 static void test_blocked_mode_never_toggles(void) {
-  RetroArpeggiatorGesture gesture;
+  UiLayerGesture gesture;
   (void)gesture.update(true, false, true, 0);
-  assertAction(RetroArpeggiatorGestureAction::None,
+  assertAction(UiLayerGestureAction::None,
                gesture.update(true, false, true,
-                              config::kRetroArpToggleHoldMs + 1u));
+                              config::kUiLayerToggleHoldMs + 1u));
 }
 
 static void test_unsigned_clock_wraparound_is_safe(void) {
-  RetroArpeggiatorGesture gesture;
+  UiLayerGesture gesture;
   const uint32_t start = 0xFFFFFF00u;
   (void)gesture.update(true, false, false, start);
-  const uint32_t finish = start + config::kRetroArpToggleHoldMs;
-  assertAction(RetroArpeggiatorGestureAction::Toggle,
+  const uint32_t finish = start + config::kUiLayerToggleHoldMs;
+  assertAction(UiLayerGestureAction::ToggleLayer,
                gesture.update(true, false, false, finish));
 }
 

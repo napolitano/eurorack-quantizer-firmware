@@ -17,13 +17,14 @@
 #include "fmq/ports/Clock.h"
 
 /**
- * IClock backed by the Arduino millis() timer (Timer0).
+ * IClock backed by Arduino Timer0 millis()/micros().
  */
 namespace fmq {
 
 class AvrSystemClock : public IClock {
  public:
   uint32_t millis() const override { return ::millis(); }
+  uint32_t micros() const override { return ::micros(); }
 };
 
 }  // namespace fmq

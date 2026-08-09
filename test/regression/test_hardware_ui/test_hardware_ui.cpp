@@ -12,6 +12,7 @@
 #include <unity.h>
 #include "FakeEeprom.h"
 #include "fmq/application/ControlInputProcessor.h"
+#include "fmq/application/ArpeggiatorBank.h"
 #include "fmq/ui/Menu.h"
 #include "fmq/ui/LedFrameEncoder.h"
 #include "fmq/domain/Quantizer.h"
@@ -29,10 +30,11 @@ RawControlInput raw(uint16_t ladder, bool shift=false, bool save=false, bool loa
   return RawControlInput{ladder, shift, save, load};
 }
 void feed(ControlInputProcessor &controls, Menu &menu, QuantizerState &q,
-          QuantizationResult &r, SaveSlotStore &store, uint32_t &t,
+          ArpeggiatorBank &arpeggiators, QuantizationResult &r,
+          SaveSlotStore &store, uint32_t &t,
           const RawControlInput &value, uint32_t durationMs) {
   const uint32_t end=t+durationMs;
-  while(t<=end){ menu.update(q, controls.sample(t,value), r,t,store); ++t; }
+  while(t<=end){ menu.update(q, arpeggiators, controls.sample(t,value), r,t,store); ++t; }
 }
 }
 
@@ -44,13 +46,13 @@ static void test_original_ladder_values_decode_exactly(void) {
 
 static void test_simultaneous_shift_b_selects_channel_b(void) {
   FakeEeprom eep; AsyncEepromWriter writer(eep); SaveSlotStore store(eep,writer);
-  Menu menu; menu.begin(store); QuantizerState q; QuantizationResult r=QuantizationResult::makeZero();
+  Menu menu; menu.begin(store); QuantizerState q; ArpeggiatorBank arpeggiators; QuantizationResult r=QuantizationResult::makeZero();
   ControlInputProcessor controls; uint32_t t=0;
-  feed(controls,menu,q,r,store,t,raw(558),70);
+  feed(controls,menu,q,arpeggiators,r,store,t,raw(558),70);
   // Realistic gesture: modifier and B go down together, not SHIFT 30 ms earlier.
-  feed(controls,menu,q,r,store,t,raw(536,true),80);
-  feed(controls,menu,q,r,store,t,raw(558,false),80);
-  feed(controls,menu,q,r,store,t,raw(171),80);
+  feed(controls,menu,q,arpeggiators,r,store,t,raw(536,true),80);
+  feed(controls,menu,q,arpeggiators,r,store,t,raw(558,false),80);
+  feed(controls,menu,q,arpeggiators,r,store,t,raw(171),80);
   TEST_ASSERT_TRUE(q.channels[0].config().notes[2]);
   TEST_ASSERT_FALSE(q.channels[1].config().notes[2]);
 }

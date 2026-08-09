@@ -34,6 +34,9 @@ constexpr uint16_t kDefaultGreenPwm = 0x0D00;
 // Startup self-test ---------------------------------------------------------
 constexpr bool kStartupAnimationEnabled = true;
 constexpr bool kStartupStatusLedTestEnabled = true;
+// No note-ring startup animation may keep the twelve note LEDs busy longer
+// than this. The separate four-status-LED self-test is not part of this limit.
+constexpr uint32_t kStartupRingMaximumDurationMs = 1500;
 
 // Each colour lights all twelve note LEDs at once, fades from off to the
 // configured normal brightness, then fades back to off. Order: green, red,
@@ -48,17 +51,18 @@ constexpr bool kRotateStartupSequences = true;
 
 // Glowworm: one clockwise revolution in green, red and amber, with a four-LED
 // dimming tail behind the moving head.
-constexpr uint16_t kGlowwormStepMs = 45;
+constexpr uint16_t kGlowwormStepMs = 40;
 constexpr uint8_t kGlowwormTailLength = 4;
 constexpr uint16_t kGlowwormTailIntensityQ12[kGlowwormTailLength] = {
     4095, 2300, 1100, 450};
 
 // Cog: repeating pairs of red, green and amber rotate three complete turns.
-constexpr uint16_t kCogStepMs = 55;
+constexpr uint16_t kCogStepMs = 40;
 constexpr uint8_t kCogRotations = 3;
 
-// Sparkles: deterministic pseudo-random coloured twinkles for about 2.5 s.
-constexpr uint32_t kSparklesDurationMs = 2500;
+// Sparkles: deterministic pseudo-random coloured twinkles, kept deliberately
+// short so repeated power cycles do not make the startup effect intrusive.
+constexpr uint32_t kSparklesDurationMs = 1450;
 constexpr uint16_t kSparklesFrameMs = 70;
 constexpr uint8_t kSparklesLitThreshold = 150;
 constexpr uint16_t kSparklesMinimumIntensityQ12 = 700;

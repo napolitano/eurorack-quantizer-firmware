@@ -31,6 +31,14 @@ constexpr bool kLadderUseRestNormalization = false;
 constexpr uint16_t kLadderMinimumValidRest = 548;
 constexpr uint16_t kLadderMaximumValidRest = 570;
 constexpr uint16_t kLadderRestStabilitySpan = 8;
+// Key readings are accepted only close to their nominal values. +/-10 ADC
+// counts comfortably covers the worst-case shift of the documented 1 % ladder
+// resistors (about 5 counts at the top of the ladder) plus ADC noise, while
+// remaining narrower than half of the smallest 22-count key/rest spacing.
+constexpr uint16_t kLadderButtonAcceptanceDelta = 10;
+static_assert(2u * kLadderButtonAcceptanceDelta <
+                  kLadderNominalRest - kLadderExpectedValues[kLadderButtonCount - 1u],
+              "ladder plausibility windows must not overlap at the narrowest spacing");
 constexpr uint8_t kLadderCalibrationSamples = 24;
 
 constexpr uint8_t kAdcChannelCount = 3;

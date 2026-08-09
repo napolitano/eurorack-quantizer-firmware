@@ -26,7 +26,7 @@ namespace fmq {
  */
 class AsyncEepromWriter {
  public:
-  static constexpr uint8_t kMaxOps = 32;
+  static constexpr uint8_t kMaxOps = 48;
 
   explicit AsyncEepromWriter(IEeprom &eeprom)
       : eeprom_(eeprom), count_(0), pos_(0), active_(false) {}

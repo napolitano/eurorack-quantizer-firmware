@@ -256,7 +256,46 @@ static void test_output_triggers_are_independent_between_channels(void) {
   TEST_ASSERT_FALSE(rig.last().triggerB);
 }
 
-static void test_retro_arpeggiator_uses_each_channels_own_scale(void) {
+
+static void test_arpeggiator_can_run_on_channel_a_only(void) {
+  QuantizerTestRig rig;
+  ChannelConfig cfg = chromaticConfig();
+  rig.state().channels[0].setConfig(cfg);
+  rig.state().channels[1].setConfig(cfg);
+  rig.setGateA(true);
+  rig.setGateB(true);
+  rig.setCvVoltsA(5.0);
+  rig.setCvVoltsB(5.0);
+  rig.arpeggiators().setEnabled(kChannelAIndex, true, rig.nowMs());
+  rig.runFor(Arpeggiator::freeRateMs(config::kArpDefaultRateIndex));
+  rig.tick();
+
+  TEST_ASSERT_TRUE(rig.last().outputPitchA >
+                   rig.last().quantization.channelA.actualSemitones);
+  TEST_ASSERT_EQUAL_INT16(rig.last().quantization.channelB.actualSemitones,
+                          rig.last().outputPitchB);
+}
+
+static void test_arpeggiator_can_run_on_channel_b_only(void) {
+  QuantizerTestRig rig;
+  ChannelConfig cfg = chromaticConfig();
+  rig.state().channels[0].setConfig(cfg);
+  rig.state().channels[1].setConfig(cfg);
+  rig.setGateA(true);
+  rig.setGateB(true);
+  rig.setCvVoltsA(5.0);
+  rig.setCvVoltsB(5.0);
+  rig.arpeggiators().setEnabled(kChannelBIndex, true, rig.nowMs());
+  rig.runFor(Arpeggiator::freeRateMs(config::kArpDefaultRateIndex));
+  rig.tick();
+
+  TEST_ASSERT_EQUAL_INT16(rig.last().quantization.channelA.actualSemitones,
+                          rig.last().outputPitchA);
+  TEST_ASSERT_TRUE(rig.last().outputPitchB >
+                   rig.last().quantization.channelB.actualSemitones);
+}
+
+static void test_arpeggiator_uses_each_channels_own_scale(void) {
   QuantizerTestRig rig;
   const int majorPcs[] = {0, 2, 4, 5, 7, 9, 11};
   const int minorPcs[] = {0, 2, 3, 5, 7, 8, 10};
@@ -270,9 +309,9 @@ static void test_retro_arpeggiator_uses_each_channels_own_scale(void) {
   rig.setGateB(true);
   rig.setCvVoltsA(5.0);
   rig.setCvVoltsB(5.0);
-  rig.arpeggiator().setEnabled(true, rig.nowMs());
+  rig.setArpeggiatorsEnabled(true);
   rig.tick();
-  rig.runFor(config::kRetroArpStepMs - 1u);
+  rig.runFor(Arpeggiator::freeRateMs(config::kArpDefaultRateIndex) - 1u);
   rig.tick();
   // Same root, different scale: A major third, B minor third.
   TEST_ASSERT_TRUE(rig.last().outputPitchA > rig.last().outputPitchB);
@@ -293,6 +332,8 @@ int main(void) {
   RUN_TEST(test_channel_a_is_independent_of_b_input_in_both_b_modes);
   RUN_TEST(test_channels_use_separate_scales_and_transposition);
   RUN_TEST(test_output_triggers_are_independent_between_channels);
-  RUN_TEST(test_retro_arpeggiator_uses_each_channels_own_scale);
+  RUN_TEST(test_arpeggiator_can_run_on_channel_a_only);
+  RUN_TEST(test_arpeggiator_can_run_on_channel_b_only);
+  RUN_TEST(test_arpeggiator_uses_each_channels_own_scale);
   return UNITY_END();
 }

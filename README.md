@@ -29,7 +29,7 @@ The firmware keeps the original hardware mapping and core interaction model whil
 - Independent red/green LED calibration over the full TLC5947 range
 - Four rotating startup animations
 - Discrete input/output activity LEDs for both channels
-- **Scale-aware Retro Arpeggiator** performance mode
+- **Full second Arpeggiator UI layer** — from fast classic 8-bit-style pitch cycling to clocked, triggered and swung patterns
 - Native host tests plus AVR builds through GitHub Actions
 - Central configuration for hardware, UI, timing and calibration values
 
@@ -69,7 +69,7 @@ The original Rust firmware is the behavioural reference for this project, and it
 | ADC full-scale conversion | The original `adc_to_semitones()` converts a 10-bit reading by shifting it into an `I1F15` value and interpolating as though the input could reach `0x7FFF`. The source itself notes that the actual maximum after the shift is `0x7FE0`. Consequently a raw ADC value of 1023 does not map exactly to the configured 120-semitone endpoint. | ADC conversion is performed directly from the real 10-bit range `0…1023`, with rounded integer arithmetic, so 0 maps exactly to 0 semitones and 1023 maps exactly to 120 semitones. Per-channel gain and offset calibration are available on top of that mapping. |
 | EEPROM record integrity | A saved scale or configuration is considered valid solely when a one-byte sentinel is present. The sentinel is written **before** the payload, and there is no checksum, format version or payload validation. A reset or interrupted write can therefore leave a slot marked as occupied even when its payload is incomplete or stale; arbitrary EEPROM contents can also be accepted as configuration values. | Persistent records are versioned and CRC-checked and their decoded values are validated before use. Invalid, incomplete or erased records are rejected. Full-configuration slots without valid user data expose known factory presets instead. |
 | EEPROM writes in the UI path | Save and erase operations are issued synchronously from the menu/persistence path. This keeps the implementation simple, but EEPROM programming latency is part of the foreground interaction path. | A single shared asynchronous EEPROM writer queues writes and lets normal processing continue. Persistence operations report whether a write was accepted instead of assuming immediate completion. |
-| LED colour balance | Red and green brightness are fixed at compile time (`0xFFF` red and `0x04F` green). There is no user-accessible calibration mechanism, so balancing depends entirely on those constants matching the particular LEDs and resistor population of the built module. | Red and green levels are independently configurable and can be calibrated on the finished hardware over the complete TLC5947 `0…4095` range. The same calibrated levels are used by normal rendering and startup effects. |
+| LED colour balance | Red and green brightness are fixed at compile time (`0xFFF` red and `0x04F` green). There is no user-accessible calibration mechanism, so balancing depends entirely on those constants matching the particular LEDs and resistor population of the built module. | Red and green levels are independently configurable and can be calibrated on the finished hardware over the complete TLC5947 `0…4095` range. Calibration keeps green, red and amber visible together for direct visual balancing, and the same calibrated levels are used by normal rendering and startup effects. |
 | Toolchain fragility | The firmware depends on an AVR Rust nightly toolchain and several unstable language/compiler features. In the scalar submenu code the original source also contains an inline-assembly workaround because, without it, an optimisation issue could cause `button_idx` to become zero; the accompanying comment explicitly describes this as either a compiler bug or possible memory corruption/optimisation behaviour. | The reimplementation uses a conventional PlatformIO/C++17 AVR toolchain and expresses the menu calculation directly without the compiler-specific assembly workaround. Native tests and AVR builds are part of CI. |
 
 These are not intended as criticism of the original project. Quinn Freedman's implementation is deliberately compact and pragmatic, and that simplicity is a major strength of the design. This section exists to make the behavioural differences explicit and to document why the replacement firmware intentionally diverges at these specific points.
@@ -142,7 +142,7 @@ Two workflows are included under `.github/workflows/`.
 Runs on pushes, pull requests and manual dispatches. It:
 
 1. installs PlatformIO Core;
-2. runs all 26 native test suites as independent matrix jobs (`fail-fast: false`);
+2. runs all 29 native test suites as independent matrix jobs (`fail-fast: false`);
 3. runs a separate aggregate coverage job and uploads HTML/XML/text reports;
 4. builds both Nano environments;
 5. uploads the resulting `.hex` and `.elf` files as workflow artifacts.
@@ -183,7 +183,7 @@ The factory scale is chromatic, so a freshly flashed module is immediately usabl
 | SHIFT + LOAD | Select a full-configuration load slot; user data takes priority, otherwise factory preset |
 | LOAD + SAVE, hold 2 s | Erase all user save slots |
 | SHIFT + LOAD + SAVE, hold 5 s | Enter LED brightness calibration |
-| SHIFT alone, hold 3 s | Toggle Retro Arpeggiator |
+| SHIFT alone, hold 3 s | Switch Quantizer ↔ Arpeggiator layer; entering enables the selected Arpeggiator and flashes the ring green twice, returning disables all Arpeggiators and flashes red twice |
 
 The firmware prevents the final active note of a scale from being disabled accidentally.
 
@@ -265,7 +265,7 @@ Pressing a note button selects the displayed value.
 
 ## Save/load and factory presets
 
-Normal SAVE/LOAD stores or recalls only the active scale. `SHIFT+SAVE` and `SHIFT+LOAD` use the twelve full-configuration slots.
+Normal SAVE/LOAD stores or recalls only the active scale. `SHIFT+SAVE` and `SHIFT+LOAD` use the twelve full-configuration slots. A full configuration now means the complete musical setup: both Quantizer channel configurations, channel linking, Channel-B Absolute/Relative mode, both complete Arpeggiator configurations including enable state, the selected channel, and the active Quantizer/Arpeggiator UI layer.
 
 Every full-config load position remains useful even before the user has saved anything:
 
@@ -292,28 +292,38 @@ Every full-config load position remains useful even before the user has saved an
 | 11 | Minor Pentatonic | C Eb F G Bb |
 | 12 | Blues | C Eb F F# G Bb |
 
-The factory presets are rooted on C and otherwise use the normal factory configuration for both channels.
+The factory presets are rooted on C and otherwise use the normal factory Quantizer configuration for both channels. Their Arpeggiator state uses the documented Arpeggiator defaults and starts disabled.
 
-## Retro Arpeggiator
+## Arpeggiator layer
 
-The **Retro Arpeggiator is an official performance feature** of this firmware. Its deliberately fast three-note pattern can bring back the characteristic rapid arpeggio textures associated with **classic 8-bit home computers and game music**, while remaining musically useful because the intervals are derived from the selected scale rather than from a fixed chord table.
+The **Arpeggiator is an official second performance layer** rather than a hidden shortcut. Its default still produces the rapid scale-aware pitch cycling associated with classic 8-bit home computers and game music, but the same engine can also run with external clock ratios, alternate patterns and shapes, 1–12 step lengths, up to four octaves, per-step triggers, reset/clock sync and swing.
 
-Hold **SHIFT by itself for 3 seconds** during normal operation to toggle it. If a note button, LOAD or SAVE is used while SHIFT is held, the pending long-hold is cancelled so normal SHIFT shortcuts cannot accidentally enable the feature. The gesture is disabled during LED calibration.
+Hold **SHIFT by itself for 3 seconds** to switch between the Quantizer and Arpeggiator UI layers. Entering the Arpeggiator layer enables the selected channel automatically (both channels when linked), so the default FREE arpeggio becomes audible immediately. The complete ring flashes **green twice** to confirm activation. Returning to the Quantizer layer disables Arpeggiator playback on both channels and flashes the complete ring **red twice**. After either confirmation the normal scale/quantized-note display is restored. Channel A and Channel B keep independent Arpeggiator settings and phase while the layer is active unless explicitly linked.
 
-When active:
+The Arpeggiator layer is a true second control layer, but it deliberately keeps the **same interaction grammar** as the Quantizer layer. The normal note buttons still edit the selected scale and the ring still shows that scale. Only the `SHIFT + note` menu changes. Scalar Arpeggiator parameters are selected exactly like Quantizer parameters: choose the function with `SHIFT + note`, release SHIFT, then select the value with one of the twelve note buttons.
 
-- the normal quantizer still determines the base note;
-- the output cycles through **root, diatonic third and diatonic fifth**;
-- chord tones are derived from the **currently active scale** rather than hard-coded major/minor intervals;
-- Major therefore produces a major third where appropriate, Natural Minor a minor third, and modal or custom scales derive their own scale-degree intervals;
-- both channels use their own active scale/configuration;
-- the default step time is **24 ms**;
-- activation is acknowledged by a short amber ring indication;
-- deactivation is acknowledged in red.
+The Arpeggiator-layer SHIFT functions are:
 
-The mode is intentionally **not persisted**. A reboot always returns to normal quantizer operation.
+| Shortcut | Function |
+|---|---|
+| SHIFT+C | Enable |
+| SHIFT+C# | Rate / clock ratio |
+| SHIFT+D | Pattern |
+| SHIFT+D# | Shape |
+| SHIFT+E | Length |
+| SHIFT+F | Range |
+| SHIFT+F# | Step Trigger |
+| SHIFT+G | FREE / RESET / CLOCK |
+| SHIFT+G# | Swing |
+| SHIFT+A | Link |
+| SHIFT+A# | Channel A |
+| SHIFT+B | Channel B |
 
-Configuration values live in `ProductConfig.h` and `UiConfig.h` under the `kRetroArp...` names.
+`SHIFT+C` toggles the selected Arpeggiator immediately. Enable is confirmed by **two full-ring green flashes**; disable/bypass is confirmed by **two full-ring red flashes**. After the second flash the ring automatically returns to the normal scale/quantized-note display.
+
+The factory/default Arpeggiator mode is **FREE**, so it runs from its internal rate without any external clock. **CLOCK** is an explicitly selected additional mode; in CLOCK mode the channel's Sample/Gate jack becomes its external clock input and the CV path is processed continuously without changing the stored Track/Sample setting. Automatic live-state restore may restore CLOCK only when the user previously selected it. Step Trigger can remain OFF for the classic pitch-only effect or be enabled to generate the normal 5 ms trigger pulse on every Arpeggiator step.
+
+The complete parameter tables, pattern/shape definitions, sync semantics, persistence rules and examples are documented in [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md).
 
 ## LED brightness calibration
 
@@ -332,9 +342,10 @@ Calibration behaviour:
 - 12 o'clock represents 0;
 - values increase clockwise;
 - the final position is the true 12-bit maximum, 4095;
-- the display is a filled clockwise bar from 12 o'clock through the selected step;
-- the active colour is rendered at the selected PWM value as a live preview;
-- entering the mode or switching colour maps the current PWM value to the nearest of the twelve displayed steps;
+- active calibration shows a repeating green / red / amber comparison pattern so both emitter levels and the resulting amber balance remain visible together;
+- a newly selected step is marked briefly by a dark gap at that ring position;
+- the Channel A status-LED pair identifies green editing and the Channel B pair identifies red editing;
+- entering the mode or switching colour maps the current PWM value to the nearest of the twelve available steps;
 - hold SHIFT alone for 5 seconds to save and leave calibration.
 
 See [README_CALIBRATION.md](README_CALIBRATION.md) for the detailed procedure.
@@ -346,15 +357,15 @@ Startup animation can be disabled in configuration. When sequence rotation is en
 1. **Color Fade** — all twelve LEDs fade in/out together: green, red, then amber.
 2. **Glowworm** — clockwise green, red and amber revolutions with a dimming tail.
 3. **Cog** — repeating pairs of red, green and amber rotate for three revolutions.
-4. **Sparkles** — pseudo-random multi-colour twinkles for approximately 2.5 seconds.
+4. **Sparkles** — pseudo-random multi-colour twinkles.
 
-After the ring animation, the four discrete status LEDs flash once each in physical order before normal operation begins. After sequence 4 the selector wraps back to sequence 1; invalid or erased sequence-state data also falls back to sequence 1.
+The twelve-note ring portion of **every** sequence is capped at **1500 ms**; current timings are 840 ms for Color Fade, 1440 ms for Glowworm, 1440 ms for Cog and 1450 ms for Sparkles. The separate four-status-LED self-test follows afterwards and is not part of this ring-animation limit. After the ring animation, the four discrete status LEDs flash once each in physical order before normal operation begins. After sequence 4 the selector wraps back to sequence 1; invalid or erased sequence-state data also falls back to sequence 1.
 
 ## Persistence
 
 User records are versioned and CRC checked. Invalid or incomplete records are rejected rather than silently interpreted as valid data.
 
-EEPROM writes use a non-blocking writer. Live-state restore/autosave exists as an optional extension but is disabled by default to preserve deterministic power-on behaviour and compatibility with the original interaction model.
+EEPROM writes use a non-blocking writer. Automatic live-state restore/autosave is enabled: after a short quiescent interval the complete musical working state is written to a versioned, CRC-protected wear-levelled live-state ring. This includes both Quantizer configurations, both Arpeggiator configurations including ON/OFF, selected channel, the active Quantizer/Arpeggiator UI layer and LED brightness calibration. Runtime phase and the current Arpeggiator step remain transient. A reboot therefore returns to the same front-panel layer that was active before power-off; restoring that layer is side-effect free and does not replay activation feedback.
 
 ## Configuration
 
@@ -366,10 +377,10 @@ lib/fmq/include/fmq/config/
 
 Important files:
 
-- `ProductConfig.h` — factory mode, scale, quantizer limits and Retro Arpeggiator timing
+- `ProductConfig.h` — factory mode, scale, quantizer limits and Arpeggiator limits/defaults
 - `AnalogConfig.h` — ADC, DAC and resistor-ladder assumptions/calibration
 - `LedConfig.h` — LED brightness and startup animations
-- `UiConfig.h` — debounce, menu timings, button mappings and Retro Arpeggiator gesture
+- `UiConfig.h` — debounce, menu timings, Quantizer/Arpeggiator mappings and layer-switch gesture
 - `RuntimeConfig.h` — scheduler, diagnostics and serial settings
 - `PersistenceConfig.h` — persistence behaviour
 - `FactoryPresets.h` — built-in full-config fallback scales
@@ -403,7 +414,7 @@ test/
   support/
 ```
 
-The native suite currently contains **26 independently runnable suites and 168 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption and the Retro Arpeggiator. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy and known specification findings. AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
+The native suite currently contains **29 independently runnable suites and 231 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behaviour including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy and resolved specification findings. AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
 
 Release history is maintained in [CHANGELOG.md](CHANGELOG.md).
 
@@ -412,6 +423,7 @@ Release history is maintained in [CHANGELOG.md](CHANGELOG.md).
 - [README.md](README.md) — project overview, features and UI reference
 - [README_CONFIGURATION.md](README_CONFIGURATION.md) — firmware configuration reference
 - [README_CALIBRATION.md](README_CALIBRATION.md) — detailed hardware and LED calibration workflow
+- [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md) — complete second-layer Arpeggiator operation, timing, sync and persistence reference
 - [CHANGELOG.md](CHANGELOG.md) — public release history
 - [.github/SECURITY.md](.github/SECURITY.md) — vulnerability reporting and supported-version policy
 - [`docs/assets/`](docs/assets/) — panel artwork and UI pictograms used by the documentation

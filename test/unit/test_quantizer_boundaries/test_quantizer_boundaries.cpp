@@ -35,18 +35,14 @@ static void test_empty_scale_returns_zero_across_full_input_range(void) {
   }
 }
 
-// FA-018 is intentionally not marked covered here. A fresh Hysteresis object
-// currently assumes lastOutput == C and therefore applies a hold band before
-// the first real quantization. A dedicated known-issue regression below can be
-// enabled while fixing that defect; it must become a normal test once approved.
-#ifdef FMQ_ENABLE_KNOWN_FAILURE_TESTS
+// FA-018: a fresh channel has no previous note, so an exact half-semitone tie
+// must use the normal upward tie-break before hysteresis becomes active.
 static void test_fresh_chromatic_half_semitone_tie_rounds_up(void) {
   bool notes[kNoteCount];
   for (uint8_t i = 0; i < kNoteCount; ++i) notes[i] = true;
   Hysteresis h;
   TEST_ASSERT_EQUAL_INT8(1, h.quantize(kHalfSemitoneQ8_8, notes));
 }
-#endif
 
 // FA-017..019: a single selected pitch class is found safely over all octaves.
 static void test_each_single_pitch_class_quantizes_safely_over_full_range(void) {
@@ -133,9 +129,7 @@ static void test_all_nonempty_scale_masks_terminate_with_selected_note(void) {
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_empty_scale_returns_zero_across_full_input_range);
-#ifdef FMQ_ENABLE_KNOWN_FAILURE_TESTS
   RUN_TEST(test_fresh_chromatic_half_semitone_tie_rounds_up);
-#endif
   RUN_TEST(test_each_single_pitch_class_quantizes_safely_over_full_range);
   RUN_TEST(test_sparse_scale_respects_zero_and_120_boundaries);
   RUN_TEST(test_hysteresis_upper_boundary_is_inclusive_then_releases);

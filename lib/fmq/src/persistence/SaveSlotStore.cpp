@@ -17,7 +17,7 @@
 
 namespace fmq {
 namespace {
-constexpr uint16_t kMaxPayload = kStateBytes;
+constexpr uint16_t kMaxPayload = kStoredConfigurationBytes;
 constexpr uint8_t kMaxRecordOps = static_cast<uint8_t>(kConfigSlotSize + 1u);
 static_assert(kMaxRecordOps <= AsyncEepromWriter::kMaxOps, "EEPROM queue too small");
 static_assert(kScaleSlotCount + kConfigSlotCount <= AsyncEepromWriter::kMaxOps,
@@ -25,8 +25,10 @@ static_assert(kScaleSlotCount + kConfigSlotCount <= AsyncEepromWriter::kMaxOps,
 
 bool readValidatedRecord(const IEeprom &eeprom, uint16_t address,
                          uint8_t *payload, uint16_t length) {
-  if (eeprom.readByte(address) != kRecordMarker ||
-      eeprom.readByte(static_cast<uint16_t>(address + 1u)) != kSaveFormatVersion) {
+  if (eeprom.readByte(address) != kRecordMarker) return false;
+  const uint8_t version =
+      eeprom.readByte(static_cast<uint16_t>(address + 1u));
+  if (version != kSaveFormatVersion && version != kPreviousSaveFormatVersion) {
     return false;
   }
   eeprom.readBytes(static_cast<uint16_t>(address + 2u), payload, length);
@@ -37,7 +39,7 @@ bool readValidatedRecord(const IEeprom &eeprom, uint16_t address,
           static_cast<uint16_t>(address + 3u + length))));
   uint8_t framed[2u + kMaxPayload];
   framed[0] = kRecordMarker;
-  framed[1] = kSaveFormatVersion;
+  framed[1] = version;
   for (uint16_t i = 0; i < length; ++i) framed[2u + i] = payload[i];
   return crc16Ccitt(framed, static_cast<uint16_t>(2u + length)) == stored;
 }
@@ -78,7 +80,7 @@ void SaveSlotStore::scan(SlotOccupancy &scale, SlotOccupancy &config) const {
     scale.set(i, readValidatedRecord(eeprom_, scaleSlotAddress(i), payload, kScaleBytes));
   }
   for (uint8_t i = 0; i < kConfigSlotCount; ++i) {
-    config.set(i, readValidatedRecord(eeprom_, configSlotAddress(i), payload, kStateBytes));
+    config.set(i, readValidatedRecord(eeprom_, configSlotAddress(i), payload, kStoredConfigurationBytes));
   }
 }
 
@@ -104,18 +106,22 @@ bool SaveSlotStore::readScale(uint8_t slot, bool notes[kNoteCount]) const {
   return true;
 }
 
-bool SaveSlotStore::writeConfig(uint8_t slot, const QuantizerState &state) {
+bool SaveSlotStore::writeConfig(uint8_t slot, const StoredConfiguration &state) {
   if (slot >= kConfigSlotCount || busy()) return false;
-  uint8_t payload[kStateBytes];
-  encodeState(state, payload);
-  return queueRecord(writer_, configSlotAddress(slot), payload, kStateBytes);
+  uint8_t payload[kStoredConfigurationBytes];
+  encodeStoredConfiguration(state, payload);
+  return queueRecord(writer_, configSlotAddress(slot), payload,
+                     kStoredConfigurationBytes);
 }
 
-bool SaveSlotStore::readConfig(uint8_t slot, QuantizerState &state) const {
+bool SaveSlotStore::readConfig(uint8_t slot, StoredConfiguration &state) const {
   if (slot >= kConfigSlotCount || busy()) return false;
-  uint8_t payload[kStateBytes];
-  if (!readValidatedRecord(eeprom_, configSlotAddress(slot), payload, kStateBytes)) return false;
-  state = decodeState(payload);
+  uint8_t payload[kStoredConfigurationBytes];
+  if (!readValidatedRecord(eeprom_, configSlotAddress(slot), payload,
+                           kStoredConfigurationBytes)) {
+    return false;
+  }
+  state = decodeStoredConfiguration(payload);
   return true;
 }
 

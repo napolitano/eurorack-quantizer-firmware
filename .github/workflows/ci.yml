@@ -25,12 +25,14 @@ jobs:
         suite:
           - regression/test_hardware_ui
           - regression/test_quantizer
+          - integration/test_arpeggiator_layer
           - integration/test_controls
           - integration/test_menu
           - integration/test_menu_shortcuts
           - integration/test_persistence
           - integration/test_persistence_faults
           - integration/test_startup
+          - system/test_arpeggiator_clock
           - system/test_channel_matrix
           - system/test_glide_trigger_matrix
           - system/test_sample_timing_matrix
@@ -43,9 +45,10 @@ jobs:
           - unit/test_led_frame_matrix
           - unit/test_pitch_exhaustive
           - unit/test_quantizer_boundaries
-          - unit/test_retro_arpeggiator
-          - unit/test_retro_arpeggiator_gesture
-          - unit/test_retro_arpeggiator_matrix
+          - unit/test_arpeggiator
+          - unit/test_arpeggiator_channels
+          - unit/test_ui_layer_gesture
+          - unit/test_arpeggiator_matrix
           - unit/test_scale
           - unit/test_startup_sequence_store
           - unit/test_transposition_matrix
@@ -153,6 +156,9 @@ jobs:
 
       - name: Build firmware
         run: pio run -e ${{ matrix.environment }}
+
+      - name: Enforce AVR resource budget
+        run: python scripts/check_avr_resource_budget.py .pio/build/${{ matrix.environment }}/firmware.elf
 
       - name: Collect firmware artifacts
         run: |

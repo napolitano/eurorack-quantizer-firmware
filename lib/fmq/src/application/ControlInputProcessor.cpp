@@ -16,6 +16,13 @@ namespace fmq {
 MenuInput ControlInputProcessor::sample(uint32_t currentTimeMs,
                                         const RawControlInput &raw) {
   MenuInput input;
+  // Keep an immediate physical-ladder indication alongside the debounced event.
+  // The long SHIFT-only layer gesture must be cancelled as soon as a note key
+  // is physically pressed; waiting for the 64 ms ladder debounce creates a
+  // race near the three-second threshold. This flag is cancellation-only and
+  // never executes a command.
+  input.noteButtonDown =
+      buttonIndexForAdc(raw.ladderAdc, ladder_.restAdc()) != kButtonLadderNoButton;
   input.keyEvent = ladder_.sample(currentTimeMs, raw.ladderAdc);
   // SHIFT deliberately bypasses debounce. It is a modifier and must already be
   // visible when a simultaneously pressed ladder key completes its much longer

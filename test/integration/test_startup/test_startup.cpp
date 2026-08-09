@@ -93,12 +93,22 @@ static void test_cog_uses_pairs_and_rotates(void) {
   TEST_ASSERT_EQUAL(first.frame[1], next.frame[2]);
 }
 
-static void test_sparkles_last_about_two_and_a_half_seconds(void) {
+static void test_sparkles_use_configured_short_duration(void) {
   StartupAnimation animation(StartupSequence::Sparkles);
   TEST_ASSERT_EQUAL_UINT32(config::kSparklesDurationMs, animation.durationMs());
   TEST_ASSERT_FALSE(animation.isDone(config::kSparklesDurationMs - 1u));
   TEST_ASSERT_TRUE(animation.isDone(config::kSparklesDurationMs));
   TEST_ASSERT_TRUE(countLit(animation.sampleAt(350u)) > 0u);
+}
+
+static void test_all_note_ring_sequences_respect_startup_duration_limit(void) {
+  for (uint8_t index = 0; index < StartupAnimation::kSequenceCount; ++index) {
+    const StartupAnimation animation(static_cast<StartupSequence>(index));
+    TEST_ASSERT_TRUE(animation.durationMs() <=
+                     config::kStartupRingMaximumDurationMs);
+    TEST_ASSERT_FALSE(animation.isDone(animation.durationMs() - 1u));
+    TEST_ASSERT_TRUE(animation.isDone(animation.durationMs()));
+  }
 }
 
 static void test_sequence_count_is_four(void) {
@@ -111,7 +121,8 @@ int main(void) {
   RUN_TEST(test_glowworm_has_bright_head_and_dimming_tail);
   RUN_TEST(test_glowworm_cycles_green_red_amber);
   RUN_TEST(test_cog_uses_pairs_and_rotates);
-  RUN_TEST(test_sparkles_last_about_two_and_a_half_seconds);
+  RUN_TEST(test_sparkles_use_configured_short_duration);
+  RUN_TEST(test_all_note_ring_sequences_respect_startup_duration_limit);
   RUN_TEST(test_sequence_count_is_four);
   return UNITY_END();
 }

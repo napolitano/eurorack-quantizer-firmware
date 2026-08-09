@@ -20,11 +20,10 @@ constexpr uint32_t kDigitalDebounceMs = 32;
 constexpr uint32_t kLadderDebounceMs = 64;
 constexpr uint32_t kLongPressMs = 2000;
 
-// Official runtime feature: hold SHIFT by itself for this long to toggle the
-// scale-aware Retro Arpeggiator. Any other control activity cancels the
-// pending hold so normal SHIFT shortcuts remain unaffected.
-constexpr uint32_t kRetroArpToggleHoldMs = 3000;
-constexpr uint32_t kRetroArpFeedbackMs = 500;
+// Hold SHIFT by itself to switch between the Quantizer and Arpeggiator UI
+// layers. Any companion control cancels the pending gesture until SHIFT is
+// released, so ordinary shortcuts cannot accidentally change layers.
+constexpr uint32_t kUiLayerToggleHoldMs = 3000;
 
 // SHIFT is a modifier, not an action button. It must be visible to the menu
 // before a simultaneously pressed ladder key finishes its debounce interval.
@@ -36,8 +35,20 @@ constexpr uint32_t kCalibrationEnterHoldMs = 5000;
 constexpr uint32_t kCalibrationEnterBlinkMs = 900;
 constexpr uint32_t kCalibrationSaveHoldMs = 5000;
 constexpr uint32_t kCalibrationSaveBlinkMs = 1200;
+// After selecting a brightness step, briefly mark its ring position with a
+// dark gap before returning to the live green/red/amber balance preview.
+constexpr uint32_t kCalibrationStepMarkerMs = 350;
 constexpr uint32_t kMenuBlinkHalfPeriodMs = 200;
 constexpr uint32_t kBoolOptionFeedbackMs = 700;
+// Arpeggiator enable/bypass feedback uses the complete note ring rather than a
+// single menu-position LED: two green flashes when enabled, two red flashes
+// when disabled, then the normal scale display is restored.
+constexpr uint32_t kArpToggleBlinkHalfPeriodMs = 150;
+constexpr uint8_t kArpToggleBlinkCount = 2;
+constexpr uint32_t kArpToggleFeedbackMs =
+    kArpToggleBlinkHalfPeriodMs * 2u * kArpToggleBlinkCount;
+static_assert(kArpToggleBlinkCount == 2u,
+              "Arpeggiator toggle feedback must flash exactly twice");
 constexpr uint32_t kSaveConfirmationMs = 1024;
 constexpr uint32_t kEraseConfirmationMs = 832;
 
@@ -57,6 +68,20 @@ constexpr uint8_t kChannelLinkButtonIndex = 9;
 constexpr uint8_t kChannelAButtonIndex = 10;
 constexpr uint8_t kChannelBButtonIndex = 11;
 constexpr uint8_t kSignedShiftPositiveMaxButtonIndex = 6;
+
+// Arpeggiator-layer SHIFT mappings. The interaction grammar deliberately stays
+// identical to the Quantizer layer: SHIFT + note selects a function, then an
+// unmodified note selects the value where a scalar parameter is required.
+// A/A#/B retain Link / Channel A / Channel B in both layers.
+constexpr uint8_t kArpEnableButtonIndex = 0;
+constexpr uint8_t kArpRateButtonIndex = 1;
+constexpr uint8_t kArpPatternButtonIndex = 2;
+constexpr uint8_t kArpShapeButtonIndex = 3;
+constexpr uint8_t kArpLengthButtonIndex = 4;
+constexpr uint8_t kArpRangeButtonIndex = 5;
+constexpr uint8_t kArpStepTriggerButtonIndex = 6;
+constexpr uint8_t kArpSyncButtonIndex = 7;
+constexpr uint8_t kArpSwingButtonIndex = 8;
 
 // Feedback-animation timing inside menu pages.
 constexpr uint32_t kSaveConfirmationBlinkHalfPeriodMs = 128;

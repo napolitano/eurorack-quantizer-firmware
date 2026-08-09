@@ -49,14 +49,16 @@ static void test_every_config_record_byte_corruption_is_rejected(void) {
     FakeEeprom eep;
     AsyncEepromWriter writer(eep);
     SaveSlotStore store(eep, writer);
-    QuantizerState state;
-    state.channels[0].config().preShift = -3;
-    state.channels[1].config().postShift = 5;
+    StoredConfiguration state;
+    state.quantizer.channels[0].config().preShift = -3;
+    state.quantizer.channels[1].config().postShift = 5;
+    state.arpeggiators[0].enabled = true;
+    state.arpeggiators[0].syncMode = ArpeggiatorSyncMode::Clock;
     TEST_ASSERT_TRUE(store.writeConfig(0, state));
     store.flush();
     const uint16_t address = static_cast<uint16_t>(kConfigRegionBase + corruptOffset);
     eep.corruptByte(address, static_cast<uint8_t>(eep.readByte(address) ^ 0x01u));
-    QuantizerState loaded;
+    StoredConfiguration loaded;
     TEST_ASSERT_FALSE(store.readConfig(0, loaded));
   }
 }
@@ -82,7 +84,7 @@ static void test_busy_writer_rejects_overlapping_save_operations(void) {
   major(notes);
   TEST_ASSERT_TRUE(store.writeScale(0, notes));
   TEST_ASSERT_FALSE(store.writeScale(1, notes));
-  QuantizerState state;
+  StoredConfiguration state;
   TEST_ASSERT_FALSE(store.writeConfig(0, state));
   store.flush();
   TEST_ASSERT_TRUE(store.writeScale(1, notes));
@@ -96,7 +98,7 @@ static void test_out_of_range_slots_are_rejected_without_writes(void) {
   major(notes);
   TEST_ASSERT_FALSE(store.writeScale(kScaleSlotCount, notes));
   TEST_ASSERT_FALSE(store.readScale(kScaleSlotCount, notes));
-  QuantizerState state;
+  StoredConfiguration state;
   TEST_ASSERT_FALSE(store.writeConfig(kConfigSlotCount, state));
   TEST_ASSERT_FALSE(store.readConfig(kConfigSlotCount, state));
   TEST_ASSERT_FALSE(writer.busy());
@@ -130,6 +132,28 @@ static void test_decode_empty_scale_falls_back_to_factory_scale(void) {
   }
 }
 
+
+static void test_decode_arpeggiator_config_clamps_and_defaults_invalid_fields(void) {
+  uint8_t bytes[kArpeggiatorConfigBytes] = {};
+  bytes[0] = 0xFFu;
+  bytes[1] = 255u;
+  bytes[2] = 255u;
+  bytes[3] = 255u;
+  bytes[4] = 0u;
+  bytes[5] = 255u;
+  bytes[6] = 255u;
+  const ArpeggiatorConfig arp = decodeArpeggiatorConfig(bytes);
+  TEST_ASSERT_TRUE(arp.enabled);
+  TEST_ASSERT_TRUE(arp.stepTrigger);
+  TEST_ASSERT_EQUAL(ArpeggiatorSyncMode::Free, arp.syncMode);
+  TEST_ASSERT_EQUAL_UINT8(config::kArpRateCount - 1u, arp.rateIndex);
+  TEST_ASSERT_EQUAL(ArpeggiatorPattern::Up, arp.pattern);
+  TEST_ASSERT_EQUAL(ArpeggiatorShape::Triad135, arp.shape);
+  TEST_ASSERT_EQUAL_UINT8(1u, arp.length);
+  TEST_ASSERT_EQUAL_UINT8(config::kArpMaximumRange, arp.range);
+  TEST_ASSERT_EQUAL_UINT8(config::kArpMaximumSwingStep, arp.swing);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_every_scale_record_byte_corruption_is_rejected);
@@ -139,5 +163,6 @@ int main(void) {
   RUN_TEST(test_out_of_range_slots_are_rejected_without_writes);
   RUN_TEST(test_decode_channel_config_clamps_all_numeric_fields);
   RUN_TEST(test_decode_empty_scale_falls_back_to_factory_scale);
+  RUN_TEST(test_decode_arpeggiator_config_clamps_and_defaults_invalid_fields);
   return UNITY_END();
 }

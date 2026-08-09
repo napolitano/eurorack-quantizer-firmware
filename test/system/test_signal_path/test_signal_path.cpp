@@ -197,29 +197,29 @@ static void test_relative_channel_b_uses_sum_of_real_adc_inputs(void) {
   TEST_ASSERT_EQUAL_INT8(18, rig.last().quantization.channelB.nominalSemitones);
 }
 
-// Retro Arpeggiator is intentionally downstream of the quantizer trigger
+// Arpeggiator is intentionally downstream of the quantizer trigger
 // detector. Its pitch steps alter the DAC output but do not synthesize trigger
 // pulses on the normal output-trigger jack.
-static void test_retro_arpeggiator_changes_dac_without_output_triggers(void) {
+static void test_arpeggiator_changes_dac_without_output_triggers(void) {
   QuantizerTestRig rig;
   ChannelConfig config = ChannelConfig::makeDefault();
   setMajor(config);
   rig.state().channels[kChannelAIndex].setConfig(config);
   rig.setGateA(true);
   rig.setCvVoltsA(5.0);  // C5 / 60 semitones ideally
-  rig.arpeggiator().setEnabled(true, rig.nowMs());
+  rig.setArpeggiatorsEnabled(true);
 
   rig.tick();
   const uint16_t rootCode = rig.last().dacCodeA;
   TEST_ASSERT_FALSE(rig.last().triggerA);
 
-  rig.runFor(config::kRetroArpStepMs - 1u);
+  rig.runFor(Arpeggiator::freeRateMs(config::kArpDefaultRateIndex) - 1u);
   rig.tick();
   const uint16_t thirdCode = rig.last().dacCodeA;
   TEST_ASSERT_TRUE(thirdCode > rootCode);
   TEST_ASSERT_FALSE(rig.last().triggerA);
 
-  rig.runFor(config::kRetroArpStepMs - 1u);
+  rig.runFor(Arpeggiator::freeRateMs(config::kArpDefaultRateIndex) - 1u);
   rig.tick();
   const uint16_t fifthCode = rig.last().dacCodeA;
   TEST_ASSERT_TRUE(fifthCode > thirdCode);
@@ -234,6 +234,6 @@ int main(void) {
   RUN_TEST(test_output_trigger_is_exactly_five_control_ticks);
   RUN_TEST(test_glide_updates_dac_without_retriggering);
   RUN_TEST(test_relative_channel_b_uses_sum_of_real_adc_inputs);
-  RUN_TEST(test_retro_arpeggiator_changes_dac_without_output_triggers);
+  RUN_TEST(test_arpeggiator_changes_dac_without_output_triggers);
   return UNITY_END();
 }

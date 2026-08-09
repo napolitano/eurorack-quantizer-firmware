@@ -13,6 +13,9 @@
 
 #include "FakeEeprom.h"
 #include "fmq/application/ControlInputProcessor.h"
+#include "fmq/application/ArpeggiatorBank.h"
+#include "fmq/application/UiLayerGesture.h"
+#include "fmq/config/UiConfig.h"
 #include "fmq/ui/Menu.h"
 #include "fmq/domain/Quantizer.h"
 #include "fmq/persistence/SaveSlotStore.h"
@@ -30,15 +33,54 @@ RawControlInput raw(uint16_t ladder, bool shift = false,
 }
 
 void feed(ControlInputProcessor &controls, Menu &menu, QuantizerState &q,
-          QuantizationResult &r, SaveSlotStore &store, uint32_t &t,
+          ArpeggiatorBank &arpeggiators, QuantizationResult &r,
+          SaveSlotStore &store, uint32_t &t,
           const RawControlInput &value, uint32_t durationMs) {
   const uint32_t end = t + durationMs;
   while (t <= end) {
     const MenuInput in = controls.sample(t, value);
-    menu.update(q, in, r, t, store);
+    menu.update(q, arpeggiators, in, r, t, store);
     ++t;
   }
 }
+}
+
+
+static void test_physical_ladder_activity_is_visible_before_debounce(void) {
+  ControlInputProcessor controls;
+  controls.calibrateLadderRest(558u);
+
+  const MenuInput input = controls.sample(100u, raw(236u, true));
+  TEST_ASSERT_TRUE(input.noteButtonDown);
+  TEST_ASSERT_EQUAL(ButtonEventType::None, input.keyEvent.type);
+}
+
+
+static void test_physical_note_press_cancels_layer_hold_before_debounce(void) {
+  ControlInputProcessor controls;
+  controls.calibrateLadderRest(558u);
+  UiLayerGesture gesture;
+
+  MenuInput input = controls.sample(1000u, raw(558u, true));
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(input.shiftPressed, input.noteButtonDown,
+                                   false, 1000u));
+
+  const uint32_t nearThreshold =
+      1000u + config::kUiLayerToggleHoldMs - 10u;
+  input = controls.sample(nearThreshold, raw(236u, true));
+  TEST_ASSERT_TRUE(input.noteButtonDown);
+  TEST_ASSERT_EQUAL(ButtonEventType::None, input.keyEvent.type);
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(input.shiftPressed, input.noteButtonDown,
+                                   false, nearThreshold));
+
+  input = controls.sample(1000u + config::kUiLayerToggleHoldMs + 100u,
+                          raw(558u, true));
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(input.shiftPressed, input.noteButtonDown,
+                                   false,
+                                   1000u + config::kUiLayerToggleHoldMs + 100u));
 }
 
 static void test_real_adc_press_toggles_note(void) {
@@ -48,16 +90,17 @@ static void test_real_adc_press_toggles_note(void) {
   Menu menu;
   menu.begin(store);
   QuantizerState q;
+  ArpeggiatorBank arpeggiators;
   QuantizationResult r = QuantizationResult::makeZero();
   ControlInputProcessor controls;
   controls.calibrateLadderRest(558);
   uint32_t t = 0;
 
-  feed(controls, menu, q, r, store, t, raw(558), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558), 70);
   // Original hardware uses the proven absolute AVCC-referenced ladder values.
-  feed(controls, menu, q, r, store, t, raw(236), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(236), 70);
   TEST_ASSERT_FALSE(q.channels[0].config().notes[3]);
-  feed(controls, menu, q, r, store, t, raw(558), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558), 70);
 }
 
 static void test_debounced_shift_plus_b_selects_channel_b(void) {
@@ -67,18 +110,19 @@ static void test_debounced_shift_plus_b_selects_channel_b(void) {
   Menu menu;
   menu.begin(store);
   QuantizerState q;
+  ArpeggiatorBank arpeggiators;
   QuantizationResult r = QuantizationResult::makeZero();
   ControlInputProcessor controls;
   controls.calibrateLadderRest(558);
   uint32_t t = 0;
 
-  feed(controls, menu, q, r, store, t, raw(558), 70);
-  feed(controls, menu, q, r, store, t, raw(558, true), 70);
-  feed(controls, menu, q, r, store, t, raw(536, true), 70); // SHIFT+B
-  feed(controls, menu, q, r, store, t, raw(558, true), 70);
-  feed(controls, menu, q, r, store, t, raw(558, false), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(536, true), 70); // SHIFT+B
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558, false), 70);
 
-  feed(controls, menu, q, r, store, t, raw(171), 70); // toggle note 2
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(171), 70); // toggle note 2
   TEST_ASSERT_FALSE(q.channels[1].config().notes[2]);
   TEST_ASSERT_TRUE(q.channels[0].config().notes[2]);
 }
@@ -90,22 +134,25 @@ static void test_shift_glide_menu_through_raw_controls(void) {
   Menu menu;
   menu.begin(store);
   QuantizerState q;
+  ArpeggiatorBank arpeggiators;
   QuantizationResult r = QuantizationResult::makeZero();
   ControlInputProcessor controls;
   controls.calibrateLadderRest(558);
   uint32_t t = 0;
 
-  feed(controls, menu, q, r, store, t, raw(558), 70);
-  feed(controls, menu, q, r, store, t, raw(558, true), 70);
-  feed(controls, menu, q, r, store, t, raw(171, true), 70); // SHIFT+2
-  feed(controls, menu, q, r, store, t, raw(558, true), 70);
-  feed(controls, menu, q, r, store, t, raw(421, true), 70); // set 7
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(171, true), 70); // SHIFT+2
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(558, true), 70);
+  feed(controls, menu, q, arpeggiators, r, store, t, raw(421, true), 70); // set 7
 
   TEST_ASSERT_EQUAL_UINT8(7, q.channels[0].config().glideAmount);
 }
 
 int main(void) {
   UNITY_BEGIN();
+  RUN_TEST(test_physical_ladder_activity_is_visible_before_debounce);
+  RUN_TEST(test_physical_note_press_cancels_layer_hold_before_debounce);
   RUN_TEST(test_real_adc_press_toggles_note);
   RUN_TEST(test_debounced_shift_plus_b_selects_channel_b);
   RUN_TEST(test_shift_glide_menu_through_raw_controls);

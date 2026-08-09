@@ -30,7 +30,7 @@ Any future PCB revision using a true external reference should get its own verif
 ## Resistor ladder and ADC
 
 The original PCB uses the proven Rust ladder values
-`[0, 93, 171, 236, 292, 341, 384, 421, 455, 485, 512, 536, 558]` and 64 ms debounce. The original-board profile keeps the nearest-value decoder and disables rest normalization.
+`[0, 93, 171, 236, 292, 341, 384, 421, 455, 485, 512, 536, 558]` and 64 ms debounce. The original-board profile disables rest normalization. A nearest-value candidate is accepted only within ±10 ADC counts of its nominal key value; readings in the gaps are treated as no button. Values from the documented rest floor upward are also no button.
 
 The AVR ADC scanner runs interrupt-driven at 125 kHz (prescaler 128), explicitly starts conversions, discards the first conversion after a MUX change and uses a median-of-three filter to match the effective Rust `fm-lib` behaviour.
 
@@ -78,13 +78,18 @@ sequence 0.
 Relevant settings include `kStartupFadeInMs`, `kStartupFadeOutMs`,
 `kStartupInterColorPauseMs`, `kGlowwormStepMs`, the Glowworm tail intensity
 table, `kCogStepMs`, `kCogRotations`, `kSparklesDurationMs`,
-`kSparklesFrameMs`, and the discrete status-LED timings. All note-ring effects
-use the normal calibrated red/green brightness as their full-scale reference.
-Both ring animation and discrete-LED test can be disabled independently.
+`kSparklesFrameMs`, and the discrete status-LED timings.
+`kStartupRingMaximumDurationMs` is a hard upper bound for the twelve-note ring
+portion of every animation and is currently 1500 ms; compile-time assertions
+reject a timing change that would exceed it. The separate four-status-LED
+self-test is intentionally outside that ring-animation limit. All note-ring
+effects use the normal calibrated red/green brightness as their full-scale
+reference. Both ring animation and discrete-LED test can be disabled
+independently.
 
 ## Runtime and diagnostics
 
-`RuntimeConfig.h` centralises UI/LED task dividers, diagnostics period, calibration-console timing, serial baud, startup input settle time and ladder-calibration timeout. Automatic live-state restore/autosave remains disabled by default to match the original startup baseline.
+`RuntimeConfig.h` centralises UI/LED task dividers, diagnostics period, calibration-console timing, serial baud, startup input settle time and ladder-calibration timeout. Automatic live-state restore and asynchronous autosave are enabled by default. The musical state and the active Quantizer/Arpeggiator UI layer are restored on boot. Layer restoration is side-effect free: it does not enable/disable an Arpeggiator or replay toggle feedback.
 
 
 ### LED calibration scale
@@ -92,10 +97,13 @@ Both ring animation and discrete-LED test can be disabled independently.
 Brightness calibration deliberately spans the complete TLC5947 12-bit range.
 The twelve clockwise note positions correspond to 0..4095 inclusive, with
 eleven equal intervals. A configured/default PWM value that lies between two
-positions is displayed at the nearest position. The calibration UI fills the
-ring clockwise from position 0 through that current position, so the selected
-level reads as a bar rather than a single marker. Position 0 therefore represents
-true off and position 11 represents the actual hardware maximum.
+positions maps to the nearest available step. During active editing the ring
+shows a repeating green/red/amber comparison pattern using the current live PWM
+levels for both emitters. A newly chosen step is marked briefly by a dark gap at
+its ring position. Channel A's discrete status-LED pair identifies green editing;
+Channel B's pair identifies red editing. Position 0 still represents true off and
+position 11 the actual hardware maximum; the comparison view changes only how
+those steps are presented, not how they are stored.
 
 
 ## Factory full-config fallbacks
@@ -107,14 +115,37 @@ invalid. Each preset is stored as a 12-bit pitch-class mask (`bit 0 = C`,
 Changing these masks changes firmware defaults only; it does not rewrite EEPROM.
 
 
-## Retro Arpeggiator
+## Arpeggiator layer
 
-The Retro Arpeggiator is configured with:
+The Arpeggiator is a full second UI layer. `UiConfig.h` defines the 3-second SHIFT-only layer-switch gesture and the nine Arpeggiator function positions. Entering that layer enables the selected Arpeggiator if necessary. The interaction grammar does **not** change between layers: unmodified note buttons continue to edit/show the scale, while `SHIFT + note` selects the active layer's menu function. A, A# and B therefore remain `SHIFT+A` Link, `SHIFT+A#` Channel A and `SHIFT+B` Channel B in both layers. Scalar Arpeggiator parameters use the next unmodified note press as their value selector, matching the established Quantizer menu behaviour.
 
-- `kRetroArpToggleHoldMs` in `UiConfig.h`: SHIFT-alone hold duration.
-- `kRetroArpFeedbackMs` in `UiConfig.h`: short visual toggle feedback.
-- `kRetroArpStepMs` in `ProductConfig.h`: time per arpeggio step.
+The factory/default Arpeggiator sync mode is `FREE`; no external clock is required. `RESET` and `CLOCK` are explicit additional modes selected from the Arpeggiator Sync menu.
 
-The arpeggio uses scale-degree offsets root/third/fifth (`0, 2, 4`) against each
-channel's currently active scale. It is intentionally a volatile performance mode
-and is not persisted.
+`ProductConfig.h` contains only product limits/defaults rather than one fixed arpeggio:
+
+- `kArpRateCount = 12`;
+- `kArpDefaultRateIndex = 3`, corresponding to 24 ms in FREE/RESET;
+- `kArpMaximumLength = 12`;
+- `kArpMaximumRange = 4`;
+- `kArpMaximumSwingStep = 11`.
+
+The per-channel persistent configuration contains enable, rate/clock ratio, pattern, shape, length, octave range, step-trigger enable, sync mode and swing. FREE and RESET use the internal rate table; CLOCK interprets the same index as a divider/multiplier of the channel's Sample/Gate clock. Full behaviour and all value tables are documented in [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md).
+
+## EEPROM layout and live state
+
+Scale slots remain compact scale-only records. A full-configuration payload is 32 bytes and contains the Quantizer state, both Arpeggiator configurations, the selected channel and the active Quantizer/Arpeggiator UI layer. The layer uses a spare bit in the selected-channel byte, so the payload size does not grow. Full-configuration records are versioned and CRC-protected. New writes use save-format v5; v4 scale/config records remain readable for in-place firmware upgrades.
+
+The live-state record additionally stores the two-byte LED brightness calibration. The current layout leaves a wear-levelled ring of 12 live-state records before the final startup-sequence metadata byte. The validity marker is committed last.
+
+`PersistenceConfig.h::kLiveAutosaveQuiescenceMs` is currently 3000 ms. A front-panel configuration change marks live state dirty; once no further change has occurred for that interval and the shared EEPROM writer is idle, the complete state is queued asynchronously. Runtime phase, current Arpeggiator step and current Glide position are not serialized. The UI layer **is** serialized in both full configurations and live state so the front-panel function map matches the restored Arpeggiator status after preset loads and reboot. A legacy record with an enabled Arpeggiator but no layer bit is migrated to the Arpeggiator layer.
+
+The shared `AsyncEepromWriter` queue is sized for the largest current atomic transaction. Compile-time assertions protect record sizes and prevent the configured EEPROM regions from overlapping.
+
+## AVR resource budget
+
+PlatformIO still enforces the board's absolute program/RAM capacity. CI adds a deliberately more conservative engineering gate through `scripts/check_avr_resource_budget.py`:
+
+- application flash target: at most 85% of 30,720 bytes;
+- static SRAM target: at most 70% of 2,048 bytes.
+
+The check counts `.data` in both flash and SRAM, because AVR initialised data consumes flash storage and is copied into SRAM at startup. The aim is to preserve room for stack/interrupt activity and future maintenance rather than treating the last byte of the MCU as usable feature budget.

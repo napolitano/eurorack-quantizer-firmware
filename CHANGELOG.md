@@ -12,16 +12,43 @@ A new section should be added when a release version is explicitly declared.
 
 ## 0.1.1 — 2026-08-07
 
-Patch release correcting and restoring the native CI test suite. Intended quantizer runtime behaviour is unchanged from 0.1.0.
+Current 0.1.1 release line. The entries below are accumulated changes for this version; a new version is declared only when explicitly chosen.
 
 ### Added
 
 - Expanded the native test net with fine-grained two-channel isolation checks: in Absolute mode Channel B is verified at quantized-pitch and final DAC-code level while Channel A sweeps the complete 10-bit ADC range; the complementary Relative-mode behaviour is verified explicitly.
 - Added Sample-and-Hold and reverse-direction A/B independence regression coverage so activity on either CV input cannot silently leak into the other channel's digital signal path.
-- Expanded Retro Arpeggiator documentation to describe its intended fast, scale-aware 8-bit-computer-style arpeggio character.
+- Expanded Arpeggiator documentation to describe its intended fast, scale-aware 8-bit-computer-style arpeggio character.
+- Added a complete second Arpeggiator UI layer with dedicated controls for enable, rate/clock ratio, pattern, scale-degree shape, length, octave range, step trigger, FREE/RESET/CLOCK sync and swing while retaining Link/A/B navigation.
+- Expanded the Arpeggiator engine from the fixed 24 ms root/third/fifth behaviour to twelve internal rates, clock division/multiplication, eight patterns, eight scale-aware shapes, 1–12 step length and 1–4 octave range; the former 24 ms 1-3-5 behaviour remains the default.
+- Added external Sample/Gate clock integration per channel, including reset-only operation, phase re-anchoring on real clock edges, generated subdivisions and independent physical clock inputs for A/B.
+- Added optional 5 ms output triggers for Arpeggiator steps while retaining pitch-only operation as the default.
+- Added complete Arpeggiator-layer, clock/sync and persistence regression coverage, including full-config Arpeggiator restoration, stable/deterministic Random stepping and exact swing-pair timing; the regular native suite now contains 29 independently runnable suites and 231 test cases.
+- Added `README_ARPEGGIATOR.md` as the complete second-layer operation, parameter, sync, persistence and testing reference.
+- Added an AVR resource-budget CI gate to preserve engineering headroom for flash and static SRAM.
+- Added dedicated per-channel Arpeggiator state and regression coverage for A-only, B-only and linked operation.
+- Added live green/red/amber comparison feedback to LED brightness calibration so colour balance and the resulting amber mix can be judged while either emitter is adjusted.
+- Added regression coverage for the calibration comparison view, calibration colour selection and the 1500 ms startup note-ring duration ceiling.
+- Extended full-configuration and live-state persistence to include both complete per-channel Arpeggiator configurations and the selected channel; automatic live restore/autosave is enabled with versioned CRC-protected wear-levelled records.
 
 ### Fixed
 
+- Added the active Quantizer/Arpeggiator UI layer to full-configuration persistence without increasing the 32-byte payload; user save records now write format v5 while v4 records remain readable: a spare bit in the selected-channel byte is used. Full-config loads now restore the layer side-effect free, including the valid Arpeggiator-layer/ARP-OFF state, and legacy configs with ARP enabled are migrated to the Arpeggiator layer instead of recreating a hidden running ARP in Quantizer UI.
+- Removed the fresh-channel C bias from Hysteresis by tracking whether a previous output actually exists; the first exact 0.5-semitone tie now rounds upward as specified.
+- Added a ±10-count plausibility window to the original resistor-ladder decoder. Nominal values remain unchanged, while implausible gap readings and high/open readings fail safe as no button.
+- Replaced millisecond-assigned external-clock edges with ISR-captured microsecond timestamps and per-tick edge counts. CLOCK period measurement is no longer quantized to the 1 kHz control loop, multiple physical edges are not collapsed into one boolean event, and multiplied-step phase no longer accumulates control-loop observation error.
+- Reworked the Arpeggiator as a true second control layer: entering it with the 3-second SHIFT-only gesture enables the selected Arpeggiator, while returning to the Quantizer layer disables Arpeggiator playback on both channels.
+- Restored one consistent front-panel grammar across both UI layers: unmodified note buttons continue to edit and display the selected scale, while `SHIFT + note` selects Quantizer or Arpeggiator menu functions according to the active layer; scalar parameters then use the note buttons as value selectors.
+- Fixed live restore of the active UI layer: reboot now returns to the same Quantizer/Arpeggiator front-panel layer that was active before power-off, so the first 3-second SHIFT hold after an Arpeggiator-layer reboot correctly performs OFF/exit instead of re-entering the layer. Live-state v6 stores the layer explicitly while retaining in-place v5 migration compatibility.
+- Removed the separate steady Arpeggiator dashboard so the normal scale/quantized-note display remains visible in both UI layers; temporary parameter and activation feedback is retained.
+- Changed Arpeggiator enable/bypass feedback to two full-ring flashes: green when enabling, red when disabling, followed automatically by restoration of the normal scale/quantized-note display.
+- Removed the independent one-shot layer-change LED path that produced a single amber flash on entry and a single green flash on exit; the 3-second layer transition now uses the same exact two-green / two-red full-ring Arpeggiator feedback renderer as `SHIFT+C`.
+- Made FREE internal timing the explicit factory/default Arpeggiator sync mode; RESET and CLOCK remain user-selectable additional modes.
+- Closed the 64 ms layer-switch race by cancelling the SHIFT hold from immediate physical resistor-ladder activity before note-key debounce, and blocking layer switching outside the stable main page.
+- Added an end-to-end regression path for 3-second layer entry -> automatic Arpeggiator enable -> actual FREE-running pitch stepping, plus layer-consistent SHIFT-menu, scale-display/editing and raw-ladder cancellation tests.
+- Added regression checks for exactly two green enable flashes, exactly two red disable flashes, intervening dark phases and automatic return to the scale display.
+- Limited every twelve-note startup animation variant to at most 1500 ms; the separate four-status-LED self-test remains independent of that note-ring limit.
+- Added the per-channel Arpeggiator regression suite to the GitHub Actions matrix so the channel-isolation tests run as an explicit CI job.
 - Renamed PlatformIO test-suite directories to the required `test_*` convention so `pio test -e native` discovers and builds the native unit, integration and regression tests correctly.
 - Aligned stale native tests with the firmware's established hardware behaviour: original absolute resistor-ladder values, 64 ms ladder debounce, normalized-HIGH Track-and-Hold semantics, full-range ADC pitch conversion, last-note protection, and asynchronous EEPROM writes.
 - Corrected the startup-sequence-store test include path.
@@ -74,8 +101,8 @@ Initial public release of the PlatformIO/C++ firmware reimplementation.
   - Sparkles
 - EEPROM rotation of the next startup sequence.
 - Startup self-test of the four discrete activity LEDs.
-- Scale-aware Retro Arpeggiator performance mode, toggled by holding SHIFT alone.
-- Retro Arpeggiator intervals derived from each channel's active scale.
+- Scale-aware Arpeggiator performance mode, toggled by holding SHIFT alone.
+- Arpeggiator intervals derived from each channel's active scale.
 - Boot-time serial hardware calibration console.
 - Optional runtime diagnostics.
 - Central configuration split by product, UI, analogue, LED, runtime, persistence and board concerns.
@@ -142,7 +169,7 @@ Initial public release of the PlatformIO/C++ firmware reimplementation.
 
 ### Documentation
 
-- Added a repository-focused `README.md` covering features, hardware assumptions, build/flash, complete menu logic, Track/Sample behaviour, discrete LED semantics, factory presets, startup sequences, Retro Arpeggiator and licensing/credits.
+- Added a repository-focused `README.md` covering features, hardware assumptions, build/flash, complete menu logic, Track/Sample behaviour, discrete LED semantics, factory presets, startup sequences, Arpeggiator and licensing/credits.
 - Added `README_CONFIGURATION.md` as the firmware configuration reference.
 - Added `README_CALIBRATION.md` with step-by-step LED, ladder, CV-input and DAC-output calibration procedures.
 - Added this release-oriented `CHANGELOG.md` in place of internal fix notes.

@@ -80,16 +80,29 @@ static void test_bounce_resets_the_full_ladder_debounce_window(void) {
   TEST_ASSERT_EQUAL_UINT8(4, event.index);
 }
 
-// TA-064/065 remains a known requirement gap: the current decoder intentionally
-// mirrors the original nearest-value behaviour and has no explicit plausibility
-// window. Enable this regression while implementing the approved fix.
-#ifdef FMQ_ENABLE_KNOWN_FAILURE_TESTS
+// TA-064/065: nearest-value decoding is accepted only inside a documented
+// plausibility window; values in the gaps fail safe as "no button".
 static void test_implausible_mid_ladder_value_is_rejected(void) {
-  // A deliberately non-nominal value should be "no button" once TA-064 is
-  // implemented; current compatibility decoder maps it to the nearest key.
   TEST_ASSERT_EQUAL_UINT8(config::kLadderNoButton, buttonIndexForAdc(70u, 558u));
 }
-#endif
+
+static void test_button_acceptance_window_is_inclusive_and_bounded(void) {
+  const uint8_t button = 5u;
+  const uint16_t nominal = config::kLadderExpectedValues[button];
+  const uint16_t tolerance = config::kLadderButtonAcceptanceDelta;
+  TEST_ASSERT_EQUAL_UINT8(button,
+      buttonIndexForAdc(static_cast<uint16_t>(nominal - tolerance), 558u));
+  TEST_ASSERT_EQUAL_UINT8(button,
+      buttonIndexForAdc(static_cast<uint16_t>(nominal + tolerance), 558u));
+  TEST_ASSERT_EQUAL_UINT8(config::kLadderNoButton,
+      buttonIndexForAdc(static_cast<uint16_t>(nominal + tolerance + 1u), 558u));
+}
+
+static void test_high_open_circuit_values_are_rejected_as_no_button(void) {
+  TEST_ASSERT_EQUAL_UINT8(config::kLadderNoButton,
+                          buttonIndexForAdc(config::kLadderMinimumValidRest, 558u));
+  TEST_ASSERT_EQUAL_UINT8(config::kLadderNoButton, buttonIndexForAdc(1023u, 558u));
+}
 
 int main(void) {
   UNITY_BEGIN();
@@ -98,8 +111,8 @@ int main(void) {
   RUN_TEST(test_rest_calibration_accepts_only_documented_range);
   RUN_TEST(test_press_requires_more_than_64_ms_stability);
   RUN_TEST(test_bounce_resets_the_full_ladder_debounce_window);
-#ifdef FMQ_ENABLE_KNOWN_FAILURE_TESTS
   RUN_TEST(test_implausible_mid_ladder_value_is_rejected);
-#endif
+  RUN_TEST(test_button_acceptance_window_is_inclusive_and_bounded);
+  RUN_TEST(test_high_open_circuit_values_are_rejected_as_no_button);
   return UNITY_END();
 }

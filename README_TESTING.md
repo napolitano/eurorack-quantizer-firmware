@@ -1,8 +1,8 @@
 # Testing and verification
 
-The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond timing wherever the hardware boundary permits it.
+The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current default suite contains **26 independently runnable PlatformIO test suites and 168 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
+The current default suite contains **29 independently runnable PlatformIO test suites and 231 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
 
 Examples of exhaustive work performed by the suite include:
 
@@ -14,7 +14,10 @@ Examples of exhaustive work performed by the suite include:
 - every supported pre-, scale- and post-shift value;
 - all twelve factory Arpeggiator scales;
 - all twelve root pitch classes for Arpeggiator interval generation;
-- hundreds of exact 24 ms Arpeggiator phase boundaries;
+- exact boundaries for all twelve internal Arpeggiator rates and the complete clock-ratio table;
+- all Arpeggiator patterns, shapes, supported lengths/ranges and swing limits;
+- per-channel Arpeggiator enable/config isolation plus linked-copy behaviour;
+- exact two-flash full-ring Arpeggiator enable/disable feedback for both `SHIFT+C` and the 3-second layer transition, including green-on-enable, red-on-disable, dark intervals and restoration of the normal scale display;
 - byte-by-byte corruption injection into complete scale and full-configuration EEPROM records;
 - all twelve logical note LEDs and all four logical LED colours;
 - the complete 0..4095 LED intensity range for monotonic PWM scaling.
@@ -28,18 +31,19 @@ Unit tests verify deterministic components in isolation and intentionally push t
 | Suite | Main responsibility |
 |---|---|
 | `unit/test_scale` | scale navigation and empty-scale safety |
-| `unit/test_quantizer_boundaries` | pitch boundaries, hysteresis and all scale masks |
+| `unit/test_quantizer_boundaries` | pitch boundaries, first-sample tie handling, hysteresis and all scale masks |
 | `unit/test_transposition_matrix` | full signed pre/scale/post shift ranges and ordering |
 | `unit/test_pitch` | representative ADC/DAC conversion vectors |
 | `unit/test_pitch_exhaustive` | exhaustive monotonic ADC/DAC transfer functions |
 | `unit/test_buttons` | button and long-press state machines |
-| `unit/test_ladder_boundaries` | exact ladder values, midpoints, calibration and 64 ms debounce boundary |
+| `unit/test_ladder_boundaries` | exact ladder values, plausibility windows, invalid gaps, calibration and 64 ms debounce boundary |
 | `unit/test_crc` | CRC reference vectors and bit-error detection |
 | `unit/test_brightness` | brightness-step mapping |
 | `unit/test_led_frame_matrix` | TLC5947 logical/physical order, colours and full PWM intensity range |
-| `unit/test_retro_arpeggiator` | core Arpeggiator examples and clock wraparound |
-| `unit/test_retro_arpeggiator_matrix` | all factory scales, all roots, sparse scales and phase boundaries |
-| `unit/test_retro_arpeggiator_gesture` | 3-second SHIFT-only activation gesture |
+| `unit/test_arpeggiator` | core Arpeggiator examples, microsecond external-clock timing, multi-edge counting and wraparound |
+| `unit/test_arpeggiator_matrix` | all factory scales, all roots, rates, patterns, shapes, lengths/ranges and clock ratios |
+| `unit/test_ui_layer_gesture` | exact 3-second SHIFT-only Quantizer/Arpeggiator layer switch, cancellation and wraparound |
+| `unit/test_arpeggiator_channels` | independent A/B enable state plus deterministic linked-mode toggling |
 | `unit/test_startup_sequence_store` | startup-sequence persistence |
 
 ### Integration tests
@@ -48,12 +52,16 @@ Integration tests verify collaborating production components rather than reimple
 
 | Suite | Main responsibility |
 |---|---|
-| `integration/test_controls` | raw front-panel input -> debounced menu input |
+| `integration/test_arpeggiator_layer` | full 3-second entry → enable → two green flashes → audible FREE-running step path, 3-second exit → disable all → two red flashes, unchanged scale display/editing in the second layer, SHIFT-based Arpeggiator menu grammar, every Arpeggiator parameter, Link/A/B navigation, full-config UI-layer restore, reboot restoration and first-hold OFF regression coverage |
+| `integration/test_controls` | raw front-panel input -> debounced menu input, including pre-debounce ladder activity used to cancel the layer-hold race |
 | `integration/test_menu` | menu operations, configuration, save/load and calibration flow |
 | `integration/test_menu_shortcuts` | one dedicated test for every SHIFT + note command |
-| `integration/test_persistence` | save/load, CRC, live-state ring and wear levelling |
+| `integration/test_persistence` | save/load, CRC, full-config/live UI-layer round-trips including ARP-off layer state, wear levelling and v5→v6 live-state migration |
 | `integration/test_persistence_faults` | per-byte corruption, incomplete records, busy writer and validation |
 | `integration/test_startup` | all startup-animation sequences and timing |
+
+
+LED calibration regression coverage also verifies that active calibration exposes green, red and amber simultaneously, that a selected step gets a temporary position marker without changing the stored value, and that the A/B editor indication follows green/red selection.
 
 ### Regression tests
 
@@ -76,14 +84,15 @@ Captured values include:
 - input-status LEDs A/B;
 - output-status LEDs A/B.
 
-The harness deliberately calls the real `QuantizerState`, `RetroArpeggiator`, `adcToSemitones()` and `semitonesToDac()` implementations. It does not contain a second quantizer implementation that could accidentally agree with itself.
+The harness deliberately calls the real `QuantizerState`, `ArpeggiatorBank`/`Arpeggiator`, `adcToSemitones()` and `semitonesToDac()` implementations. It does not contain a second quantizer implementation that could accidentally agree with itself.
 
 | Suite | Main responsibility |
 |---|---|
+| `system/test_arpeggiator_clock` | FREE/RESET/CLOCK integration, clock ratios, continuous CV override, channel clock isolation and Arpeggiator step triggers |
 | `system/test_signal_path` | representative complete CV/gate -> DAC/trigger signal paths |
 | `system/test_sample_timing_matrix` | exact Track/Sample behaviour, all delay values and input-LED timing |
 | `system/test_glide_trigger_matrix` | all Glide levels, monotonicity, 95% timing order, 5 ms trigger and 65 ms LED |
-| `system/test_channel_matrix` | simultaneous A/B operation, independent gates/configs, Relative B and per-channel Arpeggiator scales |
+| `system/test_channel_matrix` | simultaneous A/B operation, independent gates/configs, Relative B, per-channel Arpeggiator scales and A-only/B-only Arpeggiator output isolation |
 
 ## Fine-grained CI
 
@@ -101,7 +110,7 @@ The native build is compiled with:
 -Wpedantic
 ```
 
-A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs.
+A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 85% of the conservative 30,720-byte application-flash budget and no more than 70% of the ATmega328P's 2 KB static SRAM.
 
 ## Running tests locally
 
@@ -120,9 +129,9 @@ pio test -e native -f system/test_glide_trigger_matrix
 Examples:
 
 ```text
-pio test -e native -f unit/test_retro_arpeggiator_matrix
-pio test -e native -f integration/test_persistence_faults
-pio test -e native -f system/test_sample_timing_matrix
+pio test -e native -f unit/test_arpeggiator_matrix
+pio test -e native -f integration/test_arpeggiator_layer
+pio test -e native -f system/test_arpeggiator_clock
 ```
 
 ## Requirement-oriented verification
@@ -148,23 +157,16 @@ Representative traceability:
 | TA-066..081 | TLC5947 logical order, colour encoding and PWM scaling |
 | SM-001..007 | CRC/fault injection/incomplete-write/validation tests |
 
-## Known specification findings discovered by the expanded suite
+The expanded persistence tests also round-trip the complete `StoredConfiguration`: Quantizer state, selected channel, active UI layer and both per-channel Arpeggiator configurations. Byte-by-byte corruption of a full-config record must invalidate the whole record rather than partially accepting Arpeggiator data.
 
-The expanded tests have already found two behaviours that should not be silently normalised into passing tests:
+## Specification findings closed by regression tests
 
-1. **Fresh Hysteresis state is biased toward C.** `Hysteresis` currently starts with `lastOutput_ == 0` and immediately applies a C-centred hold band before any real note has been emitted. A fresh chromatic input at exactly 0.5 semitone therefore resolves to C instead of the specified upward tie. The reproducer is guarded by `FMQ_ENABLE_KNOWN_FAILURE_TESTS` pending approval of the firmware fix.
-2. **The resistor-ladder decoder has no explicit plausibility window.** The current implementation intentionally mirrors the original nearest-value decoder, so every ADC value is assigned to some key/rest candidate. TA-064/065 require a validity window so implausible readings can be rejected. A guarded regression test documents that gap pending approval of the behavioural change.
+Two defects found by the expanded suite are now fixed and permanently covered:
 
-These checks are intentionally **not** rewritten to assert the current defective behaviour. That would turn a known defect into a contract.
+1. **Fresh Hysteresis state no longer assumes C.** A new channel has no previous note until the first real quantization result. An exact chromatic 0.5-semitone tie therefore follows FA-018 and rounds upward before hysteresis becomes active.
+2. **The resistor-ladder decoder now has an explicit plausibility window.** After nearest-candidate selection, a key is accepted only within ±10 ADC counts of its nominal value. Gap values and the released/high region are rejected as no button, satisfying TA-064/065 without changing the proven nominal ladder values.
 
-To run the known-issue characterisation tests explicitly:
-
-```text
-pio test -e native_known_issues -f unit/test_quantizer_boundaries
-pio test -e native_known_issues -f unit/test_ladder_boundaries
-```
-
-This environment is expected to fail until the corresponding fixes are approved and implemented. It is not part of the normal CI merge gate.
+These are regular CI tests, not opt-in expected failures.
 
 ## Coverage reports
 

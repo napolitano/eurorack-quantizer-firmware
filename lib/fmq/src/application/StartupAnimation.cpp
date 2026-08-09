@@ -31,6 +31,16 @@ constexpr uint32_t kCogDurationMs =
     static_cast<uint32_t>(config::kCogStepMs) * kNoteCount *
     config::kCogRotations;
 
+static_assert(kColorFadeDurationMs <= config::kStartupRingMaximumDurationMs,
+              "ColorFade exceeds startup note-ring duration limit");
+static_assert(kGlowwormDurationMs <= config::kStartupRingMaximumDurationMs,
+              "Glowworm exceeds startup note-ring duration limit");
+static_assert(kCogDurationMs <= config::kStartupRingMaximumDurationMs,
+              "Cog exceeds startup note-ring duration limit");
+static_assert(config::kSparklesDurationMs <=
+                  config::kStartupRingMaximumDurationMs,
+              "Sparkles exceeds startup note-ring duration limit");
+
 uint32_t mixBits(uint32_t value) {
   value ^= value >> 16u;
   value *= 0x7FEB352Du;

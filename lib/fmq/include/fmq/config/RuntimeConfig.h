@@ -26,11 +26,12 @@ constexpr uint32_t kLadderCalibrationTimeoutMs = 1000;
 constexpr uint16_t kCalibrationConsoleStartupDelayMs = 50;
 constexpr uint16_t kCalibrationStreamPeriodMs = 100;
 constexpr bool kCalibrationConsoleEnabled = true;
-// Compatibility baseline: the Rust original does not restore or autosave the
-// running quantizer state. Keep the optional C++ live-state extension disabled
-// by default so stale EEPROM data cannot alter startup behaviour or brightness.
-constexpr bool kRestoreLiveStateOnBoot = false;
-constexpr bool kAutosaveLiveState = false;
+// Product behaviour: restore and asynchronously autosave the complete musical
+// working state (Quantizer + per-channel Arpeggiator + selected channel).
+// Hardware calibration is stored alongside it. The UI layer itself remains a
+// boot-time choice and always starts in the Quantizer layer.
+constexpr bool kRestoreLiveStateOnBoot = true;
+constexpr bool kAutosaveLiveState = true;
 constexpr uint32_t kCalibrationBaud = 115200;
 constexpr uint8_t kDiagnosticsLineBufferBytes = 64;
 static_assert(kUiDivider >= 1 && kLedDivider >= 1, "invalid task divider");

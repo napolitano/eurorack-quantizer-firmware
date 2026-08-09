@@ -17,7 +17,22 @@
 
 namespace fmq {
 
-/** Latches the electrically active edge on the two external-interrupt inputs. */
+/** A batch of external-interrupt activations captured since last consume. */
+struct TriggerActivations {
+  uint8_t count;
+  uint32_t latestTimestampUs;
+
+  bool any() const { return count != 0u; }
+};
+
+/**
+ * Latches electrically active edges on the two external-interrupt inputs.
+ *
+ * The ISR stores a microsecond timestamp immediately at the physical edge and
+ * counts every activation until the 1 kHz control loop consumes the batch. This
+ * removes the former +/-1 ms period quantisation and prevents multiple clock
+ * edges inside one control tick from collapsing into a single boolean event.
+ */
 class AvrTriggerInputs {
  public:
   AvrTriggerInputs(uint8_t pinA, uint8_t pinB, bool activeHigh, bool pullUp)
@@ -35,34 +50,51 @@ class AvrTriggerInputs {
   bool levelA() const { return (digitalRead(pinA_) == HIGH) == activeHigh_; }
   bool levelB() const { return (digitalRead(pinB_) == HIGH) == activeHigh_; }
 
-  bool consumeActivationA() {
-    bool value;
+  TriggerActivations consumeActivationsA() {
+    TriggerActivations value{};
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-      value = activationA_;
-      activationA_ = false;
+      value.count = activationCountA_;
+      value.latestTimestampUs = latestActivationUsA_;
+      activationCountA_ = 0u;
     }
     return value;
   }
 
-  bool consumeActivationB() {
-    bool value;
+  TriggerActivations consumeActivationsB() {
+    TriggerActivations value{};
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-      value = activationB_;
-      activationB_ = false;
+      value.count = activationCountB_;
+      value.latestTimestampUs = latestActivationUsB_;
+      activationCountB_ = 0u;
     }
     return value;
   }
 
  private:
-  static void activationA() { if (instance_) instance_->activationA_ = true; }
-  static void activationB() { if (instance_) instance_->activationB_ = true; }
+  static void activationA() {
+    if (!instance_) return;
+    if (instance_->activationCountA_ != static_cast<uint8_t>(0xFFu)) {
+      ++instance_->activationCountA_;
+    }
+    instance_->latestActivationUsA_ = ::micros();
+  }
+
+  static void activationB() {
+    if (!instance_) return;
+    if (instance_->activationCountB_ != static_cast<uint8_t>(0xFFu)) {
+      ++instance_->activationCountB_;
+    }
+    instance_->latestActivationUsB_ = ::micros();
+  }
 
   uint8_t pinA_;
   uint8_t pinB_;
   bool activeHigh_;
   bool pullUp_;
-  volatile bool activationA_ = false;
-  volatile bool activationB_ = false;
+  volatile uint8_t activationCountA_ = 0u;
+  volatile uint8_t activationCountB_ = 0u;
+  volatile uint32_t latestActivationUsA_ = 0u;
+  volatile uint32_t latestActivationUsB_ = 0u;
   static AvrTriggerInputs *instance_;
 };
 
