@@ -1,6 +1,6 @@
 /**
  * @file UiLayerGesture.h
- * SHIFT-only long-hold gesture used to switch UI layers.
+ * Debounced SHIFT double-click gesture used to switch UI layers.
  *
  * @author Axel Napolitano
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
@@ -17,6 +17,14 @@ namespace fmq {
 
 enum class UiLayerGestureAction : uint8_t { None = 0, ToggleLayer = 1 };
 
+/**
+ * @brief Recognises an isolated, debounced double-click on SHIFT.
+ *
+ * SHIFT remains an immediate modifier for normal menu shortcuts. This class
+ * observes the same raw state independently and only emits ToggleLayer after
+ * two short, clean SHIFT clicks. Any note, SAVE or LOAD activity cancels the
+ * pending sequence, preventing ordinary SHIFT shortcuts from changing layers.
+ */
 class UiLayerGesture {
  public:
   UiLayerGesture();
@@ -25,9 +33,15 @@ class UiLayerGesture {
   void reset();
 
  private:
-  static constexpr uint32_t kNoHold = 0xFFFFFFFFu;
-  uint32_t holdStartMs_;
-  bool consumed_;
+  bool rawShiftPressed_;
+  bool debouncedShiftPressed_;
+  bool waitingForSecondClick_;
+  bool currentPressIsSecond_;
+  bool currentPressInvalid_;
+  bool suppressUntilRelease_;
+  uint32_t rawChangedMs_;
+  uint32_t pressStartedMs_;
+  uint32_t firstClickReleasedMs_;
 };
 
 }  // namespace fmq

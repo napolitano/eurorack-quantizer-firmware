@@ -20,10 +20,18 @@ constexpr uint32_t kDigitalDebounceMs = 32;
 constexpr uint32_t kLadderDebounceMs = 64;
 constexpr uint32_t kLongPressMs = 2000;
 
-// Hold SHIFT by itself to switch between the Quantizer and Arpeggiator UI
-// layers. Any companion control cancels the pending gesture until SHIFT is
-// released, so ordinary shortcuts cannot accidentally change layers.
-constexpr uint32_t kUiLayerToggleHoldMs = 3000;
+// Double-click SHIFT by itself to switch between the Quantizer and Arpeggiator
+// UI layers. The gesture has its own debounce so SHIFT can remain an immediate
+// modifier for normal shortcuts. Both clicks must be short and the second press
+// must begin within the configured gap. Any note, SAVE or LOAD activity cancels
+// the pending sequence.
+constexpr uint32_t kUiLayerDoubleClickDebounceMs = kDigitalDebounceMs;
+constexpr uint32_t kUiLayerDoubleClickMaxPressMs = 350;
+constexpr uint32_t kUiLayerDoubleClickGapMs = 350;
+static_assert(kUiLayerDoubleClickDebounceMs > 0u,
+              "UI-layer double-click debounce must be non-zero");
+static_assert(kUiLayerDoubleClickMaxPressMs >= kUiLayerDoubleClickDebounceMs,
+              "UI-layer click window must exceed debounce");
 
 // SHIFT is a modifier, not an action button. It must be visible to the menu
 // before a simultaneously pressed ladder key finishes its debounce interval.

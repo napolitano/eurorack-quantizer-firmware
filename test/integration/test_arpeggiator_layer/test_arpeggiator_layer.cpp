@@ -42,6 +42,21 @@ MenuInput release(bool shift = false) {
   return input(ButtonEvent::released(), shift);
 }
 
+UiLayerGestureAction shiftClick(UiLayerGesture &gesture, uint32_t pressAt,
+                                uint32_t pressDurationMs = 100u) {
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(true, false, false, pressAt));
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(true, false, false,
+                                   pressAt + config::kUiLayerDoubleClickDebounceMs));
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(false, false, false,
+                                   pressAt + pressDurationMs));
+  return gesture.update(false, false, false,
+                        pressAt + pressDurationMs +
+                            config::kUiLayerDoubleClickDebounceMs);
+}
+
 void assertEntireRing(const LedFrame &frame, LedColor expected) {
   for (uint8_t i = 0u; i < kNoteCount; ++i) {
     TEST_ASSERT_EQUAL(expected, frame[i]);
@@ -93,7 +108,7 @@ struct Fixture {
 }  // namespace
 
 
-static void test_full_three_second_gesture_enters_layer_and_arp_runs(void) {
+static void test_full_shift_double_click_enters_layer_and_arp_runs(void) {
   FakeEeprom eeprom;
   AsyncEepromWriter writer(eeprom);
   SaveSlotStore store(eeprom, writer);
@@ -104,10 +119,12 @@ static void test_full_three_second_gesture_enters_layer_and_arp_runs(void) {
   menu.begin(store);
 
   TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
-                    gesture.update(true, false, false, 1000u));
-  const uint32_t toggleTime = 1000u + config::kUiLayerToggleHoldMs;
+                    shiftClick(gesture, 1000u));
+  const uint32_t secondPress = 1250u;
   TEST_ASSERT_EQUAL(UiLayerGestureAction::ToggleLayer,
-                    gesture.update(true, false, false, toggleTime));
+                    shiftClick(gesture, secondPress));
+  const uint32_t toggleTime =
+      secondPress + 100u + config::kUiLayerDoubleClickDebounceMs;
 
   const bool changed = menu.toggleLayer(quantizer, arpeggiators, toggleTime);
   TEST_ASSERT_TRUE(changed);
@@ -127,6 +144,45 @@ static void test_full_three_second_gesture_enters_layer_and_arp_runs(void) {
   TEST_ASSERT_EQUAL(basePitch, first.pitch);
   TEST_ASSERT_TRUE(next.stepAdvanced);
   TEST_ASSERT_TRUE(next.pitch > basePitch);
+}
+
+static void test_same_shift_double_click_gesture_toggles_both_directions(void) {
+  FakeEeprom eeprom;
+  AsyncEepromWriter writer(eeprom);
+  SaveSlotStore store(eeprom, writer);
+  Menu menu;
+  QuantizerState quantizer;
+  ArpeggiatorBank arpeggiators;
+  UiLayerGesture gesture;
+  menu.begin(store);
+
+  // First double-click: Quantizer -> Arpeggiator and selected ARP ON.
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    shiftClick(gesture, 1000u));
+  const uint32_t enterSecondPress = 1250u;
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::ToggleLayer,
+                    shiftClick(gesture, enterSecondPress));
+  const uint32_t enterTime =
+      enterSecondPress + 100u + config::kUiLayerDoubleClickDebounceMs;
+  TEST_ASSERT_TRUE(menu.toggleLayer(quantizer, arpeggiators, enterTime));
+  TEST_ASSERT_EQUAL(UiLayer::Arpeggiator, menu.layer());
+  TEST_ASSERT_TRUE(arpeggiators.enabled(kChannelAIndex));
+
+  // The exact same gesture must also be the exit gesture. Reuse the same
+  // recogniser instance to verify that a completed double-click leaves it in
+  // a clean state for the reverse transition.
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    shiftClick(gesture, 2000u));
+  const uint32_t exitSecondPress = 2250u;
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::ToggleLayer,
+                    shiftClick(gesture, exitSecondPress));
+  const uint32_t exitTime =
+      exitSecondPress + 100u + config::kUiLayerDoubleClickDebounceMs;
+  TEST_ASSERT_TRUE(menu.toggleLayer(quantizer, arpeggiators, exitTime));
+
+  TEST_ASSERT_EQUAL(UiLayer::Quantizer, menu.layer());
+  TEST_ASSERT_FALSE(arpeggiators.enabled(kChannelAIndex));
+  TEST_ASSERT_FALSE(arpeggiators.enabled(kChannelBIndex));
 }
 
 static void test_arpeggiator_layer_preserves_normal_scale_display(void) {
@@ -565,7 +621,7 @@ static void test_full_configuration_save_and_load_restores_arpeggiator_state(voi
   TEST_ASSERT_EQUAL_UINT8(8u, restored.swing);
 }
 
-static void test_reboot_restores_arpeggiator_layer_and_first_hold_turns_it_off(void) {
+static void test_reboot_restores_arpeggiator_layer_and_first_double_click_turns_it_off(void) {
   FakeEeprom eeprom;
   AsyncEepromWriter writer(eeprom);
 
@@ -583,7 +639,7 @@ static void test_reboot_restores_arpeggiator_layer_and_first_hold_turns_it_off(v
   }
 
   // Simulated reboot: restore musical state and UI layer without invoking the
-  // toggle operation. The very first 3 s action must therefore be an exit/off.
+  // toggle operation. The first SHIFT double-click must therefore be an exit/off.
   LiveStateStore live(eeprom, writer);
   LiveState restored;
   TEST_ASSERT_TRUE(live.load(restored));
@@ -601,10 +657,12 @@ static void test_reboot_restores_arpeggiator_layer_and_first_hold_turns_it_off(v
 
   UiLayerGesture gesture;
   TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
-                    gesture.update(true, false, false, 1000u));
-  const uint32_t toggleTime = 1000u + config::kUiLayerToggleHoldMs;
+                    shiftClick(gesture, 1000u));
+  const uint32_t secondPress = 1250u;
   TEST_ASSERT_EQUAL(UiLayerGestureAction::ToggleLayer,
-                    gesture.update(true, false, false, toggleTime));
+                    shiftClick(gesture, secondPress));
+  const uint32_t toggleTime =
+      secondPress + 100u + config::kUiLayerDoubleClickDebounceMs;
   TEST_ASSERT_TRUE(menu.toggleLayer(quantizer, arpeggiators, toggleTime));
 
   TEST_ASSERT_EQUAL(UiLayer::Quantizer, menu.layer());
@@ -614,8 +672,9 @@ static void test_reboot_restores_arpeggiator_layer_and_first_hold_turns_it_off(v
 
 int main(void) {
   UNITY_BEGIN();
-  RUN_TEST(test_full_three_second_gesture_enters_layer_and_arp_runs);
-  RUN_TEST(test_reboot_restores_arpeggiator_layer_and_first_hold_turns_it_off);
+  RUN_TEST(test_full_shift_double_click_enters_layer_and_arp_runs);
+  RUN_TEST(test_same_shift_double_click_gesture_toggles_both_directions);
+  RUN_TEST(test_reboot_restores_arpeggiator_layer_and_first_double_click_turns_it_off);
   RUN_TEST(test_arpeggiator_layer_preserves_normal_scale_display);
   RUN_TEST(test_default_arpeggiator_is_free_running_not_clocked);
   RUN_TEST(test_entering_layer_enables_selected_arpeggiator_immediately);

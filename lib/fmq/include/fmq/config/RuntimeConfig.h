@@ -28,8 +28,8 @@ constexpr uint16_t kCalibrationStreamPeriodMs = 100;
 constexpr bool kCalibrationConsoleEnabled = true;
 // Product behaviour: restore and asynchronously autosave the complete musical
 // working state (Quantizer + per-channel Arpeggiator + selected channel).
-// Hardware calibration is stored alongside it. The UI layer itself remains a
-// boot-time choice and always starts in the Quantizer layer.
+// Hardware calibration and the active UI layer are stored alongside it so a
+// reboot restores the same front-panel function map without replaying feedback.
 constexpr bool kRestoreLiveStateOnBoot = true;
 constexpr bool kAutosaveLiveState = true;
 constexpr uint32_t kCalibrationBaud = 115200;

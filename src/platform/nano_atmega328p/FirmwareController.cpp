@@ -147,8 +147,8 @@ static bool isButtonCurrentlyDown(LongPressButtonState state) {
 
 static void updateUiLayerGesture(const MenuInput &input, uint32_t nowMs) {
   // The physical ladder indication is intentionally used here rather than the
-  // debounced key event. It closes the 64 ms race in which a note pressed just
-  // before the three-second threshold could arrive too late to cancel SHIFT.
+  // debounced key event. A normal SHIFT+note shortcut therefore cancels a
+  // pending double-click immediately, before the 64 ms ladder debounce.
   const bool companionControlActive =
       input.noteButtonDown || isButtonCurrentlyDown(input.saveButton) ||
       isButtonCurrentlyDown(input.loadButton);

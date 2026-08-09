@@ -159,7 +159,7 @@ void Menu::applyStoredConfiguration(const StoredConfiguration &stored,
   }
 
   // A full configuration includes the front-panel function map. Restore it
-  // side-effect free: loading a preset must not emulate the three-second
+  // side-effect free: loading a preset must not emulate the SHIFT double-click
   // gesture, retrigger feedback or alter the already-restored ARP enable bits.
   UiLayer restoredLayer = stored.uiLayer;
   if (restoredLayer == UiLayer::Quantizer &&

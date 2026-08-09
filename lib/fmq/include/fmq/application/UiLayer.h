@@ -15,7 +15,7 @@
 
 namespace fmq {
 
-/** Front-panel function map selected by the three-second SHIFT gesture. */
+/** Front-panel function map selected by the SHIFT double-click gesture. */
 enum class UiLayer : uint8_t { Quantizer = 0, Arpeggiator = 1 };
 
 }  // namespace fmq

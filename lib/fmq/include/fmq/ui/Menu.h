@@ -29,7 +29,7 @@ enum class UiChannel : uint8_t { A = 0, B = 1 };
  * @brief Complete user-interface state machine.
  *
  * The normal Quantizer layer preserves the established note/SHIFT workflow.
- * A three-second SHIFT-only gesture switches to a complete Arpeggiator layer.
+ * A SHIFT double-click switches to a complete Arpeggiator layer.
  * Both layers intentionally share the same interaction grammar: unmodified note
  * keys edit the selected scale, while SHIFT + note selects a layer-specific menu
  * function. Scalar functions then use the twelve note keys as value selectors.
@@ -94,7 +94,7 @@ class Menu {
   bool toggleLayer(QuantizerState &quantizer,
                    ArpeggiatorBank &arpeggiators, uint32_t nowMs);
 
-  /** Long-hold layer switching is valid only from the stable main page. */
+  /** Double-click layer switching is valid only from the stable main page. */
   bool layerToggleAllowed() const { return page_ == Page::MainMenu; }
 
   uint8_t calibrationEditorChannelIndex() const {

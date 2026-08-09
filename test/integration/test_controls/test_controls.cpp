@@ -56,31 +56,55 @@ static void test_physical_ladder_activity_is_visible_before_debounce(void) {
 }
 
 
-static void test_physical_note_press_cancels_layer_hold_before_debounce(void) {
+static void test_physical_note_press_cancels_pending_layer_double_click(void) {
   ControlInputProcessor controls;
   controls.calibrateLadderRest(558u);
   UiLayerGesture gesture;
 
+  // First clean SHIFT click.
   MenuInput input = controls.sample(1000u, raw(558u, true));
   TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
                     gesture.update(input.shiftPressed, input.noteButtonDown,
                                    false, 1000u));
-
-  const uint32_t nearThreshold =
-      1000u + config::kUiLayerToggleHoldMs - 10u;
-  input = controls.sample(nearThreshold, raw(236u, true));
-  TEST_ASSERT_TRUE(input.noteButtonDown);
-  TEST_ASSERT_EQUAL(ButtonEventType::None, input.keyEvent.type);
-  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
-                    gesture.update(input.shiftPressed, input.noteButtonDown,
-                                   false, nearThreshold));
-
-  input = controls.sample(1000u + config::kUiLayerToggleHoldMs + 100u,
+  input = controls.sample(1000u + config::kUiLayerDoubleClickDebounceMs,
                           raw(558u, true));
   TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
                     gesture.update(input.shiftPressed, input.noteButtonDown,
                                    false,
-                                   1000u + config::kUiLayerToggleHoldMs + 100u));
+                                   1000u + config::kUiLayerDoubleClickDebounceMs));
+  input = controls.sample(1100u, raw(558u, false));
+  (void)gesture.update(input.shiftPressed, input.noteButtonDown, false, 1100u);
+  input = controls.sample(1100u + config::kUiLayerDoubleClickDebounceMs,
+                          raw(558u, false));
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(input.shiftPressed, input.noteButtonDown,
+                                   false,
+                                   1100u + config::kUiLayerDoubleClickDebounceMs));
+
+  // Begin the second SHIFT press, then physically press a note before its 64 ms
+  // ladder debounce can complete. Raw ladder activity must cancel the gesture.
+  input = controls.sample(1250u, raw(558u, true));
+  (void)gesture.update(input.shiftPressed, input.noteButtonDown, false, 1250u);
+  input = controls.sample(1250u + config::kUiLayerDoubleClickDebounceMs,
+                          raw(558u, true));
+  (void)gesture.update(input.shiftPressed, input.noteButtonDown, false,
+                       1250u + config::kUiLayerDoubleClickDebounceMs);
+
+  input = controls.sample(1300u, raw(236u, true));
+  TEST_ASSERT_TRUE(input.noteButtonDown);
+  TEST_ASSERT_EQUAL(ButtonEventType::None, input.keyEvent.type);
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(input.shiftPressed, input.noteButtonDown,
+                                   false, 1300u));
+
+  input = controls.sample(1350u, raw(558u, false));
+  (void)gesture.update(input.shiftPressed, input.noteButtonDown, false, 1350u);
+  input = controls.sample(1350u + config::kUiLayerDoubleClickDebounceMs,
+                          raw(558u, false));
+  TEST_ASSERT_EQUAL(UiLayerGestureAction::None,
+                    gesture.update(input.shiftPressed, input.noteButtonDown,
+                                   false,
+                                   1350u + config::kUiLayerDoubleClickDebounceMs));
 }
 
 static void test_real_adc_press_toggles_note(void) {
@@ -152,7 +176,7 @@ static void test_shift_glide_menu_through_raw_controls(void) {
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_physical_ladder_activity_is_visible_before_debounce);
-  RUN_TEST(test_physical_note_press_cancels_layer_hold_before_debounce);
+  RUN_TEST(test_physical_note_press_cancels_pending_layer_double_click);
   RUN_TEST(test_real_adc_press_toggles_note);
   RUN_TEST(test_debounced_shift_plus_b_selects_channel_b);
   RUN_TEST(test_shift_glide_menu_through_raw_controls);
