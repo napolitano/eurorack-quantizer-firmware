@@ -1,6 +1,6 @@
 # Changelog
 
-This file records public repository releases. Development notes and intermediate experiments are intentionally not tracked here.
+This file records public repository releases plus release-relevant changes queued under `Unreleased`. Intermediate experiments that are not intended to ship are intentionally not tracked here.
 
 Version numbers follow semantic-versioning conventions where practical:
 
@@ -8,11 +8,11 @@ Version numbers follow semantic-versioning conventions where practical:
 - minor (`0.x.0`) — new features or meaningful behavioural additions;
 - major (`x.0.0`) — intentionally incompatible or substantially redefined releases.
 
-A new section should be added when a release version is explicitly declared.
+A new section should be added when a release version is explicitly declared. Each release section must start with a `### Release summary` paragraph. Keep that summary to roughly 5–7 source lines of continuous prose; the release workflow uses it verbatim as the opening of the GitHub Release notes, followed by the detailed changelog excerpt and a compare link.
 
-## 0.1.1 — 2026-08-07
+## Unreleased
 
-Current 0.1.1 release line. The entries below are accumulated changes for this version; a new version is declared only when explicitly chosen.
+Changes below were developed after 0.1.1 and are intended for a future release. They are not part of the published 0.1.1 patch.
 
 ### Added
 
@@ -23,13 +23,24 @@ Current 0.1.1 release line. The entries below are accumulated changes for this v
 - Expanded the Arpeggiator engine from the fixed 24 ms root/third/fifth behaviour to twelve internal rates, clock division/multiplication, eight patterns, eight scale-aware shapes, 1–12 step length and 1–4 octave range; the former 24 ms 1-3-5 behaviour remains the default.
 - Added external Sample/Gate clock integration per channel, including reset-only operation, phase re-anchoring on real clock edges, generated subdivisions and independent physical clock inputs for A/B.
 - Added optional 5 ms output triggers for Arpeggiator steps while retaining pitch-only operation as the default.
-- Added complete Arpeggiator-layer, clock/sync and persistence regression coverage, including full-config Arpeggiator restoration, stable/deterministic Random stepping and exact swing-pair timing; the regular native suite now contains 29 independently runnable suites and 231 test cases.
+- Added complete Arpeggiator-layer, clock/sync and persistence regression coverage, including full-config Arpeggiator restoration, stable/deterministic Random stepping and exact swing-pair timing; the regular native suite now contains 29 independently runnable suites and 237 test cases.
 - Added `README_ARPEGGIATOR.md` as the complete second-layer operation, parameter, sync, persistence and testing reference.
 - Added an AVR resource-budget CI gate to preserve engineering headroom for flash and static SRAM.
+- Raised the ATmega328P application-flash engineering budget from 85% to 92.5% of the 30,720-byte Nano application space; the static-SRAM budget remains unchanged at 70% of 2 KB.
 - Added dedicated per-channel Arpeggiator state and regression coverage for A-only, B-only and linked operation.
 - Added live green/red/amber comparison feedback to LED brightness calibration so colour balance and the resulting amber mix can be judged while either emitter is adjusted.
 - Added regression coverage for the calibration comparison view, calibration colour selection and the 1500 ms startup note-ring duration ceiling.
 - Extended full-configuration and live-state persistence to include both complete per-channel Arpeggiator configurations and the selected channel; automatic live restore/autosave is enabled with versioned CRC-protected wear-levelled records.
+- Added changelog-driven GitHub Release notes generation: each declared release provides a short prose summary, the detailed version excerpt and a compare link instead of relying on generic generated notes.
+- Added `SHA256SUMS.txt` and `MD5SUMS.txt` generation to tagged releases and documented their purpose in the generated Release notes.
+- Added live GitHub Actions status badges for CI and release workflows to the main README.
+- Prepared `docs/manual/` as the end-user manual workspace with a dedicated CC BY-NC 4.0 manual licence and an editing README documenting LibreOffice Writer plus the required Ubuntu Font Family and Ubuntu Font Licence 1.0.
+
+### Changed
+
+- Corrected the README feature positioning so `What this firmware adds` now distinguishes genuine extensions and intentional behavioural changes from capabilities already present in Quinn Freedman's original dual-channel firmware.
+- Reorganised the main README around the interested end user: acknowledgement and project motivation now appear near the top, user-visible strengths and essential operation precede the technical reference, while all existing technical content remains available in a clearer second half.
+- Shortened the closing signature to `From Munich With ♥`.
 
 ### Fixed
 
@@ -37,26 +48,35 @@ Current 0.1.1 release line. The entries below are accumulated changes for this v
 - Removed the fresh-channel C bias from Hysteresis by tracking whether a previous output actually exists; the first exact 0.5-semitone tie now rounds upward as specified.
 - Added a ±10-count plausibility window to the original resistor-ladder decoder. Nominal values remain unchanged, while implausible gap readings and high/open readings fail safe as no button.
 - Replaced millisecond-assigned external-clock edges with ISR-captured microsecond timestamps and per-tick edge counts. CLOCK period measurement is no longer quantized to the 1 kHz control loop, multiple physical edges are not collapsed into one boolean event, and multiplied-step phase no longer accumulates control-loop observation error.
-- Reworked the Arpeggiator as a true second control layer: entering it with the 3-second SHIFT-only gesture enables the selected Arpeggiator, while returning to the Quantizer layer disables Arpeggiator playback on both channels.
+- Reworked the Arpeggiator as a true second control layer: a debounced SHIFT double-click now replaces the former 3-second hold, making layer changes immediate while preserving isolated `SHIFT + note` modifier behaviour. Entering enables the selected Arpeggiator; returning to the Quantizer layer disables Arpeggiator playback on both channels.
 - Restored one consistent front-panel grammar across both UI layers: unmodified note buttons continue to edit and display the selected scale, while `SHIFT + note` selects Quantizer or Arpeggiator menu functions according to the active layer; scalar parameters then use the note buttons as value selectors.
-- Fixed live restore of the active UI layer: reboot now returns to the same Quantizer/Arpeggiator front-panel layer that was active before power-off, so the first 3-second SHIFT hold after an Arpeggiator-layer reboot correctly performs OFF/exit instead of re-entering the layer. Live-state v6 stores the layer explicitly while retaining in-place v5 migration compatibility.
+- Fixed live restore of the active UI layer: reboot now returns to the same Quantizer/Arpeggiator front-panel layer that was active before power-off, so the first SHIFT double-click after an Arpeggiator-layer reboot correctly performs OFF/exit instead of re-entering the layer. Live-state v6 stores the layer explicitly while retaining in-place v5 migration compatibility.
 - Removed the separate steady Arpeggiator dashboard so the normal scale/quantized-note display remains visible in both UI layers; temporary parameter and activation feedback is retained.
 - Changed Arpeggiator enable/bypass feedback to two full-ring flashes: green when enabling, red when disabling, followed automatically by restoration of the normal scale/quantized-note display.
-- Removed the independent one-shot layer-change LED path that produced a single amber flash on entry and a single green flash on exit; the 3-second layer transition now uses the same exact two-green / two-red full-ring Arpeggiator feedback renderer as `SHIFT+C`.
+- Removed the independent one-shot layer-change LED path that produced a single amber flash on entry and a single green flash on exit; the SHIFT double-click layer transition uses the same exact two-green / two-red full-ring Arpeggiator feedback renderer as `SHIFT+C`.
 - Made FREE internal timing the explicit factory/default Arpeggiator sync mode; RESET and CLOCK remain user-selectable additional modes.
-- Closed the 64 ms layer-switch race by cancelling the SHIFT hold from immediate physical resistor-ladder activity before note-key debounce, and blocking layer switching outside the stable main page.
-- Added an end-to-end regression path for 3-second layer entry -> automatic Arpeggiator enable -> actual FREE-running pitch stepping, plus layer-consistent SHIFT-menu, scale-display/editing and raw-ladder cancellation tests.
+- Isolated layer switching from ordinary modifier use: the SHIFT double-click has its own digital debounce, rejects long presses and single clicks, is cancelled immediately by physical note/SAVE/LOAD activity, and remains blocked outside the stable main page.
+- Added end-to-end regression coverage for symmetric SHIFT double-click layer control: double-click entry -> automatic Arpeggiator enable -> actual FREE-running pitch stepping, followed by the same double-click gesture for exit -> Arpeggiator disable; single-click timeout, long-press rejection, switch-bounce rejection, layer-consistent SHIFT-menu, scale-display/editing and raw-ladder cancellation are covered as well.
 - Added regression checks for exactly two green enable flashes, exactly two red disable flashes, intervening dark phases and automatic return to the scale display.
 - Limited every twelve-note startup animation variant to at most 1500 ms; the separate four-status-LED self-test remains independent of that note-ring limit.
 - Added the per-channel Arpeggiator regression suite to the GitHub Actions matrix so the channel-isolation tests run as an explicit CI job.
+- Fixed the native coverage job by explicitly linking the GCC gcov runtime for `--coverage` instrumented test binaries.
+- Standardised the root `LICENSE` file for GitHub licence detection and added a GitHub security policy.
+- Prevented local `compile_commands.json` files from being tracked because compilation databases may contain machine-specific absolute paths.
+
+## 0.1.1 — 2026-08-07
+
+### Release summary
+
+Patch release correcting and restoring the native CI test suite. Intended quantizer runtime behaviour is unchanged from 0.1.0.
+
+### Fixed
+
 - Renamed PlatformIO test-suite directories to the required `test_*` convention so `pio test -e native` discovers and builds the native unit, integration and regression tests correctly.
 - Aligned stale native tests with the firmware's established hardware behaviour: original absolute resistor-ladder values, 64 ms ladder debounce, normalized-HIGH Track-and-Hold semantics, full-range ADC pitch conversion, last-note protection, and asynchronous EEPROM writes.
 - Corrected the startup-sequence-store test include path.
 - Added safe defaults to `MenuInput` so a value-initialized input represents no key, no SAVE/LOAD press, and SHIFT released.
 - Restored GitHub Actions native-test execution.
-- Fixed the native coverage job by explicitly linking the GCC gcov runtime for `--coverage` instrumented test binaries.
-- Standardised the root `LICENSE` file for GitHub licence detection and added a GitHub security policy.
-- Prevented local `compile_commands.json` files from being tracked because compilation databases may contain machine-specific absolute paths.
 
 ## 0.1.0 — 2026-08-07
 

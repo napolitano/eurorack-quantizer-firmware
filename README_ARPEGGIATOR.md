@@ -13,7 +13,7 @@ There are two front-panel UI layers:
 
 The layer changes the meaning of **SHIFT + note**, not the basic meaning of the twelve note buttons. This is deliberate: the user should not have to learn two unrelated interaction models.
 
-Hold **SHIFT by itself for 3 seconds** to switch between the two layers. Entering the Arpeggiator layer enables the selected channel's Arpeggiator; with linked channels, both are enabled together. The factory/default Arpeggiator is FREE-running at 24 ms, so entering the layer is immediately audible without an external clock. Returning to the Quantizer layer disables Arpeggiator playback on both channels.
+Double-click **SHIFT by itself** to switch between the two layers. The gesture is deliberately symmetric: the same SHIFT double-click enters the Arpeggiator layer and the same SHIFT double-click leaves it again. Both presses must be short and the second press must begin within 350 ms of the first release. Entering the Arpeggiator layer enables the selected channel's Arpeggiator; with linked channels, both are enabled together. The factory/default Arpeggiator is FREE-running at 24 ms, so entering the layer is immediately audible without an external clock. Returning to the Quantizer layer disables Arpeggiator playback on both channels.
 
 The layer transition uses the same enable/bypass feedback as `SHIFT+C`:
 
@@ -24,9 +24,9 @@ The layer transition uses the same enable/bypass feedback as `SHIFT+C`:
 
 There is deliberately no separate amber/green one-shot layer flash. The selected scale remains visible in both layers whenever no temporary menu feedback is active.
 
-Any physical note-button, SAVE or LOAD activity while SHIFT is being held cancels the pending layer-switch gesture until SHIFT is released. Note-button cancellation is evaluated from the raw ladder state before the normal 64 ms key debounce, closing the threshold race where a late key press could otherwise be recognised after the 3-second hold. Layer switching is also blocked while a parameter, memory or calibration page is active.
+Any physical note-button, SAVE or LOAD activity during a pending SHIFT double-click cancels the sequence. Note-button cancellation is evaluated from the raw ladder state before the normal 64 ms key debounce, so an ordinary `SHIFT + note` shortcut cannot accidentally complete the layer gesture. The double-click recogniser debounces SHIFT independently while the menu still sees SHIFT immediately as a modifier. Layer switching is also blocked while a parameter, memory or calibration page is active.
 
-The active UI layer is part of live state. After a normal autosave and reboot, the firmware restores the **same Quantizer or Arpeggiator layer** that was active before power-off. Layer restore itself has no musical side effects and does not replay the green/red toggle feedback. Consequently, if the unit was powered down in the Arpeggiator layer, the first 3-second SHIFT hold after reboot exits that layer and turns the Arpeggiator off as expected.
+The active UI layer is part of live state. After a normal autosave and reboot, the firmware restores the **same Quantizer or Arpeggiator layer** that was active before power-off. Layer restore itself has no musical side effects and does not replay the green/red toggle feedback. Consequently, if the unit was powered down in the Arpeggiator layer, the first SHIFT double-click after reboot exits that layer and turns the Arpeggiator off as expected.
 
 Live-state format v6 stores this layer explicitly without increasing the EEPROM record size. Existing v5 records are accepted during firmware update; because v5 had no layer bit, the migration infers Arpeggiator layer when either saved Arpeggiator was enabled. After the next autosave, the layer is explicit and exact.
 
@@ -387,7 +387,7 @@ The feature is intentionally small enough for the ATmega328P:
 - fixed-point pitch arithmetic;
 - external clock edges are counted and timestamped independently of the 1 kHz control loop.
 
-The CI AVR build additionally checks a conservative engineering budget rather than relying only on the absolute MCU limit: target application flash usage is at most 85% of a 30,720-byte project budget and static SRAM usage at most 70% of 2 KB.
+The CI AVR build additionally checks an explicit engineering budget rather than relying only on the absolute MCU limit: target application flash usage is at most 92.5% of a 30,720-byte project budget and static SRAM usage at most 70% of 2 KB.
 
 ## Timing and failure behaviour
 
@@ -411,4 +411,4 @@ The Arpeggiator is covered at several levels:
 - Full Configuration save/load restoration of Quantizer state, selected channel and complete Arpeggiator state;
 - deterministic Random restart and exact two-step swing-pair duration checks.
 
-The repository currently runs **29 default suites with 231 default test cases**. The former Hysteresis-first-sample and ladder-plausibility findings are now regular passing regression tests. See [README_TESTING.md](README_TESTING.md) for the complete test structure.
+The repository currently runs **29 default suites with 237 default test cases**. The former Hysteresis-first-sample and ladder-plausibility findings are now regular passing regression tests. See [README_TESTING.md](README_TESTING.md) for the complete test structure.

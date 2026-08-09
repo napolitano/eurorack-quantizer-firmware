@@ -2,7 +2,7 @@
 
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current default suite contains **29 independently runnable PlatformIO test suites and 231 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
+The current default suite contains **29 independently runnable PlatformIO test suites and 237 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
 
 Examples of exhaustive work performed by the suite include:
 
@@ -17,7 +17,7 @@ Examples of exhaustive work performed by the suite include:
 - exact boundaries for all twelve internal Arpeggiator rates and the complete clock-ratio table;
 - all Arpeggiator patterns, shapes, supported lengths/ranges and swing limits;
 - per-channel Arpeggiator enable/config isolation plus linked-copy behaviour;
-- exact two-flash full-ring Arpeggiator enable/disable feedback for both `SHIFT+C` and the 3-second layer transition, including green-on-enable, red-on-disable, dark intervals and restoration of the normal scale display;
+- exact two-flash full-ring Arpeggiator enable/disable feedback for both `SHIFT+C` and the SHIFT double-click layer transition, including green-on-enable, red-on-disable, dark intervals and restoration of the normal scale display;
 - byte-by-byte corruption injection into complete scale and full-configuration EEPROM records;
 - all twelve logical note LEDs and all four logical LED colours;
 - the complete 0..4095 LED intensity range for monotonic PWM scaling.
@@ -42,7 +42,7 @@ Unit tests verify deterministic components in isolation and intentionally push t
 | `unit/test_led_frame_matrix` | TLC5947 logical/physical order, colours and full PWM intensity range |
 | `unit/test_arpeggiator` | core Arpeggiator examples, microsecond external-clock timing, multi-edge counting and wraparound |
 | `unit/test_arpeggiator_matrix` | all factory scales, all roots, rates, patterns, shapes, lengths/ranges and clock ratios |
-| `unit/test_ui_layer_gesture` | exact 3-second SHIFT-only Quantizer/Arpeggiator layer switch, cancellation and wraparound |
+| `unit/test_ui_layer_gesture` | debounced SHIFT double-click Quantizer/Arpeggiator layer switch, single-click timeout, long-press rejection, shortcut cancellation, bounce rejection and wraparound |
 | `unit/test_arpeggiator_channels` | independent A/B enable state plus deterministic linked-mode toggling |
 | `unit/test_startup_sequence_store` | startup-sequence persistence |
 
@@ -52,8 +52,8 @@ Integration tests verify collaborating production components rather than reimple
 
 | Suite | Main responsibility |
 |---|---|
-| `integration/test_arpeggiator_layer` | full 3-second entry → enable → two green flashes → audible FREE-running step path, 3-second exit → disable all → two red flashes, unchanged scale display/editing in the second layer, SHIFT-based Arpeggiator menu grammar, every Arpeggiator parameter, Link/A/B navigation, full-config UI-layer restore, reboot restoration and first-hold OFF regression coverage |
-| `integration/test_controls` | raw front-panel input -> debounced menu input, including pre-debounce ladder activity used to cancel the layer-hold race |
+| `integration/test_arpeggiator_layer` | full SHIFT double-click entry → enable → two green flashes → audible FREE-running step path, explicit same-gesture double-click exit → disable all → two red flashes, unchanged scale display/editing in the second layer, SHIFT-based Arpeggiator menu grammar, every Arpeggiator parameter, Link/A/B navigation, full-config UI-layer restore, reboot restoration and first-double-click OFF regression coverage |
+| `integration/test_controls` | raw front-panel input -> debounced menu input, including pre-debounce ladder activity used to cancel a pending SHIFT double-click before it can collide with a normal shortcut |
 | `integration/test_menu` | menu operations, configuration, save/load and calibration flow |
 | `integration/test_menu_shortcuts` | one dedicated test for every SHIFT + note command |
 | `integration/test_persistence` | save/load, CRC, full-config/live UI-layer round-trips including ARP-off layer state, wear levelling and v5→v6 live-state migration |
@@ -110,7 +110,7 @@ The native build is compiled with:
 -Wpedantic
 ```
 
-A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 85% of the conservative 30,720-byte application-flash budget and no more than 70% of the ATmega328P's 2 KB static SRAM.
+A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 92.5% of the 30,720-byte application-flash budget and no more than 70% of the ATmega328P's 2 KB static SRAM.
 
 ## Running tests locally
 

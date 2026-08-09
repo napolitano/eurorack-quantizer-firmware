@@ -117,7 +117,7 @@ Changing these masks changes firmware defaults only; it does not rewrite EEPROM.
 
 ## Arpeggiator layer
 
-The Arpeggiator is a full second UI layer. `UiConfig.h` defines the 3-second SHIFT-only layer-switch gesture and the nine Arpeggiator function positions. Entering that layer enables the selected Arpeggiator if necessary. The interaction grammar does **not** change between layers: unmodified note buttons continue to edit/show the scale, while `SHIFT + note` selects the active layer's menu function. A, A# and B therefore remain `SHIFT+A` Link, `SHIFT+A#` Channel A and `SHIFT+B` Channel B in both layers. Scalar Arpeggiator parameters use the next unmodified note press as their value selector, matching the established Quantizer menu behaviour.
+The Arpeggiator is a full second UI layer. `UiConfig.h` defines the debounced SHIFT double-click layer-switch gesture and the nine Arpeggiator function positions. Both SHIFT presses must remain within the short-click limit, and the second raw press must begin within 350 ms of the first debounced release. Entering that layer enables the selected Arpeggiator if necessary. The interaction grammar does **not** change between layers: unmodified note buttons continue to edit/show the scale, while `SHIFT + note` selects the active layer's menu function. A, A# and B therefore remain `SHIFT+A` Link, `SHIFT+A#` Channel A and `SHIFT+B` Channel B in both layers. Scalar Arpeggiator parameters use the next unmodified note press as their value selector, matching the established Quantizer menu behaviour.
 
 The factory/default Arpeggiator sync mode is `FREE`; no external clock is required. `RESET` and `CLOCK` are explicit additional modes selected from the Arpeggiator Sync menu.
 
@@ -145,7 +145,7 @@ The shared `AsyncEepromWriter` queue is sized for the largest current atomic tra
 
 PlatformIO still enforces the board's absolute program/RAM capacity. CI adds a deliberately more conservative engineering gate through `scripts/check_avr_resource_budget.py`:
 
-- application flash target: at most 85% of 30,720 bytes;
+- application flash target: at most 92.5% of 30,720 bytes;
 - static SRAM target: at most 70% of 2,048 bytes.
 
 The check counts `.data` in both flash and SRAM, because AVR initialised data consumes flash storage and is copied into SRAM at startup. The aim is to preserve room for stack/interrupt activity and future maintenance rather than treating the last byte of the MCU as usable feature budget.
