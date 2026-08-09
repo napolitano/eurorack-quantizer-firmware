@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" role="img" aria-labelledby="title desc">
+<title id="title">Glide principle</title>
+<desc id="desc">A target pitch jumps from A to B while the actual CV output transitions smoothly toward the new target.</desc>
+<rect width="960" height="430" fill="#FFFFFF"/>
+<style>
+text{font-family:Ubuntu,Arial,sans-serif;fill:#1F1F1F} .label{font-size:28px;font-weight:600}.small{font-size:22px}.tiny{font-size:18px}.muted{fill:#A8A8A8}.blue{fill:#1B9DD9}.orange{fill:#F28C28}.green{fill:#2FA45A}.red{fill:#D94B3D}.axis{stroke:#1F1F1F;stroke-width:5;fill:none}.grid{stroke:#E7E7E7;stroke-width:3;stroke-dasharray:10 12}.ref{stroke:#A8A8A8;stroke-width:6;stroke-dasharray:14 12;fill:none}.signal{stroke:#1B9DD9;stroke-width:8;fill:none;stroke-linejoin:round;stroke-linecap:round}.orangeStroke{stroke:#F28C28;stroke-width:6;fill:none}.box{fill:#FFFFFF;stroke:#1F1F1F;stroke-width:5}.softbox{fill:#E8F5FB;stroke:#1B9DD9;stroke-width:5}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1F1F1F"/></marker><marker id="blueArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1B9DD9"/></marker></defs>
+<text x="110" y="330" class="label">A</text><text x="110" y="115" class="label">B</text><text x="790" y="390" class="label muted">Time</text>
+<path class="axis" d="M145 340V80M145 340H855"/>
+<path d="M145 300H365V115H830" stroke="#A8A8A8" stroke-width="6" stroke-dasharray="14 12" fill="none"/>
+<path d="M145 300H365C430 300 470 275 510 220S585 115 640 115H830" class="signal"/>
+<text x="380" y="95" class="small blue">Glide</text><text x="610" y="170" class="tiny muted">actual output</text><text x="385" y="145" class="tiny muted">target step</text>
+
+</svg>

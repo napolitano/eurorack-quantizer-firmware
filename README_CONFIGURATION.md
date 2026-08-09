@@ -13,6 +13,22 @@ Configuration is split by responsibility under `lib/fmq/include/fmq/config/`:
 
 Major ranges are guarded by compile-time assertions where practical.
 
+## Contents
+
+- [Product defaults](#product-defaults)
+- [Signal-processing model](#signal-processing-model)
+- [ADC reference and original PCB](#adc-reference-and-original-pcb)
+- [Resistor ladder and ADC](#resistor-ladder-and-adc)
+- [UI timing](#ui-timing)
+- [Normal LED brightness](#normal-led-brightness)
+- [Startup sequences](#startup-sequences)
+- [Runtime and diagnostics](#runtime-and-diagnostics)
+- [Factory full-config fallbacks](#factory-full-config-fallbacks)
+- [Arpeggiator layer](#arpeggiator-layer)
+- [EEPROM layout and live state](#eeprom-layout-and-live-state)
+- [AVR resource budget](#avr-resource-budget)
+
+
 ## Product defaults
 
 `kFactoryScaleMask` defaults to `0x0FFF`, a chromatic scale, so a blank module is immediately usable.
@@ -20,6 +36,45 @@ Major ranges are guarded by compile-time assertions where practical.
 `kFactorySampleMode` defaults to **Track-and-Hold** (`0`), matching the Rust original. SHIFT+4 normally toggles only Track-and-Hold and Sample-and-Hold. `kEnableContinuousSampleModeInUi` is `false` by default; setting it to `true` exposes the C++ Continuous extension in the front-panel cycle.
 
 Glide and trigger-delay limits live in `ProductConfig.h` as `kMaxGlideAmount` and `kMaxTriggerDelayAmount` rather than being repeated as literals in processing and persistence code.
+
+## Signal-processing model
+
+The core per-channel pitch path is intentionally ordered. Pre-shift affects which note is selected, Scale-shift moves within the enabled scale after quantization, Post-shift applies a chromatic offset to that result, and Glide affects only the transition to the final CV target.
+
+```mermaid
+flowchart LR
+    IN[CV input] --> SAMPLE[Track / Sample stage]
+    SAMPLE --> PRE[Pre-shift]
+    PRE --> Q[Quantize + hysteresis]
+    Q --> SCALE[Scale-shift]
+    SCALE --> POST[Post-shift]
+    POST --> GLIDE[Glide]
+    GLIDE --> DAC[DAC output]
+```
+
+### Hysteresis thresholds
+
+After a real previous note $L$ exists, the hold band is defined from the next enabled lower and upper notes $D$ and $U$. With the configured hysteresis amount $H = 0.4$ semitone, the implementation follows:
+
+```math
+T_{upper} = L + \frac{U-L}{2} + H
+```
+
+```math
+T_{lower} = L - \frac{L-D}{2} - H
+```
+
+A fresh channel deliberately skips this hold band until its first actual note has been emitted, so an exact half-semitone tie keeps the normal upward-rounding rule.
+
+### Glide recurrence
+
+For Glide amount $g$, the Q8.24 integrator uses the discrete update below on every processing tick, with integer fixed-point arithmetic and a one-ULP progress guarantee when rounding would otherwise produce zero movement:
+
+```math
+y_{n+1} = y_n + 2^{-g}(t-y_n)
+```
+
+At $g=0$, the multiplier is 1 and the output jumps directly to the target. Increasing $g$ produces progressively slower convergence.
 
 ## ADC reference and original PCB
 

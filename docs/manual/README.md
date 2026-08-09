@@ -45,6 +45,10 @@ is best-effort: failure to create the PDF does not prevent publication of the
 ODT or firmware. Any manual assets that are created are included in the release
 SHA-256 and MD5 checksum manifests.
 
+## Reusable concept artwork
+
+The repository keeps reusable functional diagrams under [`../assets/concepts/`](../assets/concepts/). These SVG sources are intended for both GitHub documentation and the LibreOffice user manual so signal-flow and control concepts do not need to be redrawn independently for each format. Preserve their functional color semantics when adapting them for the manual.
+
 ## Manual licence
 
 Unless a file states otherwise, the original manual content in this directory

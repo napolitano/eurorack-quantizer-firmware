@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" role="img" aria-labelledby="title desc">
+<title id="title">Track-and-Hold versus Sample-and-Hold</title>
+<desc id="desc">Track-and-Hold follows CV while the gate is high; Sample-and-Hold captures the value on the rising edge and holds it.</desc>
+<rect width="960" height="430" fill="#FFFFFF"/>
+<style>
+text{font-family:Ubuntu,Arial,sans-serif;fill:#1F1F1F} .label{font-size:28px;font-weight:600}.small{font-size:22px}.tiny{font-size:18px}.muted{fill:#A8A8A8}.blue{fill:#1B9DD9}.orange{fill:#F28C28}.green{fill:#2FA45A}.red{fill:#D94B3D}.axis{stroke:#1F1F1F;stroke-width:5;fill:none}.grid{stroke:#E7E7E7;stroke-width:3;stroke-dasharray:10 12}.ref{stroke:#A8A8A8;stroke-width:6;stroke-dasharray:14 12;fill:none}.signal{stroke:#1B9DD9;stroke-width:8;fill:none;stroke-linejoin:round;stroke-linecap:round}.orangeStroke{stroke:#F28C28;stroke-width:6;fill:none}.box{fill:#FFFFFF;stroke:#1F1F1F;stroke-width:5}.softbox{fill:#E8F5FB;stroke:#1B9DD9;stroke-width:5}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1F1F1F"/></marker><marker id="blueArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1B9DD9"/></marker></defs>
+
+<text x="115" y="55" class="label">Track-and-Hold</text><text x="560" y="55" class="label">Sample-and-Hold</text>
+<rect x="50" y="80" width="390" height="310" rx="24" class="box"/><rect x="520" y="80" width="390" height="310" rx="24" class="box"/>
+<rect x="175" y="105" width="175" height="205" fill="#E8F5FB"/>
+<rect x="645" y="105" width="175" height="205" fill="#E8F5FB"/>
+<path class="axis" d="M95 330V110M95 330H395M565 330V110M565 330H865"/>
+<path d="M95 275C150 210 190 165 245 160S330 245 395 300" stroke="#A8A8A8" stroke-width="5" fill="none"/>
+<path d="M565 275C620 210 660 165 715 160S800 245 865 300" stroke="#A8A8A8" stroke-width="5" fill="none"/>
+<path d="M95 275H175C205 230 230 175 260 170S315 255 335 285S360 260 395 260" class="signal"/>
+<path d="M565 275H865" class="signal"/>
+<circle cx="645" cy="275" r="11" fill="#1B9DD9"/><path d="M175 105V330M645 105V330" stroke="#1F1F1F" stroke-width="4" stroke-dasharray="9 9"/>
+<text x="175" y="370" text-anchor="middle" class="small green">Gate HIGH: follows CV</text><text x="645" y="370" text-anchor="middle" class="small red">Rising edge: captures once</text>
+
+</svg>

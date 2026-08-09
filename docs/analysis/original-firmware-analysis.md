@@ -29,6 +29,15 @@ Files reviewed for these notes:
 - `fm-lib/src/mcp4922.rs`
 - `fm-lib/src/system_clock.rs`
 
+## Contents
+
+- [What is good about it](#what-is-good-about-it)
+- [Behaviour that appears to need correction or hardening](#behaviour-that-appears-to-need-correction-or-hardening)
+- [Additional things I would keep an eye on](#additional-things-i-would-keep-an-eye-on)
+- [Things that look odd but are intentional](#things-that-look-odd-but-are-intentional)
+- [Notes for the C++ reimplementation](#notes-for-the-c-reimplementation)
+- [Current take](#current-take)
+
 ## What is good about it
 
 The first thing worth keeping in mind is the target. This is a feature-rich two-channel quantizer running on an ATmega328P with 32 KB flash, 2 KB SRAM, a minimal panel and a deliberately affordable BOM. Within that context, the original firmware does several things very well.

@@ -32,6 +32,38 @@ Original project references:
 
 This repository is an independent reimplementation and is **not an official Free Modular repository**.
 
+
+## Contents
+
+- [Why this alternative firmware exists](#why-this-alternative-firmware-exists)
+- [What this firmware adds](#what-this-firmware-adds)
+- [Using the firmware](#using-the-firmware)
+  - [User manual](#user-manual)
+  - [Quantization at a glance](#quantization-at-a-glance)
+  - [Normal display](#normal-display)
+  - [Main controls](#main-controls)
+  - [Quantizer SHIFT shortcuts](#quantizer-shift-shortcuts)
+  - [Track-and-Hold and Sample-and-Hold](#track-and-hold-and-sample-and-hold)
+  - [Channel interaction](#channel-interaction)
+  - [Discrete channel LEDs](#discrete-channel-leds)
+  - [Scalar menus](#scalar-menus)
+  - [Save/load and factory presets](#saveload-and-factory-presets)
+  - [Arpeggiator layer](#arpeggiator-layer)
+  - [LED brightness calibration](#led-brightness-calibration)
+  - [Startup sequences](#startup-sequences)
+  - [Version history](#version-history)
+- [Technical reference](#technical-reference)
+  - [Contributing and project policies](#contributing-and-project-policies)
+  - [Hardware compatibility](#hardware-compatibility)
+  - [Persistence](#persistence)
+  - [Configuration](#configuration)
+  - [Build and upload](#build-and-upload)
+  - [Project structure and testing](#project-structure-and-testing)
+  - [GitHub Actions](#github-actions)
+  - [Documentation](#documentation)
+  - [Security](#security)
+  - [Credits and licence](#credits-and-licence)
+
 ## Why this alternative firmware exists
 
 The original Rust firmware is compact and closely tied to the module it was written for. That is part of its appeal. For continued maintenance and experimentation, however, its AVR Rust setup also comes with a relatively specialised toolchain: it relies on a nightly compiler and unstable features, and parts of the original source contain a compiler-specific inline-assembly workaround. Reproducing and maintaining that environment is less convenient today than using the conventional Arduino/AVR tooling available through PlatformIO.
@@ -78,6 +110,14 @@ The module still uses the original hardware. **No PCB, component or wiring modif
 The dedicated end-user manual workspace is prepared under [`docs/manual/`](docs/manual/README.md). The editable manual source is intended to be maintained as a LibreOffice Writer document and uses the **Ubuntu Font Family** as a required editing dependency. Manual-specific licensing and font setup information are kept with the manual sources so the firmware licence and documentation licence remain clearly separated.
 
 The sections below provide the essential front-panel reference directly in the repository README.
+
+
+## Quantization at a glance
+
+A quantizer maps a continuous input voltage to the nearest pitch that is currently allowed by the selected scale. The scale therefore determines the available steps; the input CV still determines where on that staircase the output lands.
+
+<p align="center"><img src="docs/assets/concepts/quantization.svg" width="760" alt="Quantization maps a continuous input CV to discrete enabled pitch steps"></p>
+
 
 ## Normal display
 
@@ -126,9 +166,20 @@ The symbols below match the function pictograms used for the module documentatio
 
 When channels are linked, edits apply to both channels. Linking copies Channel A's current configuration to Channel B and returns selection to Channel A.
 
+
+### Scale rotation
+
+Scale rotation moves the **enabled pitch classes** around the twelve-note ring. It does not add a fixed CV offset; the set of pitches available to the quantizer changes instead.
+
+<p align="center"><img src="docs/assets/concepts/scale-rotation.svg" width="760" alt="Scale rotation moves enabled pitch classes around the twelve-note scale"></p>
+
+
 ## Track-and-Hold and Sample-and-Hold
 
 The factory mode is **Track-and-Hold**, matching the original firmware.
+
+
+<p align="center"><img src="docs/assets/concepts/track-vs-sample.svg" width="760" alt="Track-and-Hold follows CV while the gate is high; Sample-and-Hold captures once on a rising edge"></p>
 
 ### Track-and-Hold
 
@@ -140,6 +191,13 @@ Because the original hardware normalises an empty trigger jack to HIGH, this beh
 
 Only a LOW→HIGH transition samples the CV input. The resulting quantized value is held until the next rising edge.
 
+
+### Trigger delay
+
+The configured 0–11 ms trigger delay moves the sampling instant **after** the rising edge. In Track-and-Hold it delays the start of tracking for that HIGH phase; in Sample-and-Hold it delays the single captured sample.
+
+<p align="center"><img src="docs/assets/concepts/sample-delay.svg" width="760" alt="A rising gate edge starts the configured delay before the CV is sampled"></p>
+
 ### Mode feedback
 
 `SHIFT+4` changes the mode first and then reports the **new** state on ring position 4:
@@ -148,6 +206,16 @@ Only a LOW→HIGH transition samples the CV input. The resulting quantized value
 - red = Sample-and-Hold
 
 After a fresh boot, the first `SHIFT+4` changes Track → Sample and therefore shows red. The next press changes Sample → Track and shows green.
+
+## Channel interaction
+
+Channel A always quantizes its own CV input. Channel B can either quantize its own input (**Absolute**) or quantize the sum of A + B (**Relative**). The sum is clamped to the supported input range before quantization.
+
+<p align="center"><img src="docs/assets/concepts/relative-channel-b.svg" width="760" alt="Absolute Channel B uses CV B only; Relative Channel B quantizes CV A plus CV B"></p>
+
+Linking is a configuration relationship, not an electrical summing mode. Linked channels share the same scale and channel settings while their CV signal paths remain separate.
+
+<p align="center"><img src="docs/assets/concepts/linked-channels.svg" width="760" alt="Linked channels share configuration while Channel A and Channel B CV inputs remain separate"></p>
 
 ## Discrete channel LEDs
 
@@ -180,6 +248,19 @@ Pre-shift, Scale-shift and Post-shift use a signed representation:
 - negative values: red from the upper end of the ring
 
 Pressing a note button selects the displayed value.
+
+
+### Pitch-processing order
+
+The three shift operations intentionally act at different points in the pitch path: Pre-shift changes the value **before** quantization, Scale-shift walks through enabled scale degrees **after** quantization, and Post-shift adds chromatic semitones to the quantized result. Glide then moves the actual output toward that final target.
+
+<p align="center"><img src="docs/assets/concepts/pitch-shifts.svg" width="760" alt="Pitch processing order showing pre-shift, quantization, scale-shift, post-shift and output"></p>
+
+### Glide
+
+Glide does not change which discrete target note was selected. It smooths the CV transition from the previous output toward the new target; trigger generation remains tied to the discrete target-note change rather than the intermediate DAC steps.
+
+<p align="center"><img src="docs/assets/concepts/glide.svg" width="760" alt="Glide smooths the CV output toward a stepped target pitch"></p>
 
 ## Save/load and factory presets
 
@@ -477,7 +558,7 @@ The workflow structure follows PlatformIO's documented GitHub Actions approach: 
 - [README_TESTING.md](README_TESTING.md) — native unit, integration and system signal-path test strategy
 - [CHANGELOG.md](CHANGELOG.md) — public release history and queued unreleased changes
 - [.github/SECURITY.md](.github/SECURITY.md) — vulnerability reporting and supported-version policy
-- [`docs/assets/`](docs/assets/) — panel artwork and UI pictograms used by the documentation
+- [`docs/assets/`](docs/assets/) — shared panel artwork, UI pictograms and the reusable [`concepts/`](docs/assets/concepts/README.md) diagrams used across GitHub documentation and the user manual
 
 ## Security
 

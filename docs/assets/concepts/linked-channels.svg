@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+<title id="title">Linked channels</title>
+<desc id="desc">When channels are linked they share scale and settings, while Channel A and Channel B CV signal paths remain separate.</desc>
+<rect width="960" height="520" fill="#FFFFFF"/>
+<style>
+text{font-family:Ubuntu,Arial,sans-serif;fill:#1F1F1F} .label{font-size:28px;font-weight:600}.small{font-size:22px}.tiny{font-size:18px}.muted{fill:#A8A8A8}.blue{fill:#1B9DD9}.orange{fill:#F28C28}.green{fill:#2FA45A}.red{fill:#D94B3D}.axis{stroke:#1F1F1F;stroke-width:5;fill:none}.grid{stroke:#E7E7E7;stroke-width:3;stroke-dasharray:10 12}.ref{stroke:#A8A8A8;stroke-width:6;stroke-dasharray:14 12;fill:none}.signal{stroke:#1B9DD9;stroke-width:8;fill:none;stroke-linejoin:round;stroke-linecap:round}.orangeStroke{stroke:#F28C28;stroke-width:6;fill:none}.box{fill:#FFFFFF;stroke:#1F1F1F;stroke-width:5}.softbox{fill:#E8F5FB;stroke:#1B9DD9;stroke-width:5}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1F1F1F"/></marker><marker id="blueArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1B9DD9"/></marker></defs>
+<rect x="335" y="55" width="290" height="105" rx="22" class="softbox"/><text x="480" y="120" text-anchor="middle" class="label">Shared configuration</text>
+<rect x="95" y="260" width="230" height="115" rx="22" class="box"/><rect x="635" y="260" width="230" height="115" rx="22" class="box"/><text x="210" y="330" text-anchor="middle" class="label">Channel A</text><text x="750" y="330" text-anchor="middle" class="label">Channel B</text>
+<path d="M435 160V200H210V260" stroke="#1B9DD9" stroke-width="5" fill="none" marker-end="url(#blueArrow)"/><path d="M525 160V200H750V260" stroke="#1B9DD9" stroke-width="5" fill="none" marker-end="url(#blueArrow)"/>
+<path d="M95 430H325" stroke="#1F1F1F" stroke-width="4"/><path d="M635 430H865" stroke="#1F1F1F" stroke-width="4"/><text x="210" y="420" text-anchor="middle" class="small">CV A remains separate</text><text x="750" y="420" text-anchor="middle" class="small">CV B remains separate</text>
+
+
+</svg>

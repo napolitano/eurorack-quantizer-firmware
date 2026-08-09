@@ -7,6 +7,17 @@ Contributions are welcome when they preserve the behavior, constraints, and main
 
 Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating. Security vulnerabilities must be reported according to [.github/SECURITY.md](.github/SECURITY.md), not through a public issue.
 
+## Contents
+
+- [Before opening an issue](#before-opening-an-issue)
+- [Development environment](#development-environment)
+- [Coding requirements](#coding-requirements)
+- [Documentation style](#documentation-style)
+- [Pull requests](#pull-requests)
+- [Changelog policy](#changelog-policy)
+- [Releases](#releases)
+- [Licensing](#licensing)
+
 ## Before opening an issue
 
 Use the repository issue forms where possible. A useful bug report identifies the firmware version or commit, the affected mode or channel, the exact steps required to reproduce the behavior, the expected result, and the observed result. Include relevant build output, serial output, measurements, or photographs when they materially help diagnosis.
@@ -75,6 +86,21 @@ Documentation is written for GitHub rendering first and should use [GitHub Flavo
 > [!TIP]
 > Keep alerts scarce and specific. GitHub recommends using them only when they materially improve user success rather than turning every paragraph into a callout. One or two well-placed alerts are usually more effective than a page full of them.
 
+Long Markdown documents with more than three major sections should include a **Contents** index near the top so readers can jump directly to the relevant section. Keep the index focused on useful navigation rather than listing every small subsection.
+
+Use the repository's documentation formats according to the information being explained:
+
+| Format | Preferred use |
+|---|---|
+| Markdown tables | Parameter maps, command/reference matrices, compact comparisons |
+| GitHub alerts | Important notes, recommendations, warnings and cautions |
+| Mermaid | Technical flows, state transitions and software architecture that benefit from source-controlled diagrams |
+| GitHub math | Equations and algorithm definitions where mathematical notation is clearer than prose or code |
+| Task lists | Actionable verification, calibration, PR and release checklists |
+| SVG under `docs/assets/` | Reusable user-facing concepts and diagrams that also belong in the LibreOffice manual |
+
+Reusable Quantizer concept artwork lives under `docs/assets/concepts/`. Keep its functional palette consistent: `#1B9DD9` blue for the primary signal/action, orange for timing or transformation parameters, green/red only for genuine channel or state semantics, and neutral gray/black for references and structure.
+
 Purely editorial changes do not belong in the changelog unless they represent a substantial documentation release, such as a new user-manual version.
 
 ## Pull requests
@@ -91,6 +117,9 @@ Before submitting a pull request:
 6. verify that no generated build artifacts, Python bytecode, editor files, or local paths are included.
 
 CI is expected to pass before a change is merged.
+
+
+When a pull request is intended to close a tracked issue, use GitHub's supported closing keywords in the PR description, for example `Fixes #123`, `Closes #123`, or `Resolves #123`. Use them only when merging the PR should actually close that issue.
 
 ## Changelog policy
 

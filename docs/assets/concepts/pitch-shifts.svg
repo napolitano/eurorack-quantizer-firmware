@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 450" role="img" aria-labelledby="title desc">
+<title id="title">Pitch-shift processing order</title>
+<desc id="desc">Pre-shift moves the input in semitones before quantization, scale-shift moves within enabled scale degrees, and post-shift moves the quantized result in semitones.</desc>
+<rect width="960" height="450" fill="#FFFFFF"/>
+<style>
+text{font-family:Ubuntu,Arial,sans-serif;fill:#1F1F1F} .label{font-size:28px;font-weight:600}.small{font-size:22px}.tiny{font-size:18px}.muted{fill:#A8A8A8}.blue{fill:#1B9DD9}.orange{fill:#F28C28}.green{fill:#2FA45A}.red{fill:#D94B3D}.axis{stroke:#1F1F1F;stroke-width:5;fill:none}.grid{stroke:#E7E7E7;stroke-width:3;stroke-dasharray:10 12}.ref{stroke:#A8A8A8;stroke-width:6;stroke-dasharray:14 12;fill:none}.signal{stroke:#1B9DD9;stroke-width:8;fill:none;stroke-linejoin:round;stroke-linecap:round}.orangeStroke{stroke:#F28C28;stroke-width:6;fill:none}.box{fill:#FFFFFF;stroke:#1F1F1F;stroke-width:5}.softbox{fill:#E8F5FB;stroke:#1B9DD9;stroke-width:5}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1F1F1F"/></marker><marker id="blueArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#1B9DD9"/></marker></defs>
+<rect x="45" y="160" width="150" height="110" rx="22" class="box"/><rect x="365" y="135" width="225" height="160" rx="22" class="softbox"/><rect x="760" y="160" width="150" height="110" rx="22" class="box"/>
+<text x="120" y="225" text-anchor="middle" class="label">Input</text><text x="477" y="225" text-anchor="middle" class="label">Quantize</text><text x="835" y="225" text-anchor="middle" class="label">Output</text>
+<path d="M195 215H365" stroke="#1F1F1F" stroke-width="6" marker-end="url(#arrow)"/><path d="M590 215H760" stroke="#1F1F1F" stroke-width="6" marker-end="url(#arrow)"/>
+<text x="280" y="118" text-anchor="middle" class="small orange">Pre-shift</text><text x="280" y="145" text-anchor="middle" class="tiny muted">± semitones</text>
+<text x="675" y="118" text-anchor="middle" class="small orange">Post-shift</text><text x="675" y="145" text-anchor="middle" class="tiny muted">± semitones</text>
+<path d="M400 322H555" stroke="#1B9DD9" stroke-width="5" marker-end="url(#blueArrow)"/><text x="477" y="360" text-anchor="middle" class="small blue">Scale-shift: ± enabled degrees</text>
+
+
+</svg>

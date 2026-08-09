@@ -4,6 +4,28 @@ The Arpeggiator is a complete second performance layer of the firmware. It start
 
 It is deliberately implemented as a control-rate state machine. No audio is buffered or analysed, no dynamic memory is used, and the Quantizer remains the source of the base pitch and scale.
 
+## Contents
+
+- [Mental model](#mental-model)
+- [Shared interaction grammar](#shared-interaction-grammar)
+- [Channel model](#channel-model)
+- [Arpeggiator-layer SHIFT map](#arpeggiator-layer-shift-map)
+- [Enable — SHIFT + C](#enable--shift--c)
+- [Rate / clock ratio — SHIFT + C#](#rate--clock-ratio--shift--c)
+- [Pattern — SHIFT + D](#pattern--shift--d)
+- [Shape — SHIFT + D#](#shape--shift--d)
+- [Length — SHIFT + E](#length--shift--e)
+- [Range — SHIFT + F](#range--shift--f)
+- [Step Trigger — SHIFT + F#](#step-trigger--shift--f)
+- [Sync mode — SHIFT + G](#sync-mode--shift--g)
+- [Swing — SHIFT + G#](#swing--shift--g)
+- [Typical starting points](#typical-starting-points)
+- [Relationship to the Quantizer](#relationship-to-the-quantizer)
+- [Persistence](#persistence)
+- [Memory and CPU design](#memory-and-cpu-design)
+- [Timing and failure behaviour](#timing-and-failure-behaviour)
+- [Test coverage](#test-coverage)
+
 ## Mental model
 
 There are two front-panel UI layers:

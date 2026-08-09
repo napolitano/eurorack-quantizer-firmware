@@ -7,6 +7,30 @@ The project deliberately does not depend on editor-specific build buttons. If `p
 > [!IMPORTANT]
 > **Hardware boundary:** This repository targets the existing Free Modular Quantizer hardware based on the Arduino Nano / ATmega328P. PCB, component, pin-assignment, and wiring changes are outside the scope of this firmware project.
 
+## Contents
+
+- [Original project and upstream reference material](#original-project-and-upstream-reference-material)
+- [1. Toolchain overview](#1-toolchain-overview)
+- [2. Repository checkout](#2-repository-checkout)
+- [3. VSCodium](#3-vscodium)
+- [4. Windows 11 x64](#4-windows-11-x64)
+  - [4.1 What Windows actually needs](#41-what-windows-actually-needs)
+  - [4.3 Install Python 3](#43-install-python-3)
+  - [4.4 Install PlatformIO Core](#44-install-platformio-core)
+  - [4.5 Install MSYS2 UCRT64 GCC/G++ for native tests](#45-install-msys2-ucrt64-gccg-for-native-tests)
+  - [4.6 Recommended Windows Path model](#46-recommended-windows-path-model)
+  - [4.7 Verify both Windows compiler paths](#47-verify-both-windows-compiler-paths)
+- [5. macOS](#5-macos)
+- [6. Linux](#6-linux)
+- [7. First project verification](#7-first-project-verification)
+- [8. Coverage](#8-coverage)
+- [9. Uploading firmware to the Nano](#9-uploading-firmware-to-the-nano)
+- [10. Hardware smoke test after deployment](#10-hardware-smoke-test-after-deployment)
+- [11. Normal development cycle](#11-normal-development-cycle)
+- [12. Project-specific files](#12-project-specific-files)
+- [13. Troubleshooting quick checks](#13-troubleshooting-quick-checks)
+- [14. Upstream setup references](#14-upstream-setup-references)
+
 ## Original project and upstream reference material
 
 This firmware targets Quinn Freedman's existing **Free Modular Quantizer** hardware. When working on compatibility, hardware behavior, or differences from the original implementation, use the upstream project as the primary reference context rather than inferring behavior from this repository alone.

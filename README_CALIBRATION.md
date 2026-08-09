@@ -7,6 +7,19 @@ This guide describes the practical calibration workflow for the Free Modular Qua
 
 The firmware does not invent analogue correction values. Measurements should be taken on the real module and then transferred into the corresponding configuration constants.
 
+## Contents
+
+- [What you need](#what-you-need)
+- [1. LED brightness calibration](#1-led-brightness-calibration)
+- [2. Boot-time hardware calibration console](#2-boot-time-hardware-calibration-console)
+- [3. Resistor-ladder verification](#3-resistor-ladder-verification)
+- [4. CV input calibration](#4-cv-input-calibration)
+- [5. DAC output calibration](#5-dac-output-calibration)
+- [6. Musical verification](#6-musical-verification)
+- [7. Automatic ladder-rest check](#7-automatic-ladder-rest-check)
+- [8. Runtime diagnostics](#8-runtime-diagnostics)
+- [Calibration checklist](#calibration-checklist)
+
 ## What you need
 
 For basic calibration:

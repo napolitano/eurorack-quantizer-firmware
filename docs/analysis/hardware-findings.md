@@ -15,6 +15,20 @@ The upstream `PCBs/quantizer_pcb/` project contains `front_panel.kicad_sch`, `qu
 
 The hardware review is based on the complete KiCad material supplied for the module, rather than screenshots or a simplified redraw, together with the published assembly/BOM information and behaviour already verified in firmware. I have not independently measured PCB copper resistance, fitted component tolerances, Nano clone internals or analogue behaviour on a calibrated bench setup. Where the design data leaves room for doubt, I have tried to keep the wording provisional rather than fill in the gaps.
 
+## Contents
+
+- [What I like about the design](#what-i-like-about-the-design)
+- [Power path](#power-path)
+- [Reference and ADC path](#reference-and-adc-path)
+- [CV inputs](#cv-inputs)
+- [Sample/Gate inputs](#samplegate-inputs)
+- [DAC and CV outputs](#dac-and-cv-outputs)
+- [LED driver and shared SPI](#led-driver-and-shared-spi)
+- [Arduino Nano as part of the hardware architecture](#arduino-nano-as-part-of-the-hardware-architecture)
+- [BOM and sourcing notes](#bom-and-sourcing-notes)
+- [Notes for a possible hardware revision](#notes-for-a-possible-hardware-revision)
+- [Current take](#current-take)
+
 ## What I like about the design
 
 Before listing concerns, it is worth stating why this circuit is interesting in the first place. It gets a surprisingly capable two-channel quantizer out of a small number of inexpensive, readily available parts.

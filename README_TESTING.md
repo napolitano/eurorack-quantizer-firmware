@@ -25,6 +25,17 @@ Examples of exhaustive work performed by the suite include:
 - all twelve logical note LEDs and all four logical LED colours;
 - the complete 0..4095 LED intensity range for monotonic PWM scaling.
 
+## Contents
+
+- [Test levels](#test-levels)
+- [Fine-grained CI](#fine-grained-ci)
+- [Running tests locally](#running-tests-locally)
+- [Requirement-oriented verification](#requirement-oriented-verification)
+- [Specification findings closed by regression tests](#specification-findings-closed-by-regression-tests)
+- [Coverage reports](#coverage-reports)
+- [What native tests cannot prove](#what-native-tests-cannot-prove)
+- [First-party warning policy](#first-party-warning-policy)
+
 ## Test levels
 
 ### Unit tests
