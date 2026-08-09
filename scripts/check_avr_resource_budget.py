@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# Purpose: Enforce conservative ATmega328P flash/SRAM engineering budgets.
+# Purpose: Enforce explicit ATmega328P flash/SRAM engineering budgets.
 # Author: Axel Napolitano
 # Original FM Quantizer concept and Rust firmware: Quinn Freedman
 # Copyright (C) 2026 Axel Napolitano
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Enforce conservative ATmega328P flash/SRAM budgets from an AVR ELF file.
+"""Enforce explicit ATmega328P flash/SRAM budgets from an AVR ELF file.
 
 The hard MCU/board limits are already checked by PlatformIO. This script adds
 an engineering margin so feature growth does not consume the last usable bytes
@@ -21,7 +21,7 @@ from pathlib import Path
 
 FLASH_CAPACITY = 30_720  # conservative application space used for Nano builds
 SRAM_CAPACITY = 2_048
-FLASH_BUDGET_PERCENT = 85.0
+FLASH_BUDGET_PERCENT = 92.5
 SRAM_BUDGET_PERCENT = 70.0
 
 

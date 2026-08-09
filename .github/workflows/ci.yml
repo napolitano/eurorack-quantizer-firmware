@@ -16,6 +16,31 @@ permissions:
   contents: read
 
 jobs:
+  release-metadata:
+    name: Release metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Validate changelog release metadata
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          VERSION="$(python -c 'import json; print(json.load(open("lib/fmq/library.json", encoding="utf-8"))["version"])')"
+          python scripts/generate_release_notes.py \
+            --tag "v${VERSION}" \
+            --repository "${REPOSITORY}" \
+            --server-url "${SERVER_URL}" \
+            > /tmp/release-notes.md
+          test -s /tmp/release-notes.md
+
   native-tests:
     name: Native / ${{ matrix.suite }}
     runs-on: ubuntu-latest
