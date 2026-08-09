@@ -1,6 +1,17 @@
 # Hardware notes on the original Quantizer
 
-These are working notes from reviewing the supplied KiCad design set before making further firmware and hardware decisions. They are not intended as a formal design review or as a definitive fault list.
+> [!CAUTION]
+> This document records analysis of the **existing original hardware**. Hardware modifications are not an implementation option for this firmware repository; possible revision ideas are context only and would belong to a separate hardware project.
+
+These are working notes from reviewing the original KiCad design set and related published material. They are not intended as a formal design review or as a definitive fault list. Hardware changes are outside the scope of this firmware repository; observations about possible hardware revisions are retained only as engineering context.
+
+Primary upstream hardware references:
+
+- Free Modular Quantizer project page and published build resources: <https://freemodular.org/modules/Quantizer/>
+- Original Quantizer source tree: <https://github.com/QuinnFreedman/modular/tree/main/modules/Quantizer>
+- Original KiCad PCB projects: <https://github.com/QuinnFreedman/modular/tree/main/modules/Quantizer/PCBs>
+
+The upstream `PCBs/quantizer_pcb/` project contains `front_panel.kicad_sch`, `quantizer_pcb.kicad_sch`, `quantizer_pcb.kicad_pcb`, and `rear_panel.kicad_sch`. The separate `PCBs/quantizer_faceplate/` project contains the KiCad faceplate design. These upstream files are the reference for electrical assumptions and physical routing; this firmware repository does not redefine the hardware.
 
 The hardware review is based on the complete KiCad material supplied for the module, rather than screenshots or a simplified redraw, together with the published assembly/BOM information and behaviour already verified in firmware. I have not independently measured PCB copper resistance, fitted component tolerances, Nano clone internals or analogue behaviour on a calibrated bench setup. Where the design data leaves room for doubt, I have tried to keep the wording provisional rather than fill in the gaps.
 
@@ -251,3 +262,7 @@ The areas I would be least comfortable carrying forward unchanged are the power 
 The documentation has a similar character to the hardware: pragmatic and sufficient to get a determined DIY builder to a working module, but not as tightly specified as I would want for repeatable builds across different regions and suppliers. The BOM would benefit more from clarification and normalization than from being reinvented.
 
 The right next step is measurement, not redesign by assumption. In particular, A/B isolation and the Sample/Gate behaviour with real oscillator waveforms should be verified on the bench before those findings are promoted from "worth checking" to "needs changing".
+
+---
+
+<p align="center">From Munich With <img src="../assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

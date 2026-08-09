@@ -61,7 +61,10 @@ kDefaultRedPwm   = 0x0480;
 kDefaultGreenPwm = 0x0D00;
 ```
 
-### Important: LED PWM values are empirical
+### LED PWM values are empirical
+
+> [!IMPORTANT]
+> The default PWM values are **not universal brightness values**. They must be verified on the actual assembled module and adjusted when the fitted LEDs or resistor values differ.
 
 These are **not universal brightness values**. Red and green must be tuned for the actual LEDs and series resistors on the assembled module. LED efficiency, forward voltage and resistor values can differ strongly; in the tested hardware the colour channels use very different series resistances, so numerically similar PWM values would not produce a visually balanced result.
 
@@ -149,3 +152,7 @@ PlatformIO still enforces the board's absolute program/RAM capacity. CI adds a d
 - static SRAM target: at most 70% of 2,048 bytes.
 
 The check counts `.data` in both flash and SRAM, because AVR initialised data consumes flash storage and is copied into SRAM at startup. The aim is to preserve room for stack/interrupt activity and future maintenance rather than treating the last byte of the MCU as usable feature budget.
+
+---
+
+<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

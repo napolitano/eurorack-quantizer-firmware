@@ -1,8 +1,19 @@
 # Notes on the original Rust firmware
 
+> [!NOTE]
+> This is an engineering reading of Quinn Freedman's upstream firmware and `fm-lib`, not a criticism of the project or a substitute for the upstream source. Verify implementation-sensitive conclusions against the cited upstream revision.
+
 These are working notes from reading Quinn Freedman's original Quantizer firmware and the relevant shared `fm-lib` code before and during the C++ reimplementation. They are meant to capture what appears worth preserving, what looks risky, and where the new implementation should be deliberately different.
 
 This is not intended as a verdict on the original project. It is also possible that I have misunderstood a code path or missed context elsewhere in the repository. Where a point is based on a direct code path I say so; where it is an engineering interpretation I try to keep the wording correspondingly cautious.
+
+Upstream reference locations:
+
+- Quantizer project page: <https://freemodular.org/modules/Quantizer/>
+- Quantizer source tree: <https://github.com/QuinnFreedman/modular/tree/main/modules/Quantizer>
+- Shared `fm-lib`: <https://github.com/QuinnFreedman/modular/tree/main/fm-lib>
+
+The original `modules/Quantizer/Firmware/Cargo.toml` declares `fm-lib = { path = "../../../fm-lib", features = ["panic"] }`. The firmware analysis therefore treats the module-specific Rust sources and the shared library as one implementation context rather than reviewing the Quantizer directory in isolation.
 
 Files reviewed for these notes:
 
@@ -256,3 +267,7 @@ The weak points are mostly the kind that appear when an ambitious embedded proje
 That makes the original code a good behavioural and architectural reference, but not something I would translate line-for-line. The sensible approach is to keep the musical model and the pragmatic low-level ideas, then put stronger boundaries, validation and tests around them.
 
 I would also keep these notes provisional. If later hardware measurements or another pass through the original repository contradict any of the observations above, the document should be corrected rather than defended. Its purpose is to help the next engineering decision, not to prove that the reviewer was right the first time.
+
+---
+
+<p align="center">From Munich With <img src="../assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

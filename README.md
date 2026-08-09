@@ -13,7 +13,8 @@ An independent alternative firmware for the **Free Modular Quantizer** Eurorack 
 
 It keeps the module recognisably the same instrument: the original pin mapping, panel controls and core quantizer workflow remain intact. The implementation focuses on easier builds, stronger testability and persistence, hardware calibration, well-defined edge-case behaviour and an additional performance-oriented Arpeggiator layer.
 
-> **Status:** active, hardware-tested firmware. The portable core is covered by host-side tests; analogue calibration and final LED brightness values remain specific to the actual module and fitted components.
+> [!NOTE]
+> **Status:** Active, hardware-tested firmware. The portable core is covered by host-side tests; analog calibration and final LED brightness values remain specific to the actual module and fitted components.
 
 ## Acknowledgement — Quinn Freedman
 
@@ -23,7 +24,11 @@ The original design makes a particularly pragmatic set of choices: it is cost-co
 
 That makes the original Quantizer more than just a reference implementation for this repository: it is a very good example of hardware that invites experimentation. This C++ reimplementation is intended to respect that character rather than replace or diminish it.
 
-Original project and firmware: <https://github.com/QuinnFreedman/modular>
+Original project references:
+
+- Free Modular Quantizer project page: <https://freemodular.org/modules/Quantizer/>
+- Original Quantizer source, firmware, documentation, and KiCad files: <https://github.com/QuinnFreedman/modular/tree/main/modules/Quantizer>
+- Shared Rust `fm-lib` used by the original firmware: <https://github.com/QuinnFreedman/modular/tree/main/fm-lib>
 
 This repository is an independent reimplementation and is **not an official Free Modular repository**.
 
@@ -244,7 +249,8 @@ The complete parameter tables, pattern/shape definitions, sync semantics, persis
 
 Red and green brightness must be calibrated independently. Correct values depend strongly on the **actual LEDs, their forward voltages, optical efficiency and fitted series resistors**. There is no universal numerical pair that guarantees a visually balanced red/green/amber result.
 
-> **Important:** LED brightness calibration is inherently empirical and iterative. Firmware defaults are only starting values for the currently tested hardware. A different LED type or resistor value can require dramatically different PWM settings.
+> [!IMPORTANT]
+> LED brightness calibration is inherently empirical and iterative. Firmware defaults are only starting values for the currently tested hardware. A different LED type or resistor value can require dramatically different PWM settings.
 
 Enter calibration by holding **SHIFT + LOAD + SAVE for 5 seconds**.
 
@@ -490,4 +496,7 @@ Licensed under **GPL-3.0-or-later**, consistent with the original firmware. See 
 
 This is an independent reimplementation and is not affiliated with or endorsed by Free Modular.
 
-**From Munich With ♥**
+
+---
+
+<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

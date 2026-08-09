@@ -1,6 +1,9 @@
 # Contributing
 
-Contributions are welcome when they preserve the behavior, constraints, and maintainability goals of the project. This firmware targets the existing Free Modular Quantizer hardware; hardware changes are not part of this repository.
+Contributions are welcome when they preserve the behavior, constraints, and maintainability goals of the project.
+
+> [!IMPORTANT]
+> This firmware targets the **existing Free Modular Quantizer hardware**. PCB, component, pin-assignment, or wiring changes are out of scope and belong in a separate hardware project.
 
 Please read the [Code of Conduct](CODE_OF_CONDUCT.md) before participating. Security vulnerabilities must be reported according to [.github/SECURITY.md](.github/SECURITY.md), not through a public issue.
 
@@ -57,6 +60,23 @@ Keep changes small enough to review and test. Production code must remain suitab
 - Add or update native tests for behavior changes and regressions.
 - Keep warnings clean under the repository's strict host-side warning configuration.
 
+## Documentation style
+
+Documentation is written for GitHub rendering first and should use [GitHub Flavored Markdown](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax) deliberately rather than treating Markdown as plain text. Prefer:
+
+- a clear heading hierarchy so GitHub's document outline remains useful;
+- relative links for files and images inside the repository;
+- fenced code blocks with the appropriate language where syntax highlighting helps;
+- tables for compact comparisons and fixed option matrices;
+- task lists only for actual checkable work;
+- GitHub alerts (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) for information whose significance would otherwise be easy to miss.
+- the shared `docs/assets/blue-heart.svg` asset for the centered `From Munich With` documentation footer; do not replace it with a platform-dependent emoji.
+
+> [!TIP]
+> Keep alerts scarce and specific. GitHub recommends using them only when they materially improve user success rather than turning every paragraph into a callout. One or two well-placed alerts are usually more effective than a page full of them.
+
+Purely editorial changes do not belong in the changelog unless they represent a substantial documentation release, such as a new user-manual version.
+
 ## Pull requests
 
 Create a focused branch and keep each pull request centered on one coherent change. The pull request template describes the information expected for review.
@@ -89,3 +109,7 @@ Do not create or move release tags as part of a normal contribution unless expli
 ## Licensing
 
 By contributing, you agree that your contribution may be distributed under the licenses applicable to the files and components you modify. The firmware repository license and any separately licensed documentation or third-party assets remain distinct; check the relevant license file before modifying those materials.
+
+---
+
+<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

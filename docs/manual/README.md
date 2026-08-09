@@ -5,6 +5,9 @@ The canonical editable document will be maintained as a **LibreOffice Writer** d
 
 ## Required typeface
 
+> [!IMPORTANT]
+> Install the **Ubuntu Font Family** before editing the manual. Font substitution can change line breaks, pagination, spacing, and therefore the reproducibility of the published layout.
+
 The manual uses the **Ubuntu Font Family**. The required fonts must be installed
 on the editing system before opening or modifying the manual; otherwise
 LibreOffice Writer may substitute metrics and alter line breaks, pagination and
@@ -50,3 +53,7 @@ International (CC BY-NC 4.0)**. See [LICENSE.md](LICENSE.md).
 
 Firmware source code remains covered by the repository root licence; the manual
 licence does not replace or modify the software licence.
+
+---
+
+<p align="center">From Munich With <img src="../assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

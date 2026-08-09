@@ -1,5 +1,8 @@
 # Testing and verification
 
+> [!NOTE]
+> `native` tests exercise the portable production logic on the host. They do not emulate the ATmega328P instruction timing, the analog signal path, actual EEPROM physics, or the optical behavior of the LEDs.
+
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
 The current default suite contains **29 independently runnable PlatformIO test suites and 237 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
@@ -227,3 +230,7 @@ sources under `lib/fmq/src/` and test sources under `test/`. This is implemented
 This is intentionally additive rather than subtractive: external/generated Unity code
 never receives the project-only strict flags, while every translation unit owned by this
 repository remains warning-clean under the stricter policy.
+
+---
+
+<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

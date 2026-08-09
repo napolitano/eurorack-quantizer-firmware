@@ -4,18 +4,45 @@ This guide describes the supported local development workflow for the Free Modul
 
 The project deliberately does not depend on editor-specific build buttons. If `pio` works in a normal terminal, the same commands work from VSCodium, another editor, or CI.
 
-> **Hardware boundary:** this repository targets the existing Free Modular Quantizer hardware based on the Arduino Nano / ATmega328P. PCB, component, pin-assignment, and wiring changes are outside the scope of this firmware project.
+> [!IMPORTANT]
+> **Hardware boundary:** This repository targets the existing Free Modular Quantizer hardware based on the Arduino Nano / ATmega328P. PCB, component, pin-assignment, and wiring changes are outside the scope of this firmware project.
+
+## Original project and upstream reference material
+
+This firmware targets Quinn Freedman's existing **Free Modular Quantizer** hardware. When working on compatibility, hardware behavior, or differences from the original implementation, use the upstream project as the primary reference context rather than inferring behavior from this repository alone.
+
+- **Free Modular Quantizer project page:** <https://freemodular.org/modules/Quantizer/>  
+  The public project page collects the original user manual, assembly instructions and BOM, interactive BOMs, Gerber files, firmware HEX, schematic, source-code links, and the published module specifications.
+- **Original Quantizer source tree:** <https://github.com/QuinnFreedman/modular/tree/main/modules/Quantizer>  
+  This is the module-specific source tree. It contains the original Rust firmware, documentation, faceplate sources, and the PCB design. The KiCad sources under `PCBs/quantizer_pcb/` include the front-panel schematic, main PCB schematic and board, and rear-panel schematic; `PCBs/quantizer_faceplate/` contains the KiCad faceplate project.
+- **Shared `fm-lib` used by the original firmware:** <https://github.com/QuinnFreedman/modular/tree/main/fm-lib>  
+  The original Quantizer firmware depends on this shared Rust library through a local Cargo path dependency (`../../../fm-lib`). Hardware-facing behavior such as ADC handling, EEPROM access, button debouncing, DAC support, and timing helpers therefore may live in `fm-lib` rather than in `modules/Quantizer/Firmware` itself.
+
+For source-level compatibility work, use the references in this order:
+
+1. Check `modules/Quantizer/Firmware` for Quantizer-specific behavior and UI semantics.
+2. Follow calls into `fm-lib` for shared AVR and peripheral behavior.
+3. Use the KiCad sources under `modules/Quantizer/PCBs` to verify electrical assumptions, pin routing, normalizations, and the analogue signal path.
+4. Use the Free Modular project page and its linked manual/build material for the original user-facing behavior and published hardware context.
+
+When an issue or regression test depends on a particular upstream implementation detail, record the relevant upstream file and commit SHA in the engineering note or issue. The upstream repository can evolve independently of this firmware.
 
 ## 1. Toolchain overview
 
 The repository uses four distinct tool layers:
 
-1. **VSCodium** for editing and source navigation.
-2. **Python 3** for PlatformIO Core and repository helper scripts.
-3. **PlatformIO Core** for AVR builds, uploads, dependency/toolchain management, and native test orchestration.
-4. **A host C/C++ compiler** for the `native` and `native_coverage` environments.
+| Layer | Purpose | Provided by |
+|---|---|---|
+| VSCodium | Editing, navigation, integrated terminal | VSCodium |
+| Python 3 | PlatformIO Core and repository helper scripts | Host OS / Python installation |
+| PlatformIO Core | AVR builds, uploads, packages, toolchains, and test orchestration | PlatformIO |
+| Host C/C++ compiler | `native` tests and `native_coverage` | Host operating system |
 
-The distinction between the AVR and native compilers is important. PlatformIO downloads and manages the AVR toolchain required by the `nanoatmega328new` and `nanoatmega328` environments. The `native` platform does **not** install a desktop compiler; it uses the GCC/Clang toolchain available on the host operating system.
+**Toolchain split:** The AVR compiler and the native-test compiler are **not the same toolchain**. PlatformIO downloads and manages `avr-g++` for `nanoatmega328new` and `nanoatmega328`. The `native` environments deliberately use the host compiler discovered through `PATH`; PlatformIO does not install that compiler for you.
+
+This distinction matters most on Windows. A machine can build and upload the Nano firmware successfully while `pio test -e native` still fails because no host `gcc`/`g++` is visible. Conversely, installing a desktop C++ compiler does not replace PlatformIO's managed AVR compiler.
+
+The project uses GCC-style warnings and `gcov`/`gcovr` coverage instrumentation. The documented Windows host toolchain is therefore **MSYS2 UCRT64 GCC/G++**. Microsoft Visual C++ Build Tools may be useful for other projects, but they are not the reference compiler for this repository's `native` and coverage environments.
 
 CI currently runs the project with Python 3.11. Using Python 3.11 locally provides the closest match to CI, although current PlatformIO Core supports newer Python 3 versions as well.
 
@@ -41,46 +68,67 @@ The integrated VSCodium terminal is suitable once the same `python`, `pio`, and 
 
 ## 4. Windows 11 x64
 
-Windows requires the most explicit setup because Python and the host GCC toolchain used by native tests are not supplied by PlatformIO itself.
+Windows needs the most explicit setup because three independent pieces must resolve correctly from the same terminal session: **Python**, **PlatformIO Core**, and a **host GCC/G++ toolchain** for native tests.
 
-### 4.1 Install VSCodium and Git
+> [!WARNING]
+> A successful Nano build does **not** prove that the Windows C++ test toolchain is configured. The AVR environments use PlatformIO's downloaded AVR compiler; `native` and `native_coverage` use the desktop `gcc`/`g++` found through `PATH`.
 
-Install the current 64-bit VSCodium build and Git for Windows. VSCodium can also be installed through Windows Package Manager:
+### 4.1 What Windows actually needs
+
+| Task | Required executable/toolchain | Where it comes from |
+|---|---|---|
+| Run PlatformIO and repository Python helpers | Python 3 | Python installation / PlatformIO environment |
+| Build or upload the Nano firmware | `avr-g++`, AVR binutils, uploader | Managed automatically by PlatformIO |
+| Run `pio test -e native` | desktop `gcc` and `g++` | MSYS2 UCRT64 |
+| Run `native_coverage` | desktop GCC/G++ plus `gcov` | MSYS2 UCRT64 |
+| Git operations | `git` | Git for Windows |
+| Editing | `codium` | VSCodium |
+
+No global `CC` or `CXX` environment variable is required for the normal project setup. The intended configuration lets PlatformIO discover `gcc` and `g++` from `PATH`.
+
+### 4.2 Install VSCodium and Git
+
+Install the current 64-bit VSCodium build and Git for Windows. VSCodium can also be installed through Windows Package Manager if the package is available on the machine:
 
 ```powershell
-winget install vscodium
+winget install -e --id VSCodium.VSCodium
 ```
 
 Verify Git:
 
 ```powershell
 git --version
+where.exe git
 ```
 
-### 4.2 Install Python 3
+### 4.3 Install Python 3
 
 Install a current **64-bit Python 3** from python.org. Python 3.11 is the recommended baseline because the GitHub Actions workflows use Python 3.11.
 
-During Python installation, enable **Add Python to PATH**. PlatformIO's Windows installation guidance explicitly relies on this when Python is invoked from a normal terminal.
+During installation, enable **Add Python to PATH**. PlatformIO's Windows guidance explicitly requires a usable Python command when installing Core from a normal terminal.
 
-After installation, open a **new** PowerShell or Command Prompt window and verify:
+Open a **new** PowerShell window and verify the actual interpreter rather than trusting the command name:
 
 ```powershell
 python --version
+python -c "import sys; print(sys.executable)"
 where.exe python
-```
-
-If the Python launcher is installed, this is also useful:
-
-```powershell
 py -3 --version
 ```
 
-Do not continue until `python` resolves to the intended Python 3 installation.
+**Windows Python alias:** If `where.exe python` resolves first to `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe` and launches the Microsoft Store instead of the installed interpreter, either move the real Python installation ahead of that alias in `Path` or disable the App Installer `python.exe` / `python3.exe` entries under **Manage app execution aliases**. Microsoft documents this Windows behavior explicitly.
 
-### 4.3 Install PlatformIO Core
+Do not continue until Python resolves predictably. Mixing a python.org interpreter, a Microsoft Store alias, and an MSYS2 Python installation without checking resolution order is a common source of confusing PlatformIO behavior. When you need to force the python.org interpreter explicitly, use the Windows launcher with a version selector such as `py -3.11`.
 
-Use PlatformIO's official installer script to create its isolated environment under the user profile. After installation, expose the PlatformIO commands to normal terminals by adding the following directory near the beginning of the Windows user `Path` environment variable:
+### 4.4 Install PlatformIO Core
+
+Use PlatformIO's official installer script. It creates an isolated PlatformIO Python environment below the user profile, normally under:
+
+```text
+%USERPROFILE%\.platformio\penv\
+```
+
+PlatformIO's Windows shell-command documentation requires the following directory in the Windows `Path` and recommends placing it near the beginning:
 
 ```text
 %USERPROFILE%\.platformio\penv\Scripts\
@@ -93,31 +141,38 @@ pio --version
 where.exe pio
 ```
 
-The expected executable should resolve below `%USERPROFILE%\.platformio\penv\Scripts\`.
+The expected `pio.exe` should resolve below `%USERPROFILE%\.platformio\penv\Scripts\`.
 
-Avoid keeping several unrelated PlatformIO Core installations in `Path`; PlatformIO explicitly recommends using one Core instance to prevent version and package inconsistencies.
+Avoid several unrelated PlatformIO Core installations in the same `PATH`. One predictable Core installation is considerably easier to diagnose than a mixture of editor-bundled, `pip`-installed, and standalone instances.
 
-### 4.4 Install the native C/C++ compiler
+### 4.5 Install MSYS2 UCRT64 GCC/G++ for native tests
 
-The AVR firmware build does **not** require a manually installed AVR compiler. PlatformIO manages that toolchain.
+The firmware's AVR compiler is already handled by PlatformIO. This step is **only** for the host-side `native` and `native_coverage` environments.
 
-The host-side tests are different. PlatformIO's `native` platform requires a system GCC toolchain in `PATH`. On Windows, PlatformIO recommends MSYS2. For a current 64-bit setup, install MSYS2 and use its UCRT64 GCC package:
+Install current 64-bit MSYS2 using its official installer. MSYS2 recommends **UCRT64** when unsure; UCRT64 is the current GCC-based 64-bit environment and uses the Windows Universal C Runtime.
+
+Launch the **MSYS2 UCRT64** terminal and update the package database/system first:
 
 ```sh
 pacman -Syu
-pacman -S mingw-w64-ucrt-x86_64-gcc
 ```
 
-For the UCRT64 setup, make sure these directories are visible from normal Windows terminals and from VSCodium:
+If MSYS2 requests a terminal restart during the full update, restart UCRT64 and run the update again before installing packages. Then install the GCC toolchain:
+
+```sh
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc
+```
+
+For this project, expose the UCRT64 toolchain to normal Windows terminals and VSCodium through:
 
 ```text
 C:\msys64\ucrt64\bin
 C:\msys64\usr\bin
 ```
 
-PlatformIO's general Windows native-toolchain documentation also lists `C:\msys64\mingw64\bin` for MinGW64 installations. Do not add an unused alternative toolchain merely for completeness; the important requirement is that one working GCC/G++ installation resolves unambiguously.
+PlatformIO's Native-platform documentation lists the MSYS2 compiler directories as `PATH` requirements. MSYS2 itself recommends UCRT64 for new 64-bit GCC setups; this project therefore standardizes on UCRT64 rather than mixing UCRT64 and the legacy MINGW64 environment.
 
-After changing `Path`, start a new terminal and verify:
+After changing `Path`, fully close and reopen PowerShell and VSCodium, then verify:
 
 ```powershell
 gcc --version
@@ -126,27 +181,30 @@ where.exe gcc
 where.exe g++
 ```
 
-For a typical UCRT64 setup, the first compiler path should be below `C:\msys64\ucrt64\bin`.
+For the documented setup, the first GCC/G++ paths should resolve below `C:\msys64\ucrt64\bin`.
 
-### 4.5 Windows `Path` checklist
+### 4.6 Recommended Windows `Path` model
 
-A working Windows 11 x64 setup normally exposes at least:
+Use the **User** `Path` unless there is a specific reason to configure the toolchain for every account on the machine. Exact Python installation paths vary by Python version and installation choice; never copy another machine's version-specific directory blindly.
+
+The following entries must be reachable:
 
 ```text
-Python installation directory
-Python Scripts directory
 %USERPROFILE%\.platformio\penv\Scripts\
+<real Python installation directory>
+<real Python Scripts directory>
 C:\msys64\ucrt64\bin
 C:\msys64\usr\bin
-Git for Windows command directory
+<Git for Windows command directory>
 ```
 
-The Python installer normally manages its own two entries when **Add Python to PATH** is selected. Do not copy a version-specific Python path from another machine; verify the actual installation using `where.exe python`.
+The critical point is not a universal magic ordering; it is **unambiguous command resolution**. PlatformIO's shell-command directory should be early enough that the intended `pio` wins, the real Python interpreter must win over the Windows Store alias, and UCRT64 `gcc`/`g++` must win over stale or unrelated GCC installations.
 
-Use this diagnostic block after setup:
+Use this diagnostic block after setup and whenever native tests behave differently between terminals:
 
 ```powershell
 python --version
+python -c "import sys; print(sys.executable)"
 pio --version
 gcc --version
 g++ --version
@@ -155,13 +213,34 @@ where.exe python
 where.exe pio
 where.exe gcc
 where.exe g++
+where.exe git
 ```
 
-If these work in PowerShell but not in VSCodium, fully close and restart VSCodium so it inherits the updated environment.
+PowerShell can also show the executable that wins command resolution:
+
+```powershell
+Get-Command python, pio, gcc, g++, git | Format-Table Name, Source
+```
+
+If the commands work in an external PowerShell but not in VSCodium, **fully exit and restart VSCodium**. Existing GUI processes do not automatically inherit later changes to Windows environment variables.
+
+### 4.7 Verify both Windows compiler paths
+
+Run these as two separate checks:
+
+```powershell
+# Host compiler path used by native tests
+pio test -e native
+
+# PlatformIO-managed AVR compiler path used by the hardware target
+pio run -e nanoatmega328new
+```
+
+Both must succeed for a complete development environment. If only the AVR build succeeds, troubleshoot MSYS2/GCC. If `pio` itself fails before either command starts, troubleshoot Python/PlatformIO first.
 
 ## 5. macOS
 
-The current macOS release line at the time of writing is **macOS Tahoe 26**. The project does not depend on Tahoe-specific APIs; the relevant requirements are Python 3, PlatformIO Core, Git, and an available host C/C++ compiler.
+At the time of the firmware 0.2.0 release, the current macOS release is **macOS Tahoe 26.6.1**. The project does not depend on Tahoe-specific APIs; the relevant requirements are Python 3, PlatformIO Core, Git, and an available host C/C++ compiler.
 
 ### 5.1 Install VSCodium
 
@@ -391,6 +470,8 @@ If upload synchronization fails on otherwise working hardware, first verify the 
 
 ## 10. Hardware smoke test after deployment
 
+**Hardware verification:** Native tests validate firmware logic, not the physical analog path. A change that affects CV conversion, timing, LEDs, persistence, or external clock/gate behavior is not fully verified until it has passed the relevant real-module smoke test.
+
 Native tests cannot validate the analog signal path, actual LED brightness, DAC accuracy, or physical Eurorack timing. After flashing a firmware change, perform a short hardware smoke test before considering the change verified:
 
 1. Power-cycle the module and confirm the expected startup ring animation followed by the four discrete status-LED self-test.
@@ -502,5 +583,11 @@ Verify the USB cable supports data, the expected serial device appears, and the 
 - PlatformIO native platform/compiler requirements: <https://docs.platformio.org/en/latest/platforms/native.html>
 - PlatformIO shell commands and `PATH`: <https://docs.platformio.org/en/latest/core/installation/shell-commands.html>
 - PlatformIO Linux udev rules: <https://docs.platformio.org/en/latest/core/installation/udev-rules.html>
+- Microsoft Python-on-Windows guidance and App Execution Aliases: <https://learn.microsoft.com/windows/dev-environment/python>
 - VSCodium: <https://vscodium.com/>
-- MSYS2: <https://www.msys2.org/>
+- MSYS2 installation: <https://www.msys2.org/>
+- MSYS2 environment selection (UCRT64): <https://www.msys2.org/docs/environments/>
+
+---
+
+<p align="center">From Munich With <img src="../assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

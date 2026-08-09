@@ -33,3 +33,7 @@ Reports will be reviewed on a best-effort basis and handled as confidentially as
 This project follows the Contributor Covenant model and uses Contributor Covenant 2.1 as its external reference for situations not addressed explicitly above. The project-specific reporting route and enforcement text in this file take precedence where they are more specific.
 
 https://www.contributor-covenant.org/version/2/1/code_of_conduct/
+
+---
+
+<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

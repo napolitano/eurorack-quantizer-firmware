@@ -18,3 +18,7 @@ https://creativecommons.org/licenses/by-nc/4.0/legalcode
 This licence applies only to the manual content for which the copyright holder
 has authority to grant it. Third-party material, trademarks, fonts and other
 content identified separately remain subject to their respective terms.
+
+---
+
+<p align="center">From Munich With <img src="../assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

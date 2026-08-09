@@ -13,6 +13,9 @@ There are two front-panel UI layers:
 
 The layer changes the meaning of **SHIFT + note**, not the basic meaning of the twelve note buttons. This is deliberate: the user should not have to learn two unrelated interaction models.
 
+> [!IMPORTANT]
+> Layer switching is deliberately symmetric: **double-click SHIFT to enter the Arpeggiator layer, and double-click SHIFT again to disable Arpeggiator playback and return to the Quantizer layer.** Normal `SHIFT + note` shortcuts remain modifiers and do not count as the layer gesture.
+
 Double-click **SHIFT by itself** to switch between the two layers. The gesture is deliberately symmetric: the same SHIFT double-click enters the Arpeggiator layer and the same SHIFT double-click leaves it again. Both presses must be short and the second press must begin within 350 ms of the first release. Entering the Arpeggiator layer enables the selected channel's Arpeggiator; with linked channels, both are enabled together. The factory/default Arpeggiator is FREE-running at 24 ms, so entering the layer is immediately audible without an external clock. Returning to the Quantizer layer disables Arpeggiator playback on both channels.
 
 The layer transition uses the same enable/bypass feedback as `SHIFT+C`:
@@ -412,3 +415,7 @@ The Arpeggiator is covered at several levels:
 - deterministic Random restart and exact two-step swing-pair duration checks.
 
 The repository currently runs **29 default suites with 237 default test cases**. The former Hysteresis-first-sample and ladder-plausibility findings are now regular passing regression tests. See [README_TESTING.md](README_TESTING.md) for the complete test structure.
+
+---
+
+<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>

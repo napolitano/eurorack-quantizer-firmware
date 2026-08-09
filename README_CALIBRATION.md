@@ -2,6 +2,9 @@
 
 This guide describes the practical calibration workflow for the Free Modular Quantizer C++/PlatformIO firmware. Calibration is intentionally split into **LED**, **CV input**, **DAC output**, and **button-ladder** checks because these depend on the actual assembled hardware rather than firmware alone.
 
+> [!IMPORTANT]
+> Calibration values are hardware-specific. Do not copy another build's LED, CV, DAC, or ladder values blindly; measure the actual module and verify the result electrically and musically.
+
 The firmware does not invent analogue correction values. Measurements should be taken on the real module and then transferred into the corresponding configuration constants.
 
 ## What you need
@@ -22,6 +25,9 @@ For higher-confidence verification, an oscilloscope and a precision voltage refe
 The red and green channels of the bi-colour LEDs can differ dramatically in perceived brightness. The result depends on the fitted LED type, forward voltage, optical efficiency, viewing angle, diffuser/button cap and series resistors.
 
 The current hardware, for example, uses very different resistor values for the two colour channels. Therefore equal numerical PWM values do **not** imply equal visible brightness. There is no reliable formula that will produce a final red/green/amber balance for every build.
+
+> [!NOTE]
+> LED PWM values are starting points, not universal calibration constants. Perceived red/green balance depends strongly on the fitted LEDs, resistors, optics, and viewing conditions.
 
 **LED brightness must therefore be adjusted empirically and iteratively on the actual module.** The values shipped in the firmware are starting values only.
 
@@ -219,3 +225,7 @@ Before considering a module calibrated:
 - [ ] DAC output B is calibrated at low, midpoint and high values;
 - [ ] several octave intervals have been checked musically;
 - [ ] Track-and-Hold and Sample-and-Hold have both been verified with real gates.
+
+---
+
+<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>
