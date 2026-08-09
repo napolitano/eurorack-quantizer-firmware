@@ -28,12 +28,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Validate changelog release metadata
+      - name: Validate release tooling and metadata
         env:
           REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           VERSION="$(python -c 'import json; print(json.load(open("lib/fmq/library.json", encoding="utf-8"))["version"])')"
+          python scripts/test_select_release_manual.py
+          python scripts/select_release_manual.py \
+            --directory docs/manual \
+            --firmware-version "${VERSION}"
           python scripts/generate_release_notes.py \
             --tag "v${VERSION}" \
             --repository "${REPOSITORY}" \

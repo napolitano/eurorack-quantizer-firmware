@@ -110,9 +110,11 @@ def main() -> int:
     print("## Artifact integrity")
     print()
     print(
-        "Release assets include `SHA256SUMS.txt` and `MD5SUMS.txt`. "
-        "Use the SHA-256 manifest for normal integrity verification; the MD5 "
-        "manifest is provided as an additional compatibility checksum."
+        "Release assets include `SHA256SUMS.txt` and `MD5SUMS.txt` covering "
+        "all generated release files, including user-manual ODT/PDF assets "
+        "when present. Use the SHA-256 manifest for normal integrity "
+        "verification; the MD5 manifest is provided as an additional "
+        "compatibility checksum."
     )
     print()
     print("## Diff")

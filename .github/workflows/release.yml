@@ -18,7 +18,7 @@ permissions:
 jobs:
   build-release:
     name: Build release firmware
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -32,6 +32,30 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+
+      - name: Resolve firmware release version
+        id: release_version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(python -c 'import json; print(json.load(open("lib/fmq/library.json", encoding="utf-8"))["version"])')"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Firmware release version: ${VERSION}"
+
+      - name: Select compatible user manual
+        id: manual
+        run: |
+          python scripts/select_release_manual.py \
+            --directory docs/manual \
+            --firmware-version "${{ steps.release_version.outputs.version }}" \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Warn when no compatible user manual exists
+        if: steps.manual.outputs.found != 'true'
+        run: |
+          echo "::warning title=User manual::No compatible quantizer-user-manual.X.Y.Z.odt (manual version <= firmware version) was found. The firmware release will continue without manual assets."
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -54,6 +78,17 @@ jobs:
           pio run -e nanoatmega328new
           pio run -e nanoatmega328
 
+      - name: Enforce AVR resource budgets
+        run: |
+          python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328new/firmware.elf
+          python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328/firmware.elf
+
+      - name: Install manual PDF tooling
+        if: steps.manual.outputs.found == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-ubuntu
+
       - name: Prepare release artifacts
         run: |
           mkdir -p dist
@@ -63,11 +98,35 @@ jobs:
           cp .pio/build/nanoatmega328/firmware.elf dist/fm-quantizer-nano-old-bootloader.elf
           cp README.md LICENSE dist/
 
+      - name: Add user manual release assets
+        if: steps.manual.outputs.found == 'true'
+        env:
+          MANUAL_PATH: ${{ steps.manual.outputs.path }}
+          MANUAL_PDF_NAME: ${{ steps.manual.outputs.pdf_name }}
+        run: |
+          cp "${MANUAL_PATH}" dist/
+
+          if libreoffice --headless --convert-to pdf --outdir dist "${MANUAL_PATH}"; then
+            if [[ -s "dist/${MANUAL_PDF_NAME}" ]]; then
+              echo "Generated PDF manual: dist/${MANUAL_PDF_NAME}"
+            else
+              rm -f "dist/${MANUAL_PDF_NAME}"
+              echo "::warning title=User manual PDF::LibreOffice returned success but the expected PDF was not created. The ODT manual will still be released."
+            fi
+          else
+            rm -f "dist/${MANUAL_PDF_NAME}"
+            echo "::warning title=User manual PDF::LibreOffice could not export the selected manual to PDF. The ODT manual will still be released."
+          fi
+
       - name: Generate release checksums
         working-directory: dist
         run: |
-          sha256sum *.hex *.elf README.md LICENSE > SHA256SUMS.txt
-          md5sum *.hex *.elf README.md LICENSE > MD5SUMS.txt
+          find . -maxdepth 1 -type f \
+            ! -name 'SHA256SUMS.txt' \
+            ! -name 'MD5SUMS.txt' \
+            -printf '%f\n' | LC_ALL=C sort > /tmp/release-files.txt
+          xargs -r sha256sum < /tmp/release-files.txt > SHA256SUMS.txt
+          xargs -r md5sum < /tmp/release-files.txt > MD5SUMS.txt
           cat SHA256SUMS.txt
           cat MD5SUMS.txt
 
