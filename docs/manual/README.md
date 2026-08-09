@@ -20,6 +20,28 @@ That licence permits use, study, modification and redistribution subject to its
 terms. The font files themselves are not part of this repository and are not
 covered by the manual's Creative Commons licence.
 
+## File naming and firmware releases
+
+Editable manuals use the versioned filename
+`quantizer-user-manual.X.Y.Z.odt`. The version identifies the firmware
+generation documented by that manual; a new firmware patch or minor release
+does not require a new manual unless user-visible behaviour has changed enough
+to justify one.
+
+For a tagged firmware release, the release workflow selects the **highest manual
+version that is not newer than the firmware version**. For example, firmware
+`0.2.1` reuses `quantizer-user-manual.0.2.0.odt` when no `0.2.1` manual exists.
+A newer manual is never attached to an older firmware release. If no compatible
+manual exists at all, the firmware release continues and emits a workflow
+warning instead of failing.
+
+The selected ODT is published unchanged as a release asset. The release runner
+also installs LibreOffice Writer and the Ubuntu Font Family and attempts a
+headless PDF export using the same manual version in the filename. PDF export
+is best-effort: failure to create the PDF does not prevent publication of the
+ODT or firmware. Any manual assets that are created are included in the release
+SHA-256 and MD5 checksum manifests.
+
 ## Manual licence
 
 Unless a file states otherwise, the original manual content in this directory

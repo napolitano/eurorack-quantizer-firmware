@@ -12,7 +12,18 @@ A new section should be added when a release version is explicitly declared. Eac
 
 ## Unreleased
 
-Changes below were developed after 0.1.1 and are intended for a future release. They are not part of the published 0.1.1 patch.
+No release-relevant changes have been queued after 0.2.0 yet.
+
+## 0.2.0 — 2026-08-09
+
+### Release summary
+
+Version 0.2.0 turns the alternative firmware into a broader performance-oriented release while preserving the original hardware and core quantizer workflow.
+It introduces a complete second Arpeggiator layer with scale-aware patterns, internal and external clocking, swing, octave/length controls and optional step triggers.
+SHIFT double-click provides symmetrical enter/exit, while persistence now restores both live state and full configurations including Arpeggiator state, selected channel and active UI layer.
+Clock capture, button-ladder validation, initial hysteresis and several UI edge cases were tightened, and LED calibration/startup behaviour gained clearer feedback.
+The repository now includes stronger AVR resource-budget CI, 29 native test suites / 237 tests, changelog-driven release notes, checksums and the initial end-user manual for firmware 0.2.0.
+No PCB, component or wiring changes are required; 0.2.0 targets the existing Arduino Nano / ATmega328P hardware.
 
 ### Added
 
@@ -26,6 +37,7 @@ Changes below were developed after 0.1.1 and are intended for a future release. 
 - Added complete Arpeggiator-layer, clock/sync and persistence regression coverage, including full-config Arpeggiator restoration, stable/deterministic Random stepping and exact swing-pair timing; the regular native suite now contains 29 independently runnable suites and 237 test cases.
 - Added `README_ARPEGGIATOR.md` as the complete second-layer operation, parameter, sync, persistence and testing reference.
 - Added an AVR resource-budget CI gate to preserve engineering headroom for flash and static SRAM.
+- Applied the same AVR flash/SRAM resource-budget gate to tagged release builds so published Nano artifacts cannot bypass the engineering limits enforced by CI.
 - Raised the ATmega328P application-flash engineering budget from 85% to 92.5% of the 30,720-byte Nano application space; the static-SRAM budget remains unchanged at 70% of 2 KB.
 - Added dedicated per-channel Arpeggiator state and regression coverage for A-only, B-only and linked operation.
 - Added live green/red/amber comparison feedback to LED brightness calibration so colour balance and the resulting amber mix can be judged while either emitter is adjusted.
@@ -35,12 +47,8 @@ Changes below were developed after 0.1.1 and are intended for a future release. 
 - Added `SHA256SUMS.txt` and `MD5SUMS.txt` generation to tagged releases and documented their purpose in the generated Release notes.
 - Added live GitHub Actions status badges for CI and release workflows to the main README.
 - Prepared `docs/manual/` as the end-user manual workspace with a dedicated CC BY-NC 4.0 manual licence and an editing README documenting LibreOffice Writer plus the required Ubuntu Font Family and Ubuntu Font Licence 1.0.
-
-### Changed
-
-- Corrected the README feature positioning so `What this firmware adds` now distinguishes genuine extensions and intentional behavioural changes from capabilities already present in Quinn Freedman's original dual-channel firmware.
-- Reorganised the main README around the interested end user: acknowledgement and project motivation now appear near the top, user-visible strengths and essential operation precede the technical reference, while all existing technical content remains available in a clearer second half.
-- Shortened the closing signature to `From Munich With ♥`.
+- Added the initial end-user manual for firmware 0.2.0 as the first user-facing operating guide for this firmware generation.
+- Added tagged-release manual packaging: the workflow selects the newest versioned ODT manual not newer than the firmware release, publishes that source unchanged, attempts a LibreOffice/Ubuntu-font PDF export, includes available manual assets in both checksum manifests, and continues with a warning when no compatible manual exists.
 
 ### Fixed
 

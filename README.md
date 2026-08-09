@@ -13,7 +13,7 @@ An independent alternative firmware for the **Free Modular Quantizer** Eurorack 
 
 It keeps the module recognisably the same instrument: the original pin mapping, panel controls and core quantizer workflow remain intact. The implementation focuses on easier builds, stronger testability and persistence, hardware calibration, well-defined edge-case behaviour and an additional performance-oriented Arpeggiator layer.
 
-> **Status:** active, hardware-tested development firmware. The portable core is covered by host-side tests; analogue calibration and final LED brightness values remain specific to the actual module and fitted components.
+> **Status:** active, hardware-tested firmware. The portable core is covered by host-side tests; analogue calibration and final LED brightness values remain specific to the actual module and fitted components.
 
 ## Acknowledgement — Quinn Freedman
 
@@ -434,15 +434,17 @@ Runs on pushes, pull requests and manual dispatches. It:
 
 Runs for version tags matching `v*` and can also be started manually. It:
 
-1. runs the native tests;
-2. builds both Nano bootloader variants;
-3. collects the firmware, README and licence;
-4. creates `SHA256SUMS.txt` and `MD5SUMS.txt` for the release artifacts;
-5. builds human-readable release notes from the matching `CHANGELOG.md` section, including its short release summary, detailed changelog excerpt and compare link;
-6. uploads a workflow artifact;
-7. when triggered by a version tag, verifies that the tag already exists and creates the corresponding GitHub Release with the generated notes and build products.
+1. resolves the firmware version and selects the newest compatible `docs/manual/quantizer-user-manual.X.Y.Z.odt` whose manual version is not newer than the firmware;
+2. runs the native tests;
+3. builds both Nano bootloader variants and enforces the AVR flash/SRAM resource budgets;
+4. collects the firmware, README and licence;
+5. publishes the selected ODT unchanged and, when a compatible manual exists, attempts a headless LibreOffice PDF export using the required Ubuntu fonts;
+6. creates `SHA256SUMS.txt` and `MD5SUMS.txt` over every generated release artifact, including manual files when present;
+7. builds human-readable release notes from the matching `CHANGELOG.md` section, including its short release summary, detailed changelog excerpt and compare link;
+8. uploads a workflow artifact;
+9. when triggered by a version tag, verifies that the tag already exists and creates the corresponding GitHub Release with the generated notes and build products.
 
-The release workflow deliberately does not rely on GitHub's generic `--generate-notes` output. A release section must contain a `### Release summary` paragraph in `CHANGELOG.md`; this keeps the public release description concise while preserving the detailed change history below it. Release assets include both SHA-256 and MD5 checksum manifests for integrity verification.
+A missing compatible manual does **not** block a firmware release; the workflow emits a warning and continues without manual assets. A PDF export failure likewise leaves the versioned ODT available and does not fail the firmware release. The release workflow deliberately does not rely on GitHub's generic `--generate-notes` output. A release section must contain a `### Release summary` paragraph in `CHANGELOG.md`; this keeps the public release description concise while preserving the detailed change history below it. Release assets include both SHA-256 and MD5 checksum manifests for integrity verification.
 
 The workflow structure follows PlatformIO's documented GitHub Actions approach: install PlatformIO Core in CI and use `pio run` / `pio test` from the project root.
 

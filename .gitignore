@@ -25,3 +25,7 @@ coverage/
 coverage.html
 *.gcda
 *.gcno
+# Python bytecode/cache artifacts
+__pycache__/
+*.py[cod]
+
