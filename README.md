@@ -39,6 +39,7 @@ This repository is an independent reimplementation and is **not an official Free
 - [What this firmware adds](#what-this-firmware-adds)
 - [Using the firmware](#using-the-firmware)
   - [User manual](#user-manual)
+  - [Firmware installation and updates](#firmware-installation-and-updates)
   - [Quantization at a glance](#quantization-at-a-glance)
   - [Normal display](#normal-display)
   - [Main controls](#main-controls)
@@ -111,6 +112,12 @@ The dedicated end-user manual workspace is prepared under [`docs/manual/`](docs/
 
 The sections below provide the essential front-panel reference directly in the repository README.
 
+## Firmware installation and updates
+
+For a prebuilt release HEX file, follow the dedicated [firmware installation/update guide](docs/installation/README.md). It covers safe rack removal, mandatory disconnection from the Eurorack power bus, USB-only flashing, old/new Nano bootloaders, EEPROM-preserving updates, recovery, and the required post-flash startup check. Windows 11 users can follow the separate [AVRDUDESS step-by-step guide](docs/installation/avrdudess/README.md), including the numbered application screenshot.
+
+> [!CAUTION]
+> Do not connect USB to the module while it is still connected to the Eurorack power bus. Power the case off, remove the module, and disconnect the Eurorack ribbon cable first.
 
 ## Quantization at a glance
 
@@ -551,6 +558,7 @@ The workflow structure follows PlatformIO's documented GitHub Actions approach: 
 
 - [README.md](README.md) — user-oriented project overview and front-panel quick reference
 - [`docs/manual/`](docs/manual/README.md) — end-user manual workspace and manual editing/licensing information
+- [`docs/installation/`](docs/installation/README.md) — end-user firmware installation/update guide and separate [Windows 11 AVRDUDESS walkthrough](docs/installation/avrdudess/README.md)
 - [README_CONFIGURATION.md](README_CONFIGURATION.md) — firmware configuration reference
 - [README_CALIBRATION.md](README_CALIBRATION.md) — detailed hardware and LED calibration workflow
 - [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md) — complete second-layer Arpeggiator operation, timing, sync and persistence reference

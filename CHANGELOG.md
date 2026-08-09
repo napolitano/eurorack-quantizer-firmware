@@ -27,7 +27,9 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 
 ### Added
 
-- Added reusable SVG concept diagrams for the Quantizer signal path and core operating modes, designed for shared use across GitHub documentation and the LibreOffice end-user manual.
+- Added end-user firmware installation/update documentation with rack-safety procedures plus a dedicated Windows 11 AVRDUDESS walkthrough using independently created numbered screenshot artwork, explicit old/new Nano bootloader settings, EEPROM-preserving normal-update configuration, troubleshooting and bootloader-recovery references.
+
+- Added reusable CC BY-NC 4.0 SVG concept diagrams for the Quantizer signal path and core operating modes, with a directory-specific artwork license and shared use across GitHub documentation and the LibreOffice end-user manual.
 
 - Added a cross-platform development-environment guide for VSCodium/PlatformIO on Windows 11 x64, macOS and Linux, including the Windows Python/`PATH` and native GCC requirements, local test/coverage workflows, Nano deployment, AVR resource checks and hardware smoke testing.
 

@@ -464,6 +464,10 @@ Coverage is a secondary metric. Behavior, timing boundaries, state transitions, 
 
 ## 9. Uploading firmware to the Nano
 
+> [!NOTE]
+> If you are installing a **prebuilt GitHub Release HEX** rather than developing from source, use the dedicated [end-user firmware installation/update guide](../installation/README.md). It documents safe rack removal, AVRDUDESS, bootloader selection, EEPROM-preserving update settings, and recovery.
+
+
 Connect the Arduino Nano used by the module and identify its serial port:
 
 ```sh

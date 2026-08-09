@@ -49,6 +49,8 @@ SHA-256 and MD5 checksum manifests.
 
 The repository keeps reusable functional diagrams under [`../assets/concepts/`](../assets/concepts/). These SVG sources are intended for both GitHub documentation and the LibreOffice user manual so signal-flow and control concepts do not need to be redrawn independently for each format. Preserve their functional color semantics when adapting them for the manual.
 
+The concept diagrams are part of the user-manual artwork set but retain their own directory-specific **CC BY-NC 4.0** license. See [`../assets/concepts/LICENSE.md`](../assets/concepts/LICENSE.md).
+
 ## Manual licence
 
 Unless a file states otherwise, the original manual content in this directory

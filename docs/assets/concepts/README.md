@@ -2,6 +2,13 @@
 
 Reusable SVG diagrams for user-facing and technical documentation. The files are deliberately kept independent from the front-panel pictograms in `docs/assets/` so they can be reused in GitHub Markdown and the LibreOffice user manual.
 
+## Contents
+
+- [Functional palette](#functional-palette)
+- [Assets](#assets)
+- [Editing rules](#editing-rules)
+- [License and user-manual reuse](#license-and-user-manual-reuse)
+
 ## Functional palette
 
 | Role | Color |
@@ -31,6 +38,15 @@ The SVGs use a white canvas deliberately so they remain readable in GitHub dark 
 ## Editing rules
 
 Keep explanatory prose outside the SVG whenever the meaning can live in Markdown or the manual body. Preserve `<title>` and `<desc>` metadata for accessibility, use consistent stroke weights and rounded geometry, and do not encode firmware behavior that is not verified by the implementation or specification.
+
+## License and user-manual reuse
+
+The SVG diagrams in this directory are reusable documentation artwork and are also intended to be embedded in the Quantizer end-user manual.
+
+They are licensed separately under **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**. See [LICENSE.md](LICENSE.md). The directory-specific artwork license does not alter the firmware source-code license.
+
+> [!IMPORTANT]
+> When a concept diagram is reused in the LibreOffice user manual, keep the diagram attribution and CC BY-NC 4.0 status intact. The surrounding manual content remains governed by the manual license in [`docs/manual/LICENSE.md`](../../manual/LICENSE.md).
 
 ---
 
