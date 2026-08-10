@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Python
         uses: actions/setup-python@v6.2.0
@@ -89,7 +89,7 @@ jobs:
           - property/test_invariants
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Python
         uses: actions/setup-python@v6.2.0
@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Python
         uses: actions/setup-python@v6.2.0
@@ -166,7 +166,7 @@ jobs:
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Python
         uses: actions/setup-python@v6.2.0
@@ -195,7 +195,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Python
         uses: actions/setup-python@v6.2.0
@@ -231,7 +231,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Python
         uses: actions/setup-python@v6.2.0
