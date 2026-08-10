@@ -16,9 +16,6 @@ It keeps the module recognisably the same instrument: the original pin mapping, 
 > [!NOTE]
 > **Status:** Active, hardware-tested firmware. The portable core is covered by host-side tests; analog calibration and final LED brightness values remain specific to the actual module and fitted components.
 
-> [!NOTE]
-> Code is at release 0.2.0 level and may be checked out and compiled. The final piece for release is the first version of the user manual which will be ready shortly. 
-
 ## Acknowledgement — Quinn Freedman
 
 This project exists because of **Quinn Freedman's original Quantizer design and Rust firmware**.
