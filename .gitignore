@@ -8,6 +8,8 @@
 *.elf
 *.hex
 *.bin
+# Golden EEPROM images are intentional source/test artifacts, not build outputs.
+!test/fixtures/persistence/*.bin
 _test_build/
 
 # Editor / IDE

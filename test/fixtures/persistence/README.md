@@ -28,6 +28,8 @@ An exact historical release image may be added later when it is obtained directl
 
 The `.bin` file is the canonical frozen artifact. The matching `.inc` file exists only so PlatformIO/Unity can compile the same bytes into a native test. `scripts/check_persistence_fixtures.py` verifies that every `.inc` still matches its binary source exactly.
 
+The repository-wide `*.bin` build-artifact ignore rule explicitly exempts `test/fixtures/persistence/*.bin`; these fixture images must remain tracked in Git.
+
 Do not regenerate an existing fixture merely because serialization code changes. A fixture changes only when correcting a demonstrably wrong fixture; a new persistence format gets a new fixture.
 
 ---

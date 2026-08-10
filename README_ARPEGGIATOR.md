@@ -436,7 +436,7 @@ The Arpeggiator is covered at several levels:
 - Full Configuration save/load restoration of Quantizer state, selected channel and complete Arpeggiator state;
 - deterministic Random restart and exact two-step swing-pair duration checks.
 
-The repository currently runs **32 default suites with 265 default test cases**. The former Hysteresis-first-sample and ladder-plausibility findings are now regular passing regression tests. See [README_TESTING.md](README_TESTING.md) for the complete test structure.
+The repository currently runs **29 default suites with 254 default test cases**. The former Hysteresis-first-sample and ladder-plausibility findings are now regular passing regression tests. See [README_TESTING.md](README_TESTING.md) for the complete test structure.
 
 ---
 

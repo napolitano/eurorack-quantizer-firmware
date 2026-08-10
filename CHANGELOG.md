@@ -12,15 +12,13 @@ A new section should be added when a release version is explicitly declared. Eac
 
 ## Unreleased
 
+### Fixed
+
+- Fixed CI checkout validation for frozen EEPROM golden fixtures by explicitly tracking `test/fixtures/persistence/*.bin` despite the repository-wide `*.bin` build-artifact ignore rule.
+
 ### Added
 
 - Expanded requirement-driven verification from 237 to 254 native test cases with complete 12-note UI mapping, all 12 scale/full-config slot round-trips, linked/unlinked LED and scale-load semantics, exact simultaneous erase handling, Arpeggiator sanitization/swing-clock boundaries, UI-gesture reset handling and additional persistence validation. Added machine-checked acceptance-criterion traceability plus CI/release coverage regression gates at 92% line and 70% branch coverage for the portable production core.
-- Added a maturity/maintenance verification layer: deterministic property-style invariant stress tests, ASan/UBSan CI, frozen current/legacy persistence-format fixtures, EEPROM physical-write distribution tests and endurance audit, a dedicated AVR timing-probe build plus hardware release-qualification procedure, and pinned build-tool inputs with release `BUILD-INFO.txt` provenance. The default native inventory is now 32 suites / 265 test cases.
-- Added weekly Dependabot checks for GitHub Actions and pinned Python CI tooling so dependency updates arrive as explicit reviewable maintenance changes rather than silent build drift.
-
-### Fixed
-
-- Removed two first-party strict-warning/sanitizer integer-promotion diagnostics in Arpeggiator position wrapping and persisted-note decoding by making the intended 8-bit operations explicit; runtime and serialized behaviour are unchanged.
 
 ## 0.2.0 — 2026-08-09
 

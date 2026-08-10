@@ -17,7 +17,11 @@ def parse_inc(path: Path) -> bytes:
 def main() -> int:
     binaries = sorted(FIXTURES.glob("*.bin"))
     if not binaries:
-        print("persistence-fixtures: no binary fixtures found", file=sys.stderr)
+        print(
+            "persistence-fixtures: no binary fixtures found; "
+            "test/fixtures/persistence/*.bin must be tracked in Git",
+            file=sys.stderr,
+        )
         return 1
     for binary in binaries:
         data = binary.read_bytes()
