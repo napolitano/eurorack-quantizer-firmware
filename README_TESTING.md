@@ -5,7 +5,7 @@
 
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current default suite contains **29 independently runnable PlatformIO test suites and 254 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
+The current default suite contains **32 independently runnable PlatformIO test suites and 265 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
 
 Examples of exhaustive work performed by the suite include:
 
@@ -31,13 +31,18 @@ Examples of exhaustive work performed by the suite include:
 ## Contents
 
 - [Test levels](#test-levels)
+- [Property-style invariant tests](#property-style-invariant-tests)
 - [Fine-grained CI](#fine-grained-ci)
 - [Running tests locally](#running-tests-locally)
+- [Sanitizer verification](#sanitizer-verification)
+- [Persistence-format and EEPROM-wear verification](#persistence-format-and-eeprom-wear-verification)
 - [Requirement-oriented verification](#requirement-oriented-verification)
 - [Coverage regression policy](#coverage-regression-policy)
 - [Specification findings closed by regression tests](#specification-findings-closed-by-regression-tests)
 - [Coverage reports](#coverage-reports)
 - [What native tests cannot prove](#what-native-tests-cannot-prove)
+- [Target-level qualification](#target-level-qualification)
+- [Strict compiler warnings and Unity](#strict-compiler-warnings-and-unity)
 - [First-party warning policy](#first-party-warning-policy)
 
 ## Test levels
@@ -76,6 +81,8 @@ Integration tests verify collaborating production components rather than reimple
 | `integration/test_menu_shortcuts` | one dedicated test for every SHIFT + note command |
 | `integration/test_persistence` | save/load, CRC, full-config/live UI-layer round-trips including ARP-off layer state, wear levelling and v5→v6 live-state migration |
 | `integration/test_persistence_faults` | per-byte corruption, incomplete records, busy writer and validation |
+| `integration/test_persistence_golden` | frozen current/legacy EEPROM-format images loaded through production readers, including supported migration behavior |
+| `integration/test_eeprom_wear` | physical-write distribution, live-ring wear levelling and unchanged-byte suppression assumptions used by the endurance audit |
 | `integration/test_startup` | all startup-animation sequences and timing |
 
 
@@ -112,6 +119,20 @@ The harness deliberately calls the real `QuantizerState`, `ArpeggiatorBank`/`Arp
 | `system/test_glide_trigger_matrix` | all Glide levels, monotonicity, 95% timing order, 5 ms trigger and 65 ms LED |
 | `system/test_channel_matrix` | simultaneous A/B operation, independent gates/configs, Relative B, per-channel Arpeggiator scales and A-only/B-only Arpeggiator output isolation |
 
+## Property-style invariant tests
+
+`property/test_invariants` complements example- and matrix-based tests with deterministic state-space exploration. A fixed xorshift generator makes every failure exactly reproducible while still exercising tens of thousands of generated states per test. Current invariants include:
+
+- arbitrary serialized bytes always sanitize into a valid `StoredConfiguration`;
+- random Quantizer inputs/configurations stay inside the legal pitch and DAC domain;
+- Glide progression does not create retriggers after the normal trigger pulse window;
+- arbitrary Arpeggiator configurations sanitize to valid ranges and bounded output pitch;
+- linked Arpeggiator edits never leave A and B with divergent configuration;
+- randomized SHIFT gesture streams never toggle the UI layer while blocked or while companion controls are active.
+
+> [!NOTE]
+> These are deterministic property-style stress tests, not formal verification and not nondeterministic fuzzing. Seeds and iteration counts are committed so a CI failure can be reproduced locally.
+
 ## Fine-grained CI
 
 GitHub Actions runs **every native suite as an individual matrix job** with `fail-fast: false`. A failure therefore identifies the affected behaviour directly instead of reporting only that a monolithic `pio test` command failed.
@@ -128,7 +149,7 @@ The native build is compiled with:
 -Wpedantic
 ```
 
-A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 92.5% of the 30,720-byte application-flash budget and no more than 70% of the ATmega328P's 2 KB static SRAM.
+A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. Another aggregate host job runs the same portable code under AddressSanitizer and UndefinedBehaviorSanitizer. AVR builds for both Nano bootloader variants remain separate CI jobs, and CI also compiles the dedicated timing-probe target so the qualification-only instrumentation cannot silently bit-rot. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 92.5% of the 30,720-byte application-flash budget and no more than 70% of the ATmega328P's 2 KB static SRAM.
 
 ## Running tests locally
 
@@ -150,6 +171,29 @@ Examples:
 pio test -e native -f unit/test_arpeggiator_matrix
 pio test -e native -f integration/test_arpeggiator_layer
 pio test -e native -f system/test_arpeggiator_clock
+pio test -e native -f property/test_invariants
+```
+
+## Sanitizer verification
+
+The portable production core is also run under GCC AddressSanitizer and UndefinedBehaviorSanitizer:
+
+```sh
+pio test -e native_sanitized
+```
+
+CI uses fail-fast sanitizer settings. This catches classes of defects that line/branch coverage cannot prove away, including out-of-bounds access and undefined arithmetic/shift behavior. The sanitizer environment is host-only and never changes AVR release artifacts.
+
+## Persistence-format and EEPROM-wear verification
+
+Frozen EEPROM images under `test/fixtures/persistence/` protect the binary persistence contract independently of the current serializer implementation. The current reader is tested against its current save/live format and the explicitly supported legacy formats. Fixtures are named by persistence format unless a byte-verifiable historical release image is actually available.
+
+`integration/test_eeprom_wear` instruments the EEPROM test double with per-address physical-write counters. It verifies the write-distribution assumptions documented in [`docs/testing/eeprom-wear-audit.md`](docs/testing/eeprom-wear-audit.md), including the 12-record live-state ring and unchanged-byte suppression.
+
+Validate the frozen files themselves with:
+
+```sh
+python scripts/check_persistence_fixtures.py
 ```
 
 ## Requirement-oriented verification
@@ -181,7 +225,7 @@ The complete acceptance-criterion mapping is maintained in [docs/testing/require
 
 ## Coverage regression policy
 
-Source coverage is now guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The requirement-driven 254-test reference measurement is approximately **95.7% lines / 80.3% branches**; GitHub Actions remains authoritative for the exact reported values.
+Source coverage is now guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The current 32-suite / 265-test independent GCC/gcov reference measurement is approximately **95.9% lines / 81.1% branches**; GitHub Actions remains authoritative for the exact reported values.
 
 The floor is deliberately below the reference so minor compiler/gcovr accounting differences do not create noise, but it is high enough to catch a material loss of exercised production paths. Lowering the floor just to make a change pass is not an accepted fix. See [docs/testing/coverage.md](docs/testing/coverage.md).
 
@@ -199,7 +243,7 @@ These are regular CI tests, not opt-in expected failures.
 Locally:
 
 ```text
-python -m pip install --upgrade gcovr
+python -m pip install -r scripts/requirements-ci.txt
 pio test -e native_coverage
 mkdir -p coverage
 gcovr --root . --filter lib/fmq/src --exclude test --txt --output coverage/coverage.txt
@@ -229,7 +273,17 @@ Native tests cannot validate analogue or physical effects such as:
 
 Those require calibrated hardware-in-the-loop measurements. The native suite exists to make the digital behaviour deterministic before hardware uncertainty is introduced.
 
-### Strict compiler warnings and Unity
+## Target-level qualification
+
+Host verification deliberately stops at the hardware boundary. Release-candidate target checks are documented separately:
+
+- [`docs/testing/hardware-release-qualification.md`](docs/testing/hardware-release-qualification.md) — fixed checklist and result-recording rule;
+- [`docs/testing/timing-qualification.md`](docs/testing/timing-qualification.md) — oscilloscope procedure for the 1 kHz control deadline using the non-release `nanoatmega328new_timing` image;
+- [`docs/testing/qualification/TEMPLATE.md`](docs/testing/qualification/TEMPLATE.md) — version-specific measurement record template.
+
+The timing-probe build is compiled in CI but its real-time result can only be obtained on the physical Nano. A successful host/AVR compile is not substituted for an oscilloscope measurement.
+
+## Strict compiler warnings and Unity
 
 The native test environments deliberately treat warnings in FMQ production code and
 FMQ test code as errors (`-Werror`, `-Wconversion`, `-Wsign-conversion`, `-Wshadow`,

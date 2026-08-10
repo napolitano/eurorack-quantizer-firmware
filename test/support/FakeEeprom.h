@@ -30,6 +30,7 @@ class FakeEeprom : public fmq::IEeprom {
   FakeEeprom() : writeCount_(0) {
     for (uint16_t i = 0; i < kSize; ++i) {
       data_[i] = 0xFF;
+      writeCounts_[i] = 0u;
     }
   }
 
@@ -41,6 +42,7 @@ class FakeEeprom : public fmq::IEeprom {
     if (data_[address] != value) {
       data_[address] = value;
       ++writeCount_;
+      ++writeCounts_[address];
     }
   }
 
@@ -55,12 +57,17 @@ class FakeEeprom : public fmq::IEeprom {
 
   // --- Test instrumentation -------------------------------------------------
   uint32_t writeCount() const { return writeCount_; }
-  void resetWriteCount() { writeCount_ = 0; }
+  uint32_t writeCount(uint16_t address) const { return writeCounts_[address]; }
+  void resetWriteCount() {
+    writeCount_ = 0;
+    for (uint16_t i = 0; i < kSize; ++i) writeCounts_[i] = 0u;
+  }
   void corruptByte(uint16_t address, uint8_t value) { data_[address] = value; }
 
  private:
   static constexpr uint16_t kSize = 1024;
   uint8_t data_[kSize];
+  uint32_t writeCounts_[kSize];
   uint32_t writeCount_;
 };
 

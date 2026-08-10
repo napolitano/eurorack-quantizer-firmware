@@ -512,10 +512,12 @@ test/
   integration/
   regression/
   system/
+  property/
+  fixtures/
   support/
 ```
 
-The native suite currently contains **29 independently runnable suites and 254 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behaviour including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy, [the requirements traceability matrix](docs/testing/requirements-traceability.md), and [the native coverage policy](docs/testing/coverage.md). AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
+The native suite currently contains **32 independently runnable suites and 265 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behaviour including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy, [the requirements traceability matrix](docs/testing/requirements-traceability.md), and [the native coverage policy](docs/testing/coverage.md). AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
 
 The AVR CI also enforces an engineering resource budget. The application-flash limit is **92.5% of the 30,720-byte Nano application space** and the static-SRAM limit is **70% of 2 KB**.
 
@@ -530,18 +532,19 @@ Two workflows are included under `.github/workflows/`.
 Runs on pushes, pull requests and manual dispatches. It:
 
 1. installs PlatformIO Core;
-2. runs all 29 native test suites as independent matrix jobs (`fail-fast: false`);
-3. runs a separate aggregate coverage job, enforces the native line/branch coverage floors, and uploads HTML/XML/JSON/text reports;
-4. builds both Nano environments;
-5. checks the AVR flash/SRAM engineering budget;
-6. uploads the resulting `.hex` and `.elf` files as workflow artifacts.
+2. runs all 32 native test suites as independent matrix jobs (`fail-fast: false`);
+3. runs aggregate ASan/UBSan and coverage jobs, enforces the native line/branch coverage floors, and uploads HTML/XML/JSON/text reports;
+4. validates requirements traceability and frozen persistence fixtures;
+5. builds both normal Nano environments and separately compiles the non-release timing-probe image;
+6. checks the AVR flash/SRAM engineering budget for normal firmware;
+7. uploads the resulting normal `.hex` and `.elf` files as workflow artifacts.
 
 ### `release.yml`
 
 Runs for version tags matching `v*` and can also be started manually. It:
 
 1. resolves the firmware version and selects the newest compatible `docs/manual/quantizer-user-manual.X.Y.Z.odt` whose manual version is not newer than the firmware;
-2. runs the native tests;
+2. runs native tests, ASan/UBSan and the coverage policy;
 3. builds both Nano bootloader variants and enforces the AVR flash/SRAM resource budgets;
 4. collects the firmware, README and licence;
 5. publishes the selected ODT unchanged and, when a compatible manual exists, attempts a headless LibreOffice PDF export using the required Ubuntu fonts;
@@ -563,7 +566,10 @@ The workflow structure follows PlatformIO's documented GitHub Actions approach: 
 - [README_CALIBRATION.md](README_CALIBRATION.md) — detailed hardware and LED calibration workflow
 - [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md) — complete second-layer Arpeggiator operation, timing, sync and persistence reference
 - [docs/development/README.md](docs/development/README.md) — cross-platform VSCodium/PlatformIO development setup, local tests, firmware upload and hardware smoke-test workflow
-- [README_TESTING.md](README_TESTING.md) — native unit, integration and system signal-path test strategy
+- [README_TESTING.md](README_TESTING.md) — native unit, integration, system, property, sanitizer and persistence-verification strategy
+- [`docs/testing/hardware-release-qualification.md`](docs/testing/hardware-release-qualification.md) — target-level release checklist and measurement record workflow
+- [`docs/development/maintenance-policy.md`](docs/development/maintenance-policy.md) — mature-firmware feature/resource and maintenance policy
+- [`docs/development/reproducible-builds.md`](docs/development/reproducible-builds.md) — pinned build inputs and release provenance
 - [CHANGELOG.md](CHANGELOG.md) — public release history and queued unreleased changes
 - [.github/SECURITY.md](.github/SECURITY.md) — vulnerability reporting and supported-version policy
 - [`docs/assets/`](docs/assets/) — shared panel artwork, UI pictograms and the reusable [`concepts/`](docs/assets/concepts/README.md) diagrams used across GitHub documentation and the user manual

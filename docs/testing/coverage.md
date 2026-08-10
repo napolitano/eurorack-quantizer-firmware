@@ -12,15 +12,15 @@ Native source coverage is used as a **regression signal**, not as a substitute f
 
 ## Current reference
 
-After the requirement-driven edge-case expansion, an independent GCC/gcov verification of the complete 29-suite / 254-test host set measured approximately:
+After the requirement-driven and maturity-oriented expansion, an independent GCC/gcov verification of the complete 32-suite / 265-test host set measured approximately:
 
 | Metric | Reference |
 |---|---:|
-| Line coverage | **95.69%** |
-| Branch coverage | **80.28%** |
+| Line coverage | **95.93%** |
+| Branch coverage | **81.13%** |
 
 > [!NOTE]
-> GitHub Actions is the authoritative measurement because compiler/gcov/gcovr versions can slightly change accounting. The committed values are a reference point, not a claim that every future toolchain will print byte-for-byte identical percentages.
+> The reference above was measured independently with GCC 14.2/gcov; the branch figure uses raw gcov branch-outcome accounting. GitHub Actions/gcovr is authoritative for enforcement and may report a slightly different branch percentage because coverage tools can account for generated branch records differently. The committed values are a reference point, not a claim that every future toolchain will print byte-for-byte identical percentages.
 
 ## Hard CI floors
 
@@ -45,7 +45,7 @@ The reference and the hard floor serve different purposes. The reference records
 Install the host tooling, then run the instrumented suite:
 
 ```sh
-python -m pip install --upgrade gcovr
+python -m pip install -r scripts/requirements-ci.txt
 pio test -e native_coverage
 mkdir -p coverage
 gcovr --root . --filter lib/fmq/src --exclude test --txt --output coverage/coverage.txt

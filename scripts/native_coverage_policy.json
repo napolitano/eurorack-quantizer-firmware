@@ -3,9 +3,9 @@
   "line_min_percent": 92.0,
   "branch_min_percent": 70.0,
   "reference_measurement": {
-    "line_percent": 95.69,
-    "branch_percent": 80.28,
-    "test_cases": 254,
-    "note": "Reference measurement after the requirement-driven edge-case expansion. CI remains authoritative; the hard floors intentionally leave limited toolchain/reporting headroom and must not be lowered to accommodate a regression."
+    "line_percent": 95.93,
+    "branch_percent": 81.13,
+    "test_cases": 265,
+    "note": "Independent GCC 14.2/gcov reference after the maturity-oriented expansion. Branch percentage uses raw gcov branch-outcome accounting; CI gcovr remains authoritative and may account generated branch records differently. The hard floors intentionally leave limited toolchain/reporting headroom and must not be lowered to accommodate a regression."
   }
 }

@@ -18,15 +18,15 @@ permissions:
 jobs:
   release-metadata:
     name: Release metadata
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.11.15'
 
       - name: Validate release tooling and metadata
         env:
@@ -37,6 +37,7 @@ jobs:
           python scripts/test_select_release_manual.py
           python scripts/test_check_native_coverage.py
           python scripts/check_requirement_traceability.py
+          python scripts/check_persistence_fixtures.py
           python scripts/select_release_manual.py \
             --directory docs/manual \
             --firmware-version "${VERSION}"
@@ -49,7 +50,7 @@ jobs:
 
   native-tests:
     name: Native / ${{ matrix.suite }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -62,6 +63,8 @@ jobs:
           - integration/test_menu_shortcuts
           - integration/test_persistence
           - integration/test_persistence_faults
+          - integration/test_persistence_golden
+          - integration/test_eeprom_wear
           - integration/test_startup
           - system/test_arpeggiator_clock
           - system/test_channel_matrix
@@ -83,27 +86,28 @@ jobs:
           - unit/test_scale
           - unit/test_startup_sequence_store
           - unit/test_transposition_matrix
+          - property/test_invariants
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.11.15'
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.0
         with:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
-          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini', 'lib/**/library.json') }}
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini', 'scripts/requirements-ci.txt', 'lib/**/library.json') }}
           restore-keys: |
             ${{ runner.os }}-pio-
 
       - name: Install PlatformIO Core
-        run: python -m pip install --upgrade platformio
+        run: python -m pip install -r scripts/requirements-ci.txt
 
       - name: Run ${{ matrix.suite }}
         run: pio test -e native -f ${{ matrix.suite }}
@@ -111,29 +115,29 @@ jobs:
 
   native-coverage:
     name: Native coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.11.15'
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.0
         with:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
-          key: ${{ runner.os }}-pio-coverage-${{ hashFiles('platformio.ini', 'lib/**/library.json') }}
+          key: ${{ runner.os }}-pio-coverage-${{ hashFiles('platformio.ini', 'scripts/requirements-ci.txt', 'lib/**/library.json') }}
           restore-keys: |
             ${{ runner.os }}-pio-coverage-
             ${{ runner.os }}-pio-
 
       - name: Install test tooling
-        run: python -m pip install --upgrade platformio gcovr
+        run: python -m pip install -r scripts/requirements-ci.txt
 
       - name: Run instrumented native tests
         run: pio test -e native_coverage
@@ -149,14 +153,75 @@ jobs:
           python scripts/check_native_coverage.py coverage/coverage.xml
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: native-coverage
           path: coverage/
 
+  native-sanitizers:
+    name: Native ASan / UBSan
+    runs-on: ubuntu-24.04
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.11.15'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4.2.0
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-sanitized-${{ hashFiles('platformio.ini', 'scripts/requirements-ci.txt', 'lib/**/library.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-sanitized-
+            ${{ runner.os }}-pio-
+
+      - name: Install pinned test tooling
+        run: python -m pip install -r scripts/requirements-ci.txt
+
+      - name: Run AddressSanitizer and UndefinedBehaviorSanitizer suite
+        run: pio test -e native_sanitized
+
+  avr-timing-probe-build:
+    name: AVR timing-probe build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.11.15'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4.2.0
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-timing-${{ hashFiles('platformio.ini', 'scripts/requirements-ci.txt', 'lib/**/library.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-timing-
+            ${{ runner.os }}-pio-
+
+      - name: Install pinned PlatformIO Core
+        run: python -m pip install -r scripts/requirements-ci.txt
+
+      - name: Compile timing qualification image
+        run: pio run -e nanoatmega328new_timing
+
   avr-build:
     name: AVR build (${{ matrix.environment }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -166,26 +231,26 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.11.15'
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.0
         with:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
-          key: ${{ runner.os }}-pio-${{ matrix.environment }}-${{ hashFiles('platformio.ini', 'lib/**/library.json') }}
+          key: ${{ runner.os }}-pio-${{ matrix.environment }}-${{ hashFiles('platformio.ini', 'scripts/requirements-ci.txt', 'lib/**/library.json') }}
           restore-keys: |
             ${{ runner.os }}-pio-${{ matrix.environment }}-
             ${{ runner.os }}-pio-
 
       - name: Install PlatformIO Core
-        run: python -m pip install --upgrade platformio
+        run: python -m pip install -r scripts/requirements-ci.txt
 
       - name: Build firmware
         run: pio run -e ${{ matrix.environment }}
@@ -200,7 +265,7 @@ jobs:
           cp .pio/build/${{ matrix.environment }}/firmware.elf dist/fm-quantizer-${{ matrix.environment }}.elf
 
       - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: firmware-${{ matrix.environment }}
           path: dist/

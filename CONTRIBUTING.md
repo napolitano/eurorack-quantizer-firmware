@@ -33,12 +33,15 @@ The project uses PlatformIO and C++17. The supported target environments are:
 - `nanoatmega328new` — Arduino Nano / ATmega328P with the newer bootloader;
 - `nanoatmega328` — Arduino Nano / ATmega328P with the old bootloader;
 - `native` — host-side Unity test suite;
-- `native_coverage` — host-side coverage build.
+- `native_coverage` — host-side coverage build;
+- `native_sanitized` — host-side ASan/UBSan verification;
+- `nanoatmega328new_timing` — qualification-only Nano build with a D1/TX control-loop timing probe; never a release artifact.
 
 The normal local verification commands are:
 
 ```sh
 pio test -e native
+pio test -e native_sanitized
 pio run -e nanoatmega328new
 pio run -e nanoatmega328
 ```
@@ -67,7 +70,7 @@ python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328new/firmware
 python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328/firmware.elf
 ```
 
-The current engineering limits are 92.5% of the 30,720-byte application-flash budget and 70% of the 2 KB static-SRAM budget.
+The current engineering limits are 92.5% of the 30,720-byte application-flash budget and 70% of the 2 KB static-SRAM budget. These are ceilings, not targets. See the [maintenance policy](docs/development/maintenance-policy.md) before proposing a substantial runtime feature.
 
 ## Coding requirements
 
@@ -81,6 +84,8 @@ Keep changes small enough to review and test. Production code must remain suitab
 - Do not require PCB, component, or wiring modifications.
 - Add or update native tests for behavior changes and regressions.
 - Keep warnings clean under the repository's strict host-side warning configuration.
+- Preserve or improve persistence compatibility; do not regenerate frozen EEPROM fixtures merely to match new serializer output.
+- Treat remaining flash headroom primarily as maintenance reserve rather than an invitation to fill the device.
 
 ## Documentation style
 
@@ -120,7 +125,7 @@ Create a focused branch and keep each pull request centered on one coherent chan
 
 Before submitting a pull request:
 
-1. run the native test suite;
+1. run the native test suite and `native_sanitized`;
 2. build both Nano environments;
 3. run the AVR resource-budget checks when the AVR toolchain is available;
 4. update tests for changed behavior;

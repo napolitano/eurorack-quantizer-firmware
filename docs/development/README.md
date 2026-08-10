@@ -60,7 +60,7 @@ The repository uses four distinct tool layers:
 | VSCodium | Editing, navigation, integrated terminal | VSCodium |
 | Python 3 | PlatformIO Core and repository helper scripts | Host OS / Python installation |
 | PlatformIO Core | AVR builds, uploads, packages, toolchains, and test orchestration | PlatformIO |
-| Host C/C++ compiler | `native` tests and `native_coverage` | Host operating system |
+| Host C/C++ compiler | `native`, `native_coverage`, and `native_sanitized` tests | Host operating system |
 
 **Toolchain split:** The AVR compiler and the native-test compiler are **not the same toolchain**. PlatformIO downloads and manages `avr-g++` for `nanoatmega328new` and `nanoatmega328`. The `native` environments deliberately use the host compiler discovered through `PATH`; PlatformIO does not install that compiler for you.
 
@@ -68,7 +68,7 @@ This distinction matters most on Windows. A machine can build and upload the Nan
 
 The project uses GCC-style warnings and `gcov`/`gcovr` coverage instrumentation. The documented Windows host toolchain is therefore **MSYS2 UCRT64 GCC/G++**. Microsoft Visual C++ Build Tools may be useful for other projects, but they are not the reference compiler for this repository's `native` and coverage environments.
 
-CI currently runs the project with Python 3.11. Using Python 3.11 locally provides the closest match to CI, although current PlatformIO Core supports newer Python 3 versions as well.
+CI is pinned to Python **3.11.15**. Using the same interpreter locally provides the closest match to CI; the pinned PlatformIO/gcovr versions are listed in `scripts/requirements-ci.txt`.
 
 ## 2. Repository checkout
 
@@ -95,7 +95,7 @@ The integrated VSCodium terminal is suitable once the same `python`, `pio`, and 
 Windows needs the most explicit setup because three independent pieces must resolve correctly from the same terminal session: **Python**, **PlatformIO Core**, and a **host GCC/G++ toolchain** for native tests.
 
 > [!WARNING]
-> A successful Nano build does **not** prove that the Windows C++ test toolchain is configured. The AVR environments use PlatformIO's downloaded AVR compiler; `native` and `native_coverage` use the desktop `gcc`/`g++` found through `PATH`.
+> A successful Nano build does **not** prove that the Windows C++ test toolchain is configured. The AVR environments use PlatformIO's downloaded AVR compiler; `native`, `native_coverage`, and `native_sanitized` use the desktop `gcc`/`g++` found through `PATH`.
 
 ### 4.1 What Windows actually needs
 
@@ -171,7 +171,7 @@ Avoid several unrelated PlatformIO Core installations in the same `PATH`. One pr
 
 ### 4.5 Install MSYS2 UCRT64 GCC/G++ for native tests
 
-The firmware's AVR compiler is already handled by PlatformIO. This step is **only** for the host-side `native` and `native_coverage` environments.
+The firmware's AVR compiler is already handled by PlatformIO. This step is **only** for the host-side `native`, `native_coverage`, and `native_sanitized` environments.
 
 Install current 64-bit MSYS2 using its official installer. MSYS2 recommends **UCRT64** when unsure; UCRT64 is the current GCC-based 64-bit environment and uses the Windows Universal C Runtime.
 
@@ -399,6 +399,14 @@ pio test -e native -f system/test_signal_path
 
 The native suite compiles the portable production code on the host and applies the repository's strict warning policy. A failing native compiler setup is therefore usually a host-toolchain problem rather than an AVR-toolchain problem.
 
+Run the aggregate sanitizer environment as an additional pre-merge check:
+
+```sh
+pio test -e native_sanitized
+```
+
+This executes the portable core under AddressSanitizer and UndefinedBehaviorSanitizer; it does not affect the AVR binary.
+
 ### 7.2 Build both supported Nano variants
 
 Newer Nano bootloader:
@@ -436,6 +444,14 @@ Current engineering gates:
 
 These are engineering headroom limits, not alternative MCU capacities.
 
+Compile the qualification-only timing image as a separate check when target-level timing is relevant:
+
+```sh
+pio run -e nanoatmega328new_timing
+```
+
+This image repurposes Nano D1/TX as an oscilloscope probe and is **not** user firmware. See [ATmega328P timing qualification](../testing/timing-qualification.md).
+
 ## 8. Coverage
 
 The coverage environment uses the host compiler and GCC coverage instrumentation:
@@ -447,7 +463,7 @@ pio test -e native_coverage
 To generate the same report formats used by CI, install `gcovr` into the active Python environment and run:
 
 ```sh
-python -m pip install --upgrade gcovr
+python -m pip install -r scripts/requirements-ci.txt
 mkdir -p coverage
 gcovr --root . --filter lib/fmq/src --exclude test --txt --output coverage/coverage.txt
 gcovr --root . --filter lib/fmq/src --exclude test --xml-pretty --output coverage/coverage.xml
@@ -527,6 +543,7 @@ During development, run the narrowest relevant native suite frequently. Before a
 
 ```sh
 pio test -e native
+pio test -e native_sanitized
 pio run -e nanoatmega328new
 pio run -e nanoatmega328
 python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328new/firmware.elf
@@ -556,6 +573,8 @@ lib/fmq/src/                   portable firmware-core implementation
 test/                          native unit/integration/regression/system tests
 scripts/                       CI, release, coverage and resource helpers
 README_TESTING.md              detailed test strategy
+docs/testing/                   coverage, traceability, timing and hardware qualification
+docs/development/maintenance-policy.md  mature-firmware maintenance/resource policy
 README_CONFIGURATION.md        firmware configuration reference
 README_CALIBRATION.md          calibration workflow
 README_ARPEGGIATOR.md          Arpeggiator behavior and controls

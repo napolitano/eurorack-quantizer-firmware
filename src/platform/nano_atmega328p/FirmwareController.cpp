@@ -59,12 +59,35 @@ static_assert(kTimer2CountsPerTick > 0u && kTimer2CountsPerTick <= 256u,
 static_assert((F_CPU / kTimer2Prescaler) % config::kControlLoopFrequencyHz == 0u,
               "Timer2 control-loop frequency must divide exactly");
 constexpr uint16_t kInvalidDacCode = config::kDacMaximumCode + 1u;
+
+#if defined(FMQ_TIMING_PROBE)
+// Dedicated target-qualification build only. Arduino Nano D1/TX maps to PD1.
+// Direct port access keeps probe overhead deterministic and very small.
+inline void timingProbeBegin() {
+  DDRD |= _BV(DDD1);
+  PORTD &= static_cast<uint8_t>(~_BV(PORTD1));
+}
+inline void timingProbeHigh() { PORTD |= _BV(PORTD1); }
+inline void timingProbeLow() {
+  PORTD &= static_cast<uint8_t>(~_BV(PORTD1));
+}
+#else
+inline void timingProbeBegin() {}
+inline void timingProbeHigh() {}
+inline void timingProbeLow() {}
+#endif
 }
 
 static volatile uint8_t g_pendingSamples = 0;
 
 /// Timer2 compare-match ISR: fires at 1 kHz and flags a new sample period.
 ISR(TIMER2_COMPA_vect) {
+#if defined(FMQ_TIMING_PROBE)
+  // Begin the qualification pulse at the actual 1 kHz scheduling event.
+  // Keeping the pin HIGH until the corresponding control work completes makes
+  // scheduler/dispatch latency and any accumulated backlog visible on scope.
+  timingProbeHigh();
+#endif
   if (g_pendingSamples != static_cast<uint8_t>(0xFFu)) {
     ++g_pendingSamples;
   }
@@ -243,6 +266,7 @@ static void playStartupAnimation() {
 }
 
 void FirmwareController::begin() {
+  timingProbeBegin();
   // GPIO initialisation belongs here, after the Arduino core is ready. Global
   // constructors only store pin metadata.
   g_dacCs.begin();
@@ -270,7 +294,9 @@ void FirmwareController::begin() {
   // reflects that effective behaviour.
   analogReference(kUseExternalAref ? EXTERNAL : DEFAULT);
 
+#if !defined(FMQ_TIMING_PROBE)
   if (config::kDiagnosticsEnabled) Serial.begin(config::kCalibrationBaud);
+#endif
   g_spi.begin();
   g_ledDriver.begin();  // clear LEDs and enable the driver outputs
 
@@ -298,10 +324,14 @@ void FirmwareController::begin() {
   // electrical calibration values.
   delay(config::kStartupInputSettleMs);
   const bool shiftPressedAtBoot = kButtonsActiveLow ? !g_shift.isHigh() : g_shift.isHigh();
+#if !defined(FMQ_TIMING_PROBE)
   if (config::kCalibrationConsoleEnabled && shiftPressedAtBoot) {
     CalibrationConsole console(g_analog, g_dac);
     console.run();
   }
+#else
+  (void)shiftPressedAtBoot;
+#endif
 
   // Measure a series of fresh, unpressed ladder snapshots. A timeout or an
   // implausible/stable-high-button value is made visible instead of silently
@@ -358,6 +388,8 @@ void FirmwareController::run() {
     g_liveStore.observeWriter();
     return;
   }
+  // In the dedicated timing build D1/TX was raised by the 1 kHz Timer2 ISR.
+  // It remains HIGH until this scheduled control work is fully complete.
   g_diagnostics.observeQueue(pending);
   ++g_diagnostics.ticks;
 
@@ -506,4 +538,5 @@ void FirmwareController::run() {
     }
   }
   g_diagnostics.report(now);
+  timingProbeLow();
 }

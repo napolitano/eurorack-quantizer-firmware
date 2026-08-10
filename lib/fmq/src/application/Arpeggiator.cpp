@@ -38,7 +38,8 @@ uint8_t clampU8(uint8_t value, uint8_t maximum) {
 }
 
 uint8_t wrapPosition(uint8_t value, uint8_t length) {
-  return length == 0u ? 0u : static_cast<uint8_t>(value % length);
+  if (length == 0u) return static_cast<uint8_t>(0u);
+  return static_cast<uint8_t>(value % length);
 }
 
 }  // namespace

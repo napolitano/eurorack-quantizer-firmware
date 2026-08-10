@@ -3,6 +3,13 @@
 This directory is the workspace for the editable end-user manual of the Eurorack Quantizer.
 The canonical editable document will be maintained as a **LibreOffice Writer** document (`.odt`).
 
+## Contents
+
+- [Required typeface](#required-typeface)
+- [File naming and firmware releases](#file-naming-and-firmware-releases)
+- [Reusable concept artwork](#reusable-concept-artwork)
+- [Manual licence](#manual-licence)
+
 ## Required typeface
 
 > [!IMPORTANT]

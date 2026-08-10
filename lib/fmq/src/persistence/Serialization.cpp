@@ -65,7 +65,10 @@ void encodeNotes(const bool notes[kNoteCount], uint8_t out[kScaleBytes]) {
 
 void decodeNotes(const uint8_t bytes[kScaleBytes], bool notes[kNoteCount]) {
   for (uint8_t i = 0; i < kNoteCount; ++i) {
-    notes[i] = ((bytes[i / 8u] >> (i % 8u)) & 1u) != 0u;
+    const uint8_t value = bytes[i / 8u];
+    const uint8_t bit = static_cast<uint8_t>(i % 8u);
+    notes[i] = (static_cast<uint8_t>(value >> bit) &
+                static_cast<uint8_t>(1u)) != static_cast<uint8_t>(0u);
   }
 }
 

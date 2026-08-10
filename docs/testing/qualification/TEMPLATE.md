@@ -1,0 +1,94 @@
+# Hardware qualification — VERSION
+
+> [!NOTE]
+> Copy this file for a concrete release candidate. Replace every placeholder and leave unperformed checks explicitly unchecked.
+
+## Contents
+
+- [Build under test](#build-under-test)
+- [Hardware and instruments](#hardware-and-instruments)
+- [Automated prerequisites](#automated-prerequisites)
+- [Functional result](#functional-result)
+- [Timing measurements](#timing-measurements)
+- [Analog measurements](#analog-measurements)
+- [Conclusion](#conclusion)
+
+## Build under test
+
+| Field | Value |
+|---|---|
+| Firmware version/tag | `TODO` |
+| Commit SHA | `TODO` |
+| Nano bootloader | `TODO` |
+| Firmware artifact checksum | `TODO` |
+| Date | `TODO` |
+| Tester | `TODO` |
+
+## Hardware and instruments
+
+| Item | Identification / notes |
+|---|---|
+| Quantizer module | `TODO` |
+| Eurorack supply | `TODO` |
+| Oscilloscope | `TODO` |
+| DMM | `TODO` |
+| CV source | `TODO` |
+| Clock/gate source | `TODO` |
+
+## Automated prerequisites
+
+- [ ] CI green.
+- [ ] Native ASan/UBSan green.
+- [ ] Native coverage policy green.
+- [ ] Requirements traceability green.
+- [ ] Both normal AVR builds within flash/SRAM budgets.
+- [ ] Timing-qualification AVR image builds successfully.
+
+## Functional result
+
+- [ ] Core Quantizer operation passed.
+- [ ] A/B isolation passed.
+- [ ] Track/Sample passed.
+- [ ] Linking/Relative B passed.
+- [ ] Arpeggiator enter/exit and all sync families passed.
+- [ ] Persistence/update retention passed.
+
+Notes:
+
+`TODO`
+
+## Timing measurements
+
+| Measurement | Result | Pass criterion |
+|---|---:|---:|
+| Maximum control-cycle pulse | `TODO µs` | `< 1000 µs` |
+| Typical control-cycle pulse | `TODO µs` | informational |
+| Output trigger HIGH time | `TODO ms` | nominal `5 ms` |
+| Control pulses >= 1000 µs | `TODO` | `0` during qualification run |
+
+Stress scenario used:
+
+`TODO`
+
+## Analog measurements
+
+| Measurement | Channel A | Channel B |
+|---|---:|---:|
+| 0 V output error | `TODO` | `TODO` |
+| 1 V/oct tracking check | `TODO` | `TODO` |
+| Representative high-range point | `TODO` | `TODO` |
+| Cross-channel observation | `TODO` | `TODO` |
+
+## Conclusion
+
+- [ ] Qualified for release.
+- [ ] Qualified with documented limitation.
+- [ ] Not qualified.
+
+Summary:
+
+`TODO`
+
+---
+
+<p align="center">From Munich With <img src="../../assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>
