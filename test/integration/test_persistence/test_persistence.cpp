@@ -411,6 +411,122 @@ static void test_v5_live_state_migrates_enabled_arp_to_arpeggiator_layer(void) {
   TEST_ASSERT_EQUAL_UINT8(kChannelBIndex, restored.configuration.selectedChannelIndex);
 }
 
+// FA-099..102 / acceptance criterion 16: every scale slot round-trips and
+// reports occupancy independently.
+static void test_all_twelve_scale_slots_roundtrip_independently(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+
+  for (uint8_t slot = 0u; slot < kScaleSlotCount; ++slot) {
+    bool notes[kNoteCount] = {};
+    notes[slot] = true;
+    notes[static_cast<uint8_t>((slot + 5u) % kNoteCount)] = true;
+    TEST_ASSERT_TRUE(store.writeScale(slot, notes));
+    store.flush();
+  }
+
+  SlotOccupancy scales, configs;
+  store.scan(scales, configs);
+  TEST_ASSERT_EQUAL_HEX16(0x0FFFu, scales.bits);
+  TEST_ASSERT_EQUAL_HEX16(0u, configs.bits);
+
+  for (uint8_t slot = 0u; slot < kScaleSlotCount; ++slot) {
+    bool loaded[kNoteCount] = {};
+    TEST_ASSERT_TRUE(store.readScale(slot, loaded));
+    for (uint8_t note = 0u; note < kNoteCount; ++note) {
+      const bool expected = note == slot ||
+          note == static_cast<uint8_t>((slot + 5u) % kNoteCount);
+      TEST_ASSERT_EQUAL(expected, loaded[note]);
+    }
+  }
+}
+
+// FA-103..106 / acceptance criterion 17: every full-configuration slot
+// round-trips distinct quantizer, Arpeggiator, selected-channel and UI-layer
+// state without leaking into neighbouring slots.
+static void test_all_twelve_full_configuration_slots_roundtrip_independently(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+
+  for (uint8_t slot = 0u; slot < kConfigSlotCount; ++slot) {
+    StoredConfiguration state;
+    state.quantizer.channels[kChannelAIndex].config().preShift =
+        static_cast<int8_t>(static_cast<int8_t>(slot % 12u) - 5);
+    state.arpeggiators[kChannelAIndex].rateIndex = slot;
+    state.arpeggiators[kChannelAIndex].enabled = (slot & 1u) != 0u;
+    state.selectedChannelIndex = (slot & 1u) != 0u ? kChannelBIndex
+                                                    : kChannelAIndex;
+    state.uiLayer = (slot & 1u) != 0u ? UiLayer::Arpeggiator
+                                      : UiLayer::Quantizer;
+    TEST_ASSERT_TRUE(store.writeConfig(slot, state));
+    store.flush();
+  }
+
+  SlotOccupancy scales, configs;
+  store.scan(scales, configs);
+  TEST_ASSERT_EQUAL_HEX16(0u, scales.bits);
+  TEST_ASSERT_EQUAL_HEX16(0x0FFFu, configs.bits);
+
+  for (uint8_t slot = 0u; slot < kConfigSlotCount; ++slot) {
+    StoredConfiguration loaded;
+    TEST_ASSERT_TRUE(store.readConfig(slot, loaded));
+    TEST_ASSERT_EQUAL_INT8(static_cast<int8_t>(static_cast<int8_t>(slot % 12u) - 5),
+                           loaded.quantizer.channels[kChannelAIndex].config().preShift);
+    TEST_ASSERT_EQUAL_UINT8(slot, loaded.arpeggiators[kChannelAIndex].rateIndex);
+    TEST_ASSERT_EQUAL((slot & 1u) != 0u,
+                      loaded.arpeggiators[kChannelAIndex].enabled);
+    TEST_ASSERT_EQUAL_UINT8((slot & 1u) != 0u ? kChannelBIndex : kChannelAIndex,
+                            loaded.selectedChannelIndex);
+    TEST_ASSERT_EQUAL((slot & 1u) != 0u ? UiLayer::Arpeggiator
+                                        : UiLayer::Quantizer,
+                      loaded.uiLayer);
+  }
+}
+
+static void test_live_state_invalid_brightness_steps_fall_back_safely(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  LiveStateStore live(eep, writer);
+  LiveState initial;
+  (void)live.load(initial);
+
+  StoredConfiguration configuration;
+  BrightnessCalibration invalid{254u, 253u};
+  TEST_ASSERT_TRUE(live.commit(configuration, invalid, UiLayer::Quantizer));
+  live.flush();
+
+  LiveStateStore restoredStore(eep, writer);
+  LiveState restored;
+  TEST_ASSERT_TRUE(restoredStore.load(restored));
+  TEST_ASSERT_EQUAL_UINT8(BrightnessCalibration::kUseLegacyDefault,
+                          restored.brightness.redStep);
+  TEST_ASSERT_EQUAL_UINT8(BrightnessCalibration::kUseLegacyDefault,
+                          restored.brightness.greenStep);
+}
+
+static void test_linked_stored_configuration_normalizes_channel_and_arpeggiator_b(void) {
+  StoredConfiguration source;
+  source.quantizer.channelsLinked = true;
+  source.selectedChannelIndex = kChannelBIndex;
+  source.arpeggiators[kChannelAIndex].rateIndex = 2u;
+  source.arpeggiators[kChannelAIndex].pattern = ArpeggiatorPattern::Down;
+  source.arpeggiators[kChannelBIndex].rateIndex = 10u;
+  source.arpeggiators[kChannelBIndex].pattern = ArpeggiatorPattern::Random;
+
+  uint8_t bytes[kStoredConfigurationBytes];
+  encodeStoredConfiguration(source, bytes);
+  const StoredConfiguration decoded = decodeStoredConfiguration(bytes);
+
+  TEST_ASSERT_TRUE(decoded.quantizer.channelsLinked);
+  TEST_ASSERT_EQUAL_UINT8(kChannelAIndex, decoded.selectedChannelIndex);
+  TEST_ASSERT_EQUAL_UINT8(decoded.arpeggiators[kChannelAIndex].rateIndex,
+                          decoded.arpeggiators[kChannelBIndex].rateIndex);
+  TEST_ASSERT_EQUAL(decoded.arpeggiators[kChannelAIndex].pattern,
+                    decoded.arpeggiators[kChannelBIndex].pattern);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_state_roundtrip);
@@ -418,6 +534,8 @@ int main(void) {
   RUN_TEST(test_stored_configuration_ui_layer_roundtrips_with_arp_off);
   RUN_TEST(test_blank_slots_empty);
   RUN_TEST(test_scale_save_load);
+  RUN_TEST(test_all_twelve_scale_slots_roundtrip_independently);
+  RUN_TEST(test_all_twelve_full_configuration_slots_roundtrip_independently);
   RUN_TEST(test_corruption_is_detected);
   RUN_TEST(test_erase_all);
   RUN_TEST(test_v4_full_config_is_read_and_migrates_enabled_arp_layer);
@@ -425,6 +543,8 @@ int main(void) {
   RUN_TEST(test_live_roundtrip_and_newest_wins);
   RUN_TEST(test_live_wear_levelling_spreads_writes);
   RUN_TEST(test_live_ui_layer_roundtrips_and_normalizes_inconsistent_state);
+  RUN_TEST(test_live_state_invalid_brightness_steps_fall_back_safely);
+  RUN_TEST(test_linked_stored_configuration_normalizes_channel_and_arpeggiator_b);
   RUN_TEST(test_v5_live_state_migrates_enabled_arp_to_arpeggiator_layer);
   return UNITY_END();
 }

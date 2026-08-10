@@ -14,6 +14,8 @@
 #include "TestScale.h"
 #include "fmq/config/ProductConfig.h"
 #include "fmq/persistence/PersistenceLayout.h"
+#include "fmq/persistence/Crc16.h"
+#include "fmq/persistence/LiveStateStore.h"
 #include "fmq/persistence/SaveSlotStore.h"
 #include "fmq/persistence/Serialization.h"
 
@@ -154,6 +156,41 @@ static void test_decode_arpeggiator_config_clamps_and_defaults_invalid_fields(vo
   TEST_ASSERT_EQUAL_UINT8(config::kArpMaximumSwingStep, arp.swing);
 }
 
+static void test_unsupported_save_record_version_is_rejected_even_with_valid_crc(void) {
+  FakeEeprom eep;
+  const uint16_t address = kScaleRegionBase;
+  const uint8_t unsupportedVersion = static_cast<uint8_t>(kSaveFormatVersion + 1u);
+  const uint8_t payload[kScaleBytes] = {0x01u, 0x00u};
+  uint8_t framed[2u + kScaleBytes];
+  framed[0] = kRecordMarker;
+  framed[1] = unsupportedVersion;
+  for (uint8_t i = 0u; i < kScaleBytes; ++i) framed[2u + i] = payload[i];
+  const uint16_t crc = crc16Ccitt(framed, sizeof(framed));
+
+  eep.writeByte(address, kRecordMarker);
+  eep.writeByte(static_cast<uint16_t>(address + 1u), unsupportedVersion);
+  for (uint8_t i = 0u; i < kScaleBytes; ++i) {
+    eep.writeByte(static_cast<uint16_t>(address + 2u + i), payload[i]);
+  }
+  eep.writeByte(static_cast<uint16_t>(address + 2u + kScaleBytes),
+                static_cast<uint8_t>(crc >> 8u));
+  eep.writeByte(static_cast<uint16_t>(address + 3u + kScaleBytes),
+                static_cast<uint8_t>(crc));
+
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+  bool notes[kNoteCount] = {};
+  TEST_ASSERT_FALSE(store.readScale(0u, notes));
+}
+
+static void test_continuous_sample_mode_decodes_when_present_in_persisted_data(void) {
+  uint8_t bytes[kChannelConfigBytes] = {};
+  bytes[0] = 0x01u;  // keep C selected so the scale itself is valid
+  bytes[2] = static_cast<uint8_t>(SampleMode::Continuous);
+  const ChannelConfig cfg = decodeChannelConfig(bytes);
+  TEST_ASSERT_EQUAL(SampleMode::Continuous, cfg.sampleMode);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_every_scale_record_byte_corruption_is_rejected);
@@ -164,5 +201,7 @@ int main(void) {
   RUN_TEST(test_decode_channel_config_clamps_all_numeric_fields);
   RUN_TEST(test_decode_empty_scale_falls_back_to_factory_scale);
   RUN_TEST(test_decode_arpeggiator_config_clamps_and_defaults_invalid_fields);
+  RUN_TEST(test_unsupported_save_record_version_is_rejected_even_with_valid_crc);
+  RUN_TEST(test_continuous_sample_mode_decodes_when_present_in_persisted_data);
   return UNITY_END();
 }

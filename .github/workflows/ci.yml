@@ -35,6 +35,8 @@ jobs:
         run: |
           VERSION="$(python -c 'import json; print(json.load(open("lib/fmq/library.json", encoding="utf-8"))["version"])')"
           python scripts/test_select_release_manual.py
+          python scripts/test_check_native_coverage.py
+          python scripts/check_requirement_traceability.py
           python scripts/select_release_manual.py \
             --directory docs/manual \
             --firmware-version "${VERSION}"
@@ -141,8 +143,10 @@ jobs:
           mkdir -p coverage
           gcovr --root . --filter lib/fmq/src --exclude test --txt --output coverage/coverage.txt
           gcovr --root . --filter lib/fmq/src --exclude test --xml-pretty --output coverage/coverage.xml
+          gcovr --root . --filter lib/fmq/src --exclude test --json-pretty --output coverage/coverage.json
           gcovr --root . --filter lib/fmq/src --exclude test --html-details --output coverage/coverage.html
           cat coverage/coverage.txt
+          python scripts/check_native_coverage.py coverage/coverage.xml
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v7

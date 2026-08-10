@@ -12,6 +12,7 @@
 
 #include "TestScale.h"
 #include "fmq/application/Arpeggiator.h"
+#include "fmq/config/FirmwareConfig.h"
 
 using namespace fmq;
 using fmqtest::makeScale;
@@ -271,6 +272,69 @@ static void test_clock_edge_count_does_not_collapse_multiple_edges(void) {
   TEST_ASSERT_EQUAL_INT16(semis(67.0), twoEdges.pitch);
 }
 
+static void test_invalid_configuration_is_sanitized_to_safe_bounds(void) {
+  Arpeggiator arp;
+  ArpeggiatorConfig cfg = ArpeggiatorConfig::makeDefault();
+  cfg.enabled = true;
+  cfg.rateIndex = 255u;
+  cfg.pattern = static_cast<ArpeggiatorPattern>(255u);
+  cfg.shape = static_cast<ArpeggiatorShape>(255u);
+  cfg.length = 0u;
+  cfg.range = 0u;
+  cfg.syncMode = static_cast<ArpeggiatorSyncMode>(255u);
+  cfg.swing = 255u;
+  arp.setConfig(cfg, 0u);
+
+  const ArpeggiatorConfig &safe = arp.config();
+  TEST_ASSERT_TRUE(safe.enabled);
+  TEST_ASSERT_EQUAL_UINT8(config::kArpRateCount - 1u, safe.rateIndex);
+  TEST_ASSERT_EQUAL(ArpeggiatorPattern::Up, safe.pattern);
+  TEST_ASSERT_EQUAL(ArpeggiatorShape::Triad135, safe.shape);
+  TEST_ASSERT_EQUAL_UINT8(1u, safe.length);
+  TEST_ASSERT_EQUAL_UINT8(1u, safe.range);
+  TEST_ASSERT_EQUAL(ArpeggiatorSyncMode::Free, safe.syncMode);
+  TEST_ASSERT_EQUAL_UINT8(config::kArpMaximumSwingStep, safe.swing);
+}
+
+static void test_oversized_length_and_range_are_clamped(void) {
+  Arpeggiator arp;
+  ArpeggiatorConfig cfg = ArpeggiatorConfig::makeDefault();
+  cfg.length = 255u;
+  cfg.range = 255u;
+  arp.setConfig(cfg, 0u);
+  TEST_ASSERT_EQUAL_UINT8(config::kArpMaximumLength, arp.config().length);
+  TEST_ASSERT_EQUAL_UINT8(config::kArpMaximumRange, arp.config().range);
+}
+
+static void test_clock_multiplier_swing_keeps_substeps_ordered(void) {
+  bool notes[kNoteCount]; major(notes);
+  Arpeggiator arp;
+  ArpeggiatorConfig cfg = ArpeggiatorConfig::makeDefault();
+  cfg.enabled = true;
+  cfg.syncMode = ArpeggiatorSyncMode::Clock;
+  cfg.rateIndex = 8u;  // x4
+  cfg.swing = config::kArpMaximumSwingStep;
+  arp.setConfig(cfg, 0u);
+
+  const SemitoneQ8_8 base = semis(60.0);
+  TEST_ASSERT_TRUE(arp.processTimed(base, 60, notes, 1u, 100000u,
+                                   100u, 100000u).stepAdvanced);
+  TEST_ASSERT_TRUE(arp.processTimed(base, 60, notes, 1u, 200000u,
+                                   200u, 200000u).stepAdvanced);
+
+  // A 100 ms source at x4 has a 25 ms base step. With maximum swing the
+  // generated short/long pair is still monotonic and remains inside the
+  // external-clock interval.
+  TEST_ASSERT_FALSE(arp.processTimed(base, 60, notes, 0u, 0u,
+                                     232u, 232999u).stepAdvanced);
+  TEST_ASSERT_TRUE(arp.processTimed(base, 60, notes, 0u, 0u,
+                                    233u, 233000u).stepAdvanced);
+  TEST_ASSERT_FALSE(arp.processTimed(base, 60, notes, 0u, 0u,
+                                     249u, 249999u).stepAdvanced);
+  TEST_ASSERT_TRUE(arp.processTimed(base, 60, notes, 0u, 0u,
+                                    250u, 250000u).stepAdvanced);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_disabled_mode_is_transparent);
@@ -290,5 +354,8 @@ int main(void) {
   RUN_TEST(test_random_pattern_is_stable_between_musical_steps);
   RUN_TEST(test_random_pattern_restart_is_deterministic);
   RUN_TEST(test_time_wraparound_preserves_free_clock);
+  RUN_TEST(test_invalid_configuration_is_sanitized_to_safe_bounds);
+  RUN_TEST(test_oversized_length_and_range_are_clamped);
+  RUN_TEST(test_clock_multiplier_swing_keeps_substeps_ordered);
   return UNITY_END();
 }

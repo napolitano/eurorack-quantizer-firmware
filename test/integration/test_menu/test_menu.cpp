@@ -409,9 +409,180 @@ static void test_factory_config_fallback_and_user_override(void) {
   TEST_ASSERT_EQUAL_UINT8(9u, loadedArpeggiators.config(kChannelAIndex).rateIndex);
 }
 
+// FA-076..082 / acceptance criterion 15: unlinked A uses green scale notes and
+// amber for the currently emitted note of the selected channel.
+static void test_unlinked_note_ring_uses_selected_channel_colour_and_amber_current_note(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+  Menu menu;
+  menu.begin(store);
+  QuantizerState q;
+  ArpeggiatorBank arpeggiators;
+  clearScale(q);
+  q.channels[kChannelAIndex].config().notes[0] = true;
+  q.channels[kChannelAIndex].config().notes[4] = true;
+  QuantizationResult r = QuantizationResult::makeZero();
+  r.channelA.nominalSemitones = 4;
+
+  const MenuOutput out = menu.update(q, arpeggiators, noInput(), r, 100u, store);
+  TEST_ASSERT_EQUAL(LedColor::Green, out.frame[0]);
+  TEST_ASSERT_EQUAL(LedColor::Amber, out.frame[4]);
+  TEST_ASSERT_EQUAL(LedColor::Off, out.frame[1]);
+}
+
+// FA-079..082: linked scales are amber, B's current note is red, A's current
+// note is green, and A/green has deterministic priority on a collision.
+static void test_linked_note_ring_colours_and_same_note_priority(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+  Menu menu;
+  menu.begin(store);
+  QuantizerState q;
+  ArpeggiatorBank arpeggiators;
+  clearScale(q);
+  q.channelsLinked = true;
+  q.channels[kChannelAIndex].config().notes[0] = true;
+  q.channels[kChannelAIndex].config().notes[4] = true;
+  q.channels[kChannelAIndex].config().notes[7] = true;
+
+  QuantizationResult separate = QuantizationResult::makeZero();
+  separate.channelA.nominalSemitones = 4;
+  separate.channelB.nominalSemitones = 7;
+  MenuOutput out = menu.update(q, arpeggiators, noInput(), separate, 100u, store);
+  TEST_ASSERT_EQUAL(LedColor::Amber, out.frame[0]);
+  TEST_ASSERT_EQUAL(LedColor::Green, out.frame[4]);
+  TEST_ASSERT_EQUAL(LedColor::Red, out.frame[7]);
+
+  QuantizationResult collision = QuantizationResult::makeZero();
+  collision.channelA.nominalSemitones = 4;
+  collision.channelB.nominalSemitones = 4;
+  out = menu.update(q, arpeggiators, noInput(), collision, 200u, store);
+  TEST_ASSERT_EQUAL(LedColor::Green, out.frame[4]);
+}
+
+// FA-101/102: loading a scale edits only the selected channel when unlinked,
+// but both channel configurations when linked.
+static void test_scale_load_respects_selected_channel_and_link_state(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+  bool saved[kNoteCount] = {};
+  saved[2] = true;
+  saved[7] = true;
+  TEST_ASSERT_TRUE(store.writeScale(3u, saved));
+  store.flush();
+
+  QuantizationResult r = QuantizationResult::makeZero();
+  ArpeggiatorBank arpeggiators;
+
+  // Unlinked: select B, then load scale slot 3.
+  Menu unlinkedMenu;
+  unlinkedMenu.begin(store);
+  QuantizerState unlinked;
+  clearScale(unlinked);
+  unlinked.channels[kChannelAIndex].config().notes[0] = true;
+  unlinked.channels[kChannelBIndex].config().notes[0] = true;
+  unlinkedMenu.update(unlinked, arpeggiators, keyPress(11u, true), r, 100u, store);
+  unlinkedMenu.update(unlinked, arpeggiators, keyRelease(true), r, 110u, store);
+  MenuInput load = noInput();
+  load.loadButton = LongPressButtonState::ButtonJustDown;
+  unlinkedMenu.update(unlinked, arpeggiators, load, r, 200u, store);
+  unlinkedMenu.update(unlinked, arpeggiators, keyPress(3u), r, 250u, store);
+  TEST_ASSERT_TRUE(unlinked.channels[kChannelAIndex].config().notes[0]);
+  TEST_ASSERT_FALSE(unlinked.channels[kChannelAIndex].config().notes[2]);
+  TEST_ASSERT_TRUE(unlinked.channels[kChannelBIndex].config().notes[2]);
+  TEST_ASSERT_TRUE(unlinked.channels[kChannelBIndex].config().notes[7]);
+
+  // Linked: the same scale load must update both channels.
+  Menu linkedMenu;
+  linkedMenu.begin(store);
+  QuantizerState linked;
+  clearScale(linked);
+  linked.channelsLinked = true;
+  linked.channels[kChannelAIndex].config().notes[0] = true;
+  linked.channels[kChannelBIndex].config().notes[0] = true;
+  linkedMenu.update(linked, arpeggiators, load, r, 400u, store);
+  linkedMenu.update(linked, arpeggiators, keyPress(3u), r, 450u, store);
+  for (uint8_t channel = 0u; channel < kChannelCount; ++channel) {
+    TEST_ASSERT_FALSE(linked.channels[channel].config().notes[0]);
+    TEST_ASSERT_TRUE(linked.channels[channel].config().notes[2]);
+    TEST_ASSERT_TRUE(linked.channels[channel].config().notes[7]);
+  }
+}
+
+// FA-110/111 / acceptance criterion 18: exact simultaneous long state on both
+// buttons must erase all user scale and full-config slots.
+static void test_exact_simultaneous_long_load_save_erases_both_slot_banks(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+  bool notes[kNoteCount] = {};
+  notes[0] = true;
+  TEST_ASSERT_TRUE(store.writeScale(0u, notes));
+  store.flush();
+  StoredConfiguration state;
+  TEST_ASSERT_TRUE(store.writeConfig(0u, state));
+  store.flush();
+
+  Menu menu;
+  menu.begin(store);
+  QuantizerState q;
+  ArpeggiatorBank arpeggiators;
+  QuantizationResult r = QuantizationResult::makeZero();
+  MenuInput erase = noInput();
+  erase.loadButton = LongPressButtonState::ButtonHeldDownLong;
+  erase.saveButton = LongPressButtonState::ButtonHeldDownLong;
+  menu.update(q, arpeggiators, erase, r, 3000u, store);
+  store.flush();
+
+  SlotOccupancy scales, configs;
+  store.scan(scales, configs);
+  TEST_ASSERT_EQUAL_HEX16(0u, scales.bits);
+  TEST_ASSERT_EQUAL_HEX16(0u, configs.bits);
+}
+
+// FA-009..014 / acceptance criterion 2: every physical note button maps to
+// exactly one pitch class. Keep C as an anchor while toggling the other notes,
+// then verify C itself can be toggled while another note remains active.
+static void test_all_twelve_note_buttons_toggle_their_pitch_classes(void) {
+  FakeEeprom eep;
+  AsyncEepromWriter writer(eep);
+  SaveSlotStore store(eep, writer);
+  Menu menu;
+  menu.begin(store);
+  QuantizerState q;
+  ArpeggiatorBank arpeggiators;
+  QuantizationResult r = QuantizationResult::makeZero();
+  clearScale(q);
+  q.channels[kChannelAIndex].config().notes[0] = true;
+
+  uint32_t now = 100u;
+  for (uint8_t note = 1u; note < kNoteCount; ++note) {
+    menu.update(q, arpeggiators, keyPress(note), r, now, store);
+    TEST_ASSERT_TRUE(q.channels[kChannelAIndex].config().notes[note]);
+    menu.update(q, arpeggiators, keyRelease(), r, now + 1u, store);
+    now += 10u;
+  }
+
+  // Leave D active so C is no longer the last selected pitch class.
+  for (uint8_t note = 2u; note < kNoteCount; ++note) {
+    menu.update(q, arpeggiators, keyPress(note), r, now, store);
+    menu.update(q, arpeggiators, keyRelease(), r, now + 1u, store);
+    now += 10u;
+  }
+  TEST_ASSERT_TRUE(q.channels[kChannelAIndex].config().notes[0]);
+  TEST_ASSERT_TRUE(q.channels[kChannelAIndex].config().notes[1]);
+  menu.update(q, arpeggiators, keyPress(0u), r, now, store);
+  TEST_ASSERT_FALSE(q.channels[kChannelAIndex].config().notes[0]);
+  TEST_ASSERT_TRUE(q.channels[kChannelAIndex].config().notes[1]);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_toggle_note);
+  RUN_TEST(test_all_twelve_note_buttons_toggle_their_pitch_classes);
   RUN_TEST(test_select_channel_b);
   RUN_TEST(test_glide_submenu);
   RUN_TEST(test_sample_mode_matches_original_ui_cycle);
@@ -421,5 +592,9 @@ int main(void) {
   RUN_TEST(test_calibration_editor_channel_tracks_selected_colour);
   RUN_TEST(test_erase_all_combo);
   RUN_TEST(test_factory_config_fallback_and_user_override);
+  RUN_TEST(test_unlinked_note_ring_uses_selected_channel_colour_and_amber_current_note);
+  RUN_TEST(test_linked_note_ring_colours_and_same_note_priority);
+  RUN_TEST(test_scale_load_respects_selected_channel_and_link_state);
+  RUN_TEST(test_exact_simultaneous_long_load_save_erases_both_slot_banks);
   return UNITY_END();
 }

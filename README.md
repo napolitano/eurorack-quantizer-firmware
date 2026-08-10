@@ -16,9 +16,6 @@ It keeps the module recognisably the same instrument: the original pin mapping, 
 > [!NOTE]
 > **Status:** Active, hardware-tested firmware. The portable core is covered by host-side tests; analog calibration and final LED brightness values remain specific to the actual module and fitted components.
 
-> [!NOTE]
-> Code is at release 0.2.0 level and may be checked out and compiled. The final piece for release is the first version of the user manual which will be ready shortly. 
-
 ## Acknowledgement — Quinn Freedman
 
 This project exists because of **Quinn Freedman's original Quantizer design and Rust firmware**.
@@ -518,7 +515,7 @@ test/
   support/
 ```
 
-The native suite currently contains **29 independently runnable suites and 237 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behaviour including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy and resolved specification findings. AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
+The native suite currently contains **29 independently runnable suites and 254 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behaviour including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy, [the requirements traceability matrix](docs/testing/requirements-traceability.md), and [the native coverage policy](docs/testing/coverage.md). AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
 
 The AVR CI also enforces an engineering resource budget. The application-flash limit is **92.5% of the 30,720-byte Nano application space** and the static-SRAM limit is **70% of 2 KB**.
 
@@ -534,7 +531,7 @@ Runs on pushes, pull requests and manual dispatches. It:
 
 1. installs PlatformIO Core;
 2. runs all 29 native test suites as independent matrix jobs (`fail-fast: false`);
-3. runs a separate aggregate coverage job and uploads HTML/XML/text reports;
+3. runs a separate aggregate coverage job, enforces the native line/branch coverage floors, and uploads HTML/XML/JSON/text reports;
 4. builds both Nano environments;
 5. checks the AVR flash/SRAM engineering budget;
 6. uploads the resulting `.hex` and `.elf` files as workflow artifacts.

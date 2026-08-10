@@ -43,11 +43,22 @@ pio run -e nanoatmega328new
 pio run -e nanoatmega328
 ```
 
-Coverage can be generated with:
+Validate requirement-to-test traceability with:
+
+```sh
+python scripts/check_requirement_traceability.py
+```
+
+Generate and enforce native coverage with:
 
 ```sh
 pio test -e native_coverage
+mkdir -p coverage
+gcovr --root . --filter lib/fmq/src --exclude test --xml-pretty --output coverage/coverage.xml
+python scripts/check_native_coverage.py coverage/coverage.xml
 ```
+
+Coverage regressions are gated at **92.0% lines / 70.0% branches** for portable production sources. Do not lower the policy floor merely to make a pull request pass.
 
 After an AVR build, the same engineering resource gate used by CI can be checked with:
 

@@ -150,6 +150,23 @@ static void test_unsigned_clock_wraparound_is_safe(void) {
                click(gesture, secondPress, 80u));
 }
 
+static void test_reset_discards_pending_and_suppressed_state(void) {
+  UiLayerGesture gesture;
+  assertAction(UiLayerGestureAction::None, click(gesture, 1000u));
+
+  // Put the recogniser into its suppression path, then reset it as a firmware
+  // controller would do during reinitialisation.
+  assertAction(UiLayerGestureAction::None,
+               settle(gesture, true, false, false, 1200u));
+  assertAction(UiLayerGestureAction::None,
+               gesture.update(true, true, false, 1250u));
+  gesture.reset();
+
+  // No stale first click or suppression state may survive reset.
+  assertAction(UiLayerGestureAction::None, click(gesture, 2000u));
+  assertAction(UiLayerGestureAction::ToggleLayer, click(gesture, 2250u));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_clean_double_click_toggles_on_second_release);
@@ -161,5 +178,6 @@ int main(void) {
   RUN_TEST(test_blocked_mode_never_toggles);
   RUN_TEST(test_raw_shift_bounce_is_rejected_by_gesture_debounce);
   RUN_TEST(test_unsigned_clock_wraparound_is_safe);
+  RUN_TEST(test_reset_discards_pending_and_suppressed_state);
   return UNITY_END();
 }

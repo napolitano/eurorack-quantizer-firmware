@@ -165,6 +165,37 @@ static void test_shift_b_selects_b_for_subsequent_note_edit(void) {
   TEST_ASSERT_FALSE(f.quantizer.channels[1].config().notes[1]);
 }
 
+// FA-095..098: unsigned scalar pages map C..B directly to 0..11.
+static void test_glide_and_delay_accept_every_unsigned_button_value(void) {
+  for (uint8_t value = 0u; value < kNoteCount; ++value) {
+    {
+      Fixture f;
+      openScalarAndSet(f, 2u, value);  // SHIFT+D -> Glide
+      TEST_ASSERT_EQUAL_UINT8(value,
+          f.quantizer.channels[kChannelAIndex].config().glideAmount);
+    }
+    {
+      Fixture f;
+      openScalarAndSet(f, 3u, value);  // SHIFT+D# -> Delay
+      TEST_ASSERT_EQUAL_UINT8(value,
+          f.quantizer.channels[kChannelAIndex].config().triggerDelayAmount);
+    }
+  }
+}
+
+// FA-095..097: the shared signed selector maps C to 0, C#..F# to +1..+6,
+// and G..B to -5..-1. Pre-shift exercises the common mapping implementation.
+static void test_signed_scalar_selector_maps_all_twelve_buttons_exactly(void) {
+  const int8_t expected[kNoteCount] = {
+      0, 1, 2, 3, 4, 5, 6, -5, -4, -3, -2, -1};
+  for (uint8_t button = 0u; button < kNoteCount; ++button) {
+    Fixture f;
+    openScalarAndSet(f, 7u, button);  // SHIFT+G -> Pre-shift
+    TEST_ASSERT_EQUAL_INT8(expected[button],
+        f.quantizer.channels[kChannelAIndex].config().preShift);
+  }
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_shift_c_rotates_scale_down_one_pitch_class);
@@ -179,5 +210,7 @@ int main(void) {
   RUN_TEST(test_shift_a_links_and_copies_entire_channel_a_config_to_b);
   RUN_TEST(test_shift_asharp_selects_a_for_subsequent_note_edit);
   RUN_TEST(test_shift_b_selects_b_for_subsequent_note_edit);
+  RUN_TEST(test_glide_and_delay_accept_every_unsigned_button_value);
+  RUN_TEST(test_signed_scalar_selector_maps_all_twelve_buttons_exactly);
   return UNITY_END();
 }

@@ -12,7 +12,9 @@ A new section should be added when a release version is explicitly declared. Eac
 
 ## Unreleased
 
-No release-relevant changes have been queued after 0.2.0 yet.
+### Added
+
+- Expanded requirement-driven verification from 237 to 254 native test cases with complete 12-note UI mapping, all 12 scale/full-config slot round-trips, linked/unlinked LED and scale-load semantics, exact simultaneous erase handling, Arpeggiator sanitization/swing-clock boundaries, UI-gesture reset handling and additional persistence validation. Added machine-checked acceptance-criterion traceability plus CI/release coverage regression gates at 92% line and 70% branch coverage for the portable production core.
 
 ## 0.2.0 — 2026-08-09
 

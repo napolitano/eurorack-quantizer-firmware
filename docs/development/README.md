@@ -451,7 +451,9 @@ python -m pip install --upgrade gcovr
 mkdir -p coverage
 gcovr --root . --filter lib/fmq/src --exclude test --txt --output coverage/coverage.txt
 gcovr --root . --filter lib/fmq/src --exclude test --xml-pretty --output coverage/coverage.xml
+gcovr --root . --filter lib/fmq/src --exclude test --json-pretty --output coverage/coverage.json
 gcovr --root . --filter lib/fmq/src --exclude test --html-details --output coverage/coverage.html
+python scripts/check_native_coverage.py coverage/coverage.xml
 ```
 
 On Windows PowerShell, create the directory with:
@@ -460,7 +462,7 @@ On Windows PowerShell, create the directory with:
 New-Item -ItemType Directory -Force coverage | Out-Null
 ```
 
-Coverage is a secondary metric. Behavior, timing boundaries, state transitions, persistence faults, and regressions still require explicit tests.
+Coverage is a secondary metric. Behavior, timing boundaries, state transitions, persistence faults, and regressions still require explicit tests. The current CI floors are **92.0% lines** and **70.0% branches** for `lib/fmq/src/`; see [the native coverage policy](../testing/coverage.md). The acceptance-criterion mapping is documented in [the traceability matrix](../testing/requirements-traceability.md).
 
 ## 9. Uploading firmware to the Nano
 

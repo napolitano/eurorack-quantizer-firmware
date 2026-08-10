@@ -5,7 +5,7 @@
 
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current default suite contains **29 independently runnable PlatformIO test suites and 237 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
+The current default suite contains **29 independently runnable PlatformIO test suites and 254 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
 
 Examples of exhaustive work performed by the suite include:
 
@@ -16,6 +16,9 @@ Examples of exhaustive work performed by the suite include:
 - all twelve Glide settings;
 - every supported pre-, scale- and post-shift value;
 - all twelve factory Arpeggiator scales;
+- every one of the twelve note buttons as an editable pitch class;
+- all twelve scale-save slots and all twelve full-configuration slots;
+- the complete unsigned 0..11 and signed 0/+1..+6/-5..-1 front-panel selector mappings;
 - all twelve root pitch classes for Arpeggiator interval generation;
 - exact boundaries for all twelve internal Arpeggiator rates and the complete clock-ratio table;
 - all Arpeggiator patterns, shapes, supported lengths/ranges and swing limits;
@@ -31,6 +34,7 @@ Examples of exhaustive work performed by the suite include:
 - [Fine-grained CI](#fine-grained-ci)
 - [Running tests locally](#running-tests-locally)
 - [Requirement-oriented verification](#requirement-oriented-verification)
+- [Coverage regression policy](#coverage-regression-policy)
 - [Specification findings closed by regression tests](#specification-findings-closed-by-regression-tests)
 - [Coverage reports](#coverage-reports)
 - [What native tests cannot prove](#what-native-tests-cannot-prove)
@@ -173,6 +177,14 @@ Representative traceability:
 
 The expanded persistence tests also round-trip the complete `StoredConfiguration`: Quantizer state, selected channel, active UI layer and both per-channel Arpeggiator configurations. Byte-by-byte corruption of a full-config record must invalidate the whole record rather than partially accepting Arpeggiator data.
 
+The complete acceptance-criterion mapping is maintained in [docs/testing/requirements-traceability.md](docs/testing/requirements-traceability.md) and in machine-readable form at `test/requirements-traceability.json`. CI rejects stale references with `scripts/check_requirement_traceability.py`.
+
+## Coverage regression policy
+
+Source coverage is now guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The requirement-driven 254-test reference measurement is approximately **95.7% lines / 80.3% branches**; GitHub Actions remains authoritative for the exact reported values.
+
+The floor is deliberately below the reference so minor compiler/gcovr accounting differences do not create noise, but it is high enough to catch a material loss of exercised production paths. Lowering the floor just to make a change pass is not an accepted fix. See [docs/testing/coverage.md](docs/testing/coverage.md).
+
 ## Specification findings closed by regression tests
 
 Two defects found by the expanded suite are now fixed and permanently covered:
@@ -187,10 +199,14 @@ These are regular CI tests, not opt-in expected failures.
 Locally:
 
 ```text
-python -m pip install gcovr
+python -m pip install --upgrade gcovr
 pio test -e native_coverage
-gcovr --root . --filter lib/fmq/src --exclude test --html-details coverage.html
-gcovr --root . --filter lib/fmq/src --exclude test --txt
+mkdir -p coverage
+gcovr --root . --filter lib/fmq/src --exclude test --txt --output coverage/coverage.txt
+gcovr --root . --filter lib/fmq/src --exclude test --xml-pretty --output coverage/coverage.xml
+gcovr --root . --filter lib/fmq/src --exclude test --json-pretty --output coverage/coverage.json
+gcovr --root . --filter lib/fmq/src --exclude test --html-details --output coverage/coverage.html
+python scripts/check_native_coverage.py coverage/coverage.xml
 ```
 
 Coverage is a secondary metric. A high line percentage is not considered sufficient when a timing edge, state transition, corruption case or externally observable requirement is untested.
