@@ -58,7 +58,7 @@ jobs:
           echo "::warning title=User manual::No compatible quantizer-user-manual.X.Y.Z.odt (manual version <= firmware version) was found. The firmware release will continue without manual assets."
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4.2.0
+        uses: actions/cache@v6.1.0
         with:
           path: |
             ~/.cache/pip
