@@ -5,7 +5,7 @@
 
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current default suite contains **29 independently runnable PlatformIO test suites and 254 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
+The current default suite contains **32 independently runnable PlatformIO test suites and 271 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
 
 Examples of exhaustive work performed by the suite include:
 
@@ -51,7 +51,7 @@ Unit tests verify deterministic components in isolation and intentionally push t
 | `unit/test_scale` | scale navigation and empty-scale safety |
 | `unit/test_quantizer_boundaries` | pitch boundaries, first-sample tie handling, hysteresis and all scale masks |
 | `unit/test_transposition_matrix` | full signed pre/scale/post shift ranges and ordering |
-| `unit/test_pitch` | representative ADC/DAC conversion vectors |
+| `unit/test_pitch` | representative ADC/DAC conversion vectors plus explicit ADC offset-before-gain and DAC gain-before-offset calibration, rounding and clipping |
 | `unit/test_pitch_exhaustive` | exhaustive monotonic ADC/DAC transfer functions |
 | `unit/test_buttons` | button and long-press state machines |
 | `unit/test_ladder_boundaries` | exact ladder values, plausibility windows, invalid gaps, calibration and 64 ms debounce boundary |
@@ -181,7 +181,7 @@ The complete acceptance-criterion mapping is maintained in [docs/testing/require
 
 ## Coverage regression policy
 
-Source coverage is now guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The requirement-driven 254-test reference measurement is approximately **95.7% lines / 80.3% branches**; GitHub Actions remains authoritative for the exact reported values.
+Source coverage is now guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The current independent 32-suite / 271-test GCC/gcov reference measurement is approximately **95.94% lines / 81.13% branches**; GitHub Actions/gcovr remains authoritative for the exact enforced values.
 
 The floor is deliberately below the reference so minor compiler/gcovr accounting differences do not create noise, but it is high enough to catch a material loss of exercised production paths. Lowering the floor just to make a change pass is not an accepted fix. See [docs/testing/coverage.md](docs/testing/coverage.md).
 
