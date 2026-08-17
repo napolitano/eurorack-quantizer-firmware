@@ -519,7 +519,7 @@ test/
 
 The native suite currently contains **32 independently runnable suites and 271 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behaviour including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy, [the requirements traceability matrix](docs/testing/requirements-traceability.md), and [the native coverage policy](docs/testing/coverage.md). AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
 
-The AVR CI also enforces an engineering resource budget. The application-flash limit is **92.5% of the 30,720-byte Nano application space** and the static-SRAM limit is **70% of 2 KB**.
+The AVR CI also enforces an engineering resource budget. The application-flash limit is **95% of the 30,720-byte Nano application space (29,184 bytes)** and the static-SRAM limit is **70% of 2 KB**.
 
 Release history is maintained in [CHANGELOG.md](CHANGELOG.md).
 

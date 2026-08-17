@@ -67,7 +67,7 @@ python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328new/firmware
 python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328/firmware.elf
 ```
 
-The current engineering limits are 92.5% of the 30,720-byte application-flash budget and 70% of the 2 KB static-SRAM budget.
+The current engineering limits are 95% of the 30,720-byte application-flash budget (29,184 bytes) and 70% of the 2 KB static-SRAM budget.
 
 ## Coding requirements
 

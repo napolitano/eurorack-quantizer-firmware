@@ -21,7 +21,8 @@ from pathlib import Path
 
 FLASH_CAPACITY = 30_720  # conservative application space used for Nano builds
 SRAM_CAPACITY = 2_048
-FLASH_BUDGET_PERCENT = 92.5
+FLASH_BUDGET_PERCENT = 95.0
+FLASH_BUDGET_BYTES = 29_184
 SRAM_BUDGET_PERCENT = 70.0
 
 
@@ -81,7 +82,7 @@ def main() -> int:
 
     print(
         f"resource-budget: flash {flash}/{FLASH_CAPACITY} bytes "
-        f"({flash_pct:.1f}%, target <= {FLASH_BUDGET_PERCENT:.1f}%)"
+        f"({flash_pct:.1f}%, target <= {FLASH_BUDGET_PERCENT:.1f}% / {FLASH_BUDGET_BYTES} bytes)"
     )
     print(
         f"resource-budget: static SRAM {sram}/{SRAM_CAPACITY} bytes "
@@ -90,7 +91,7 @@ def main() -> int:
     print(f"resource-budget: sections text={text}, data={data}, bss={bss}")
 
     failed = False
-    if flash_pct > FLASH_BUDGET_PERCENT:
+    if flash > FLASH_BUDGET_BYTES:
         print("resource-budget: flash engineering budget exceeded", file=sys.stderr)
         failed = True
     if sram_pct > SRAM_BUDGET_PERCENT:

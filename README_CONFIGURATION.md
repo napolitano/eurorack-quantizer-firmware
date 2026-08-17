@@ -206,7 +206,7 @@ The shared `AsyncEepromWriter` queue is sized for the largest current atomic tra
 
 PlatformIO still enforces the board's absolute program/RAM capacity. CI adds a deliberately more conservative engineering gate through `scripts/check_avr_resource_budget.py`:
 
-- application flash target: at most 92.5% of 30,720 bytes;
+- application flash target: at most 95% of 30,720 bytes (29,184 bytes);
 - static SRAM target: at most 70% of 2,048 bytes.
 
 The check counts `.data` in both flash and SRAM, because AVR initialised data consumes flash storage and is copied into SRAM at startup. The aim is to preserve room for stack/interrupt activity and future maintenance rather than treating the last byte of the MCU as usable feature budget.

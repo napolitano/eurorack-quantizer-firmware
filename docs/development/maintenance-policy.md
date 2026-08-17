@@ -24,13 +24,13 @@ The normal AVR builds are subject to the repository engineering gates:
 
 | Resource | Engineering limit |
 |---|---:|
-| Application flash | **92.5% of 30,720 bytes** |
+| Application flash | **95% of 30,720 bytes (29,184 bytes)** |
 | Static SRAM | **70% of 2,048 bytes** |
 
 The gate is a ceiling, not a target. Remaining headroom is primarily reserved for defect corrections, persistence migrations, compiler/toolchain changes and genuinely useful refinements.
 
 > [!WARNING]
-> Large new runtime features are effectively under a feature freeze. A feature that materially increases flash use needs a clear user-facing justification and an explicit before/after resource comparison. Passing the 92.5% gate alone is not sufficient justification.
+> Large new runtime features are effectively under a feature freeze. A feature that materially increases flash use needs a clear user-facing justification and an explicit before/after resource comparison. Passing the 95% gate alone is not sufficient justification.
 
 Refactoring is held to the same standard. Avoid broad cleanups when they increase code size, timing risk or regression surface without a concrete maintenance benefit.
 

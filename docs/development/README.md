@@ -439,7 +439,7 @@ python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328/firmware.el
 
 Current engineering gates:
 
-- application flash: no more than **92.5% of 30,720 bytes**;
+- application flash: no more than **95% of 30,720 bytes (29,184 bytes)**;
 - static SRAM: no more than **70% of 2,048 bytes**.
 
 These are engineering headroom limits, not alternative MCU capacities.

@@ -128,7 +128,7 @@ The native build is compiled with:
 -Wpedantic
 ```
 
-A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 92.5% of the 30,720-byte application-flash budget and no more than 70% of the ATmega328P's 2 KB static SRAM.
+A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 95% of the 30,720-byte application-flash budget (29,184 bytes) and no more than 70% of the ATmega328P's 2 KB static SRAM.
 
 ## Running tests locally
 
