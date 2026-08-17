@@ -20,12 +20,6 @@ namespace {
 
 constexpr uint8_t kChannelA = 0;
 
-struct LinearCalibration {
-  int32_t offset;
-  uint32_t gainNumerator;
-  uint32_t gainDenominator;
-};
-
 LinearCalibration inputCalibrationFor(uint8_t channel) {
   if (channel == kChannelA) {
     return {config::kAdcOffsetA, config::kAdcGainNumeratorA,
@@ -44,33 +38,44 @@ LinearCalibration outputCalibrationFor(uint8_t channel) {
           config::kDacGainDenominatorB};
 }
 
-int32_t applyInputCalibration(uint16_t rawAdc, const LinearCalibration &cal) {
-  int32_t corrected = static_cast<int32_t>(rawAdc) + cal.offset;
+}  // namespace
+
+uint16_t applyAdcCalibration(uint16_t rawAdc,
+                             const LinearCalibration &calibration) {
+  int32_t corrected = static_cast<int32_t>(rawAdc) + calibration.offset;
   corrected = clampInt<int32_t>(corrected, 0, config::kAdcMaximumCode);
 
   const uint32_t scaled =
-      (static_cast<uint32_t>(corrected) * cal.gainNumerator +
-       cal.gainDenominator / 2u) /
-      cal.gainDenominator;
-  return clampInt<int32_t>(static_cast<int32_t>(scaled), 0,
-                           config::kAdcMaximumCode);
+      (static_cast<uint32_t>(corrected) * calibration.gainNumerator +
+       calibration.gainDenominator / 2u) /
+      calibration.gainDenominator;
+  return static_cast<uint16_t>(clampInt<int32_t>(
+      static_cast<int32_t>(scaled), 0, config::kAdcMaximumCode));
 }
 
-int32_t applyOutputCalibration(int32_t rawDacCode,
-                               const LinearCalibration &cal) {
+uint16_t applyDacCalibration(int32_t rawDacCode,
+                             const LinearCalibration &calibration) {
+  const int32_t clampedRaw =
+      clampInt<int32_t>(rawDacCode, 0, config::kDacMaximumCode);
   const uint32_t scaled =
-      (static_cast<uint32_t>(rawDacCode) * cal.gainNumerator +
-       cal.gainDenominator / 2u) /
-      cal.gainDenominator;
-  return clampInt<int32_t>(static_cast<int32_t>(scaled) + cal.offset, 0,
-                           config::kDacMaximumCode);
+      (static_cast<uint32_t>(clampedRaw) * calibration.gainNumerator +
+       calibration.gainDenominator / 2u) /
+      calibration.gainDenominator;
+  return static_cast<uint16_t>(clampInt<int32_t>(
+      static_cast<int32_t>(scaled) + calibration.offset, 0,
+      config::kDacMaximumCode));
 }
 
-}  // namespace
+uint16_t calibratedAdcCode(uint16_t rawAdc, uint8_t channel) {
+  return applyAdcCalibration(rawAdc, inputCalibrationFor(channel));
+}
+
+uint16_t calibratedDacCode(int32_t rawDacCode, uint8_t channel) {
+  return applyDacCalibration(rawDacCode, outputCalibrationFor(channel));
+}
 
 SemitoneQ8_8 adcToSemitones(uint16_t adcValue, uint8_t channel) {
-  const LinearCalibration calibration = inputCalibrationFor(channel);
-  const int32_t calibratedAdc = applyInputCalibration(adcValue, calibration);
+  const int32_t calibratedAdc = calibratedAdcCode(adcValue, channel);
   const int32_t maximumPitchQ8_8 =
       static_cast<int32_t>(config::kPitchRangeSemitones) * kSemitoneOneQ8_8;
 
@@ -89,8 +94,7 @@ uint16_t semitonesToDac(SemitoneQ8_8 semitones, uint8_t channel) {
   const int32_t rawDacCode =
       (clampedPitch * config::kDacMaximumCode + maximumPitchQ8_8 / 2) /
       maximumPitchQ8_8;
-  const LinearCalibration calibration = outputCalibrationFor(channel);
-  return static_cast<uint16_t>(applyOutputCalibration(rawDacCode, calibration));
+  return calibratedDacCode(rawDacCode, channel);
 }
 
 }  // namespace fmq

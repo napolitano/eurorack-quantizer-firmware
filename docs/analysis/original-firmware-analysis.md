@@ -150,6 +150,21 @@ The latter appears to win, so the effective ADC reference is AVCC. This is less 
 
 The reimplementation should choose the reference once, at board/profile level, and document that choice.
 
+### The upstream signal path has no software ADC/DAC gain or offset calibration
+
+The original Quantizer firmware reads the filtered 10-bit CV ADC values, shifts them into its fixed-point representation and passes them directly through `adc_to_semitones()`. That helper performs the linear pitch mapping; there is no per-channel ADC offset or gain correction before it. The source even notes the small full-scale representation mismatch introduced by the 10-bit-to-`I1F15` shift.
+
+The output side is equally direct. `semitones_to_dac()` converts the final semitone value into a 12-bit code and passes that code to `fm_lib::mcp4922::MCP4922::write()`. The shared MCP4922 driver packs the supplied 12-bit value into the SPI frame; it does not apply a second gain or offset transform.
+
+A source search of the upstream Quantizer `main.rs` also shows no boot-time calibration console. This is not a defect in the original project; it simply defines a different calibration boundary. Quinn Freedman's implementation relies on the analogue hardware and the nominal linear conversion, whereas the C++ firmware adds explicit per-channel software correction and a RAW/CAL console so assembled modules can be characterized and compensated without changing the PCB.
+
+For that reason, `AnalogConfig.h` offset/numerator/denominator semantics are specific to this reimplementation and should not be inferred from the upstream Rust code. The upstream implementation remains the reference for the original hardware and intentional product behaviour, while the software calibration layer is documented as an explicit extension.
+
+Reference paths rechecked on upstream `main` on **2026-08-17**:
+
+- `modules/Quantizer/Firmware/src/main.rs` — ADC-to-semitone conversion and semitone-to-DAC conversion
+- `fm-lib/src/mcp4922.rs` — direct packing/writing of the supplied DAC code
+
 ### Exactly simultaneous SAVE+LOAD long presses can fall through the state-machine gap
 
 The erase gesture is recognized using combinations such as one button being "held long" while the other is "just clicked long". If both debouncers change state in exactly the same processing step, there is a plausible path where the intended combination is missed.

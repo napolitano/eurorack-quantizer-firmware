@@ -14,6 +14,7 @@ A new section should be added when a release version is explicitly declared. Eac
 
 ### Fixed
 
+- Made the boot-time analogue calibration console explicitly distinguish RAW hardware measurements from CAL runtime-corrected values. ADC reads now show both views, active ADC/DAC correction constants can be inspected in-console, and calibrated DAC min/mid/max verification reuses the exact production correction helpers while the existing raw diagnostic commands remain available. Regression coverage now fixes the ADC offset-before-gain and DAC gain-before-offset order, non-unity gain rounding, clipping, and the shared runtime calibration wrappers. Calibration documentation now also makes explicit that Quinn Freedman's original firmware has no equivalent per-channel software ADC/DAC gain/offset layer or calibration console; these are documented extensions of this implementation.
 - Fixed CI checkout validation for frozen EEPROM golden fixtures by explicitly tracking `test/fixtures/persistence/*.bin` despite the repository-wide `*.bin` build-artifact ignore rule.
 
 ### Added
@@ -52,7 +53,7 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 - Added `README_ARPEGGIATOR.md` as the complete second-layer operation, parameter, sync, persistence and testing reference.
 - Added an AVR resource-budget CI gate to preserve engineering headroom for flash and static SRAM.
 - Applied the same AVR flash/SRAM resource-budget gate to tagged release builds so published Nano artifacts cannot bypass the engineering limits enforced by CI.
-- Raised the ATmega328P application-flash engineering budget from 85% to 92.5% of the 30,720-byte Nano application space; the static-SRAM budget remains unchanged at 70% of 2 KB.
+- Raised the ATmega328P application-flash engineering budget from 85% to 95% of the 30,720-byte Nano application space (29,184 bytes); the static-SRAM budget remains unchanged at 70% of 2 KB.
 - Added dedicated per-channel Arpeggiator state and regression coverage for A-only, B-only and linked operation.
 - Added live green/red/amber comparison feedback to LED brightness calibration so colour balance and the resulting amber mix can be judged while either emitter is adjusted.
 - Added regression coverage for the calibration comparison view, calibration colour selection and the 1500 ms startup note-ring duration ceiling.

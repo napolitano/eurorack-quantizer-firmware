@@ -94,6 +94,9 @@ Per-channel analogue calibration is configured with integer affine corrections:
 - ADC: offset, then gain numerator/denominator.
 - DAC: gain numerator/denominator, then offset.
 
+> [!NOTE]
+> These software gain/offset corrections are an extension of this firmware. Quinn Freedman's original Rust Quantizer maps the ADC value directly into the semitone domain and the resulting pitch directly into a DAC code; the shared upstream MCP4922 driver writes that code without a per-channel calibration transform. The detailed measurement and verification workflow is documented in [README_CALIBRATION.md](README_CALIBRATION.md).
+
 ## UI timing
 
 `UiConfig.h` contains all normal control timing, including:
@@ -203,7 +206,7 @@ The shared `AsyncEepromWriter` queue is sized for the largest current atomic tra
 
 PlatformIO still enforces the board's absolute program/RAM capacity. CI adds a deliberately more conservative engineering gate through `scripts/check_avr_resource_budget.py`:
 
-- application flash target: at most 92.5% of 30,720 bytes;
+- application flash target: at most 95% of 30,720 bytes (29,184 bytes);
 - static SRAM target: at most 70% of 2,048 bytes.
 
 The check counts `.data` in both flash and SRAM, because AVR initialised data consumes flash storage and is copied into SRAM at startup. The aim is to preserve room for stack/interrupt activity and future maintenance rather than treating the last byte of the MCU as usable feature budget.

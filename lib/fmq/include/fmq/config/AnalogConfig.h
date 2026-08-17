@@ -50,6 +50,11 @@ constexpr bool kAdcUseMedianFilter = true;
 constexpr bool kDiscardFirstAdcReadAfterMuxChange = true;
 constexpr uint16_t kAdcMaximumCode = 1023;
 constexpr uint16_t kDacMaximumCode = 4095;
+
+// Per-channel analogue correction. ADC calibration applies offset first and
+// gain second: (raw + offset) * numerator / denominator. DAC calibration uses
+// gain first and offset second: raw * numerator / denominator + offset. Both
+// paths round to nearest and clamp to their physical converter ranges.
 constexpr int16_t kAdcOffsetA = 0, kAdcOffsetB = 0;
 constexpr uint16_t kAdcGainNumeratorA = 1, kAdcGainDenominatorA = 1;
 constexpr uint16_t kAdcGainNumeratorB = 1, kAdcGainDenominatorB = 1;

@@ -12,11 +12,11 @@ Native source coverage is used as a **regression signal**, not as a substitute f
 
 ## Current reference
 
-After the requirement-driven and maturity-oriented expansion, an independent GCC/gcov verification of the complete 32-suite / 265-test host set measured approximately:
+After the requirement-driven and maturity-oriented expansion, an independent GCC/gcov verification of the complete 32-suite / 271-test host set measured approximately:
 
 | Metric | Reference |
 |---|---:|
-| Line coverage | **95.93%** |
+| Line coverage | **95.94%** |
 | Branch coverage | **81.13%** |
 
 > [!NOTE]

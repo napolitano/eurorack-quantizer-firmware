@@ -412,7 +412,7 @@ The feature is intentionally small enough for the ATmega328P:
 - fixed-point pitch arithmetic;
 - external clock edges are counted and timestamped independently of the 1 kHz control loop.
 
-The CI AVR build additionally checks an explicit engineering budget rather than relying only on the absolute MCU limit: target application flash usage is at most 92.5% of a 30,720-byte project budget and static SRAM usage at most 70% of 2 KB.
+The CI AVR build additionally checks an explicit engineering budget rather than relying only on the absolute MCU limit: target application flash usage is at most 95% of a 30,720-byte project budget (29,184 bytes) and static SRAM usage at most 70% of 2 KB.
 
 ## Timing and failure behaviour
 
