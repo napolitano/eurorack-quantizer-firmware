@@ -12,14 +12,36 @@ A new section should be added when a release version is explicitly declared. Eac
 
 ## Unreleased
 
+## 0.2.1 — 2026-08-17
+
+### Release summary
+
+Version 0.2.1 is a maintenance and calibration-verification patch for the 0.2.x firmware line, with no hardware changes and no intentional change to the musical Quantizer/Arpeggiator workflow.
+The boot-time calibration console now distinguishes RAW hardware measurements from CAL runtime-corrected values, exposes the active analogue correction constants and can verify calibrated DAC test points through the same production helpers used during normal operation.
+Verification has been expanded to 32 independently runnable native suites / 271 test cases, including deterministic property checks, sanitizer execution, machine-checked requirement traceability, frozen EEPROM compatibility fixtures and explicit EEPROM-wear tests.
+Release engineering now includes pinned build inputs, recorded build provenance, a dedicated real-hardware timing-qualification image/protocol and a 95% AVR application-flash engineering ceiling while retaining the 70% static-SRAM ceiling.
+The persistence-fixture checkout regression is fixed so the binary golden images required by CI are intentionally tracked despite the repository-wide build-artifact ignore rule.
+The existing 0.2.0 user manual remains compatible and is reused automatically by the release workflow; detailed RAW/CAL calibration procedure changes are documented in the firmware calibration guide.
+
 ### Fixed
 
-- Made the boot-time analogue calibration console explicitly distinguish RAW hardware measurements from CAL runtime-corrected values. ADC reads now show both views, active ADC/DAC correction constants can be inspected in-console, and calibrated DAC min/mid/max verification reuses the exact production correction helpers while the existing raw diagnostic commands remain available. Regression coverage now fixes the ADC offset-before-gain and DAC gain-before-offset order, non-unity gain rounding, clipping, and the shared runtime calibration wrappers. Calibration documentation now also makes explicit that Quinn Freedman's original firmware has no equivalent per-channel software ADC/DAC gain/offset layer or calibration console; these are documented extensions of this implementation.
+- Made the boot-time analogue calibration console explicitly distinguish RAW hardware measurements from CAL runtime-corrected values. ADC reads now show both views, active ADC/DAC correction constants can be inspected in-console, and calibrated DAC min/mid/max verification reuses the exact production correction helpers while the existing raw diagnostic commands remain available. Regression coverage fixes the ADC offset-before-gain and DAC gain-before-offset order, non-unity gain rounding, clipping, and the shared runtime calibration wrappers. Calibration documentation also makes explicit that Quinn Freedman's original firmware has no equivalent per-channel software ADC/DAC gain/offset layer or calibration console; these are documented extensions of this implementation.
 - Fixed CI checkout validation for frozen EEPROM golden fixtures by explicitly tracking `test/fixtures/persistence/*.bin` despite the repository-wide `*.bin` build-artifact ignore rule.
 
 ### Added
 
-- Expanded requirement-driven verification from 237 to 254 native test cases with complete 12-note UI mapping, all 12 scale/full-config slot round-trips, linked/unlinked LED and scale-load semantics, exact simultaneous erase handling, Arpeggiator sanitization/swing-clock boundaries, UI-gesture reset handling and additional persistence validation. Added machine-checked acceptance-criterion traceability plus CI/release coverage regression gates at 92% line and 70% branch coverage for the portable production core.
+- Expanded the default native verification set from 29 suites / 237 tests to **32 suites / 271 tests**. The added hardening includes deterministic property/invariant checks, complete note/slot/parameter matrices, EEPROM compatibility and wear tests, calibration rounding/clipping cases, plus additional UI, persistence, clock and linked-channel regression coverage.
+- Added AddressSanitizer/UndefinedBehaviorSanitizer host execution, machine-checked requirement traceability for all 20 acceptance criteria, and native coverage regression gates at 92% line / 70% branch coverage.
+- Added frozen current/legacy EEPROM golden fixtures so supported persistent formats are loaded and migrated against known byte-for-byte images rather than only records produced by the current implementation.
+- Added a documented EEPROM-wear audit and explicit write-distribution/same-value-suppression tests for the versioned asynchronous persistence paths.
+- Added a dedicated non-release `nanoatmega328new_timing` image and oscilloscope qualification procedure. D1/TX measures scheduler-to-control-cycle completion so real ATmega328P deadline margin can be verified without adding instrumentation to normal release firmware.
+- Added a versioned hardware-release qualification protocol covering functional behaviour, timing/clock capture, analogue tracking, channel isolation, trigger levels, persistence/update retention and both Nano bootloader variants.
+- Added pinned CI/build inputs, release `BUILD-INFO.txt` provenance metadata and reproducible-build documentation; Dependabot now keeps the pinned GitHub Actions and Python CI dependencies reviewable.
+
+### Changed
+
+- Raised the ATmega328P application-flash engineering ceiling from **92.5% to 95%** of the 30,720-byte Nano application space, i.e. from 28,416 to **29,184 bytes**. The hard application limit remains 30,720 bytes and the static-SRAM engineering ceiling remains **70% of 2,048 bytes**.
+- Tightened first-party native compilation with `-Werror -Wconversion -Wsign-conversion -Wshadow -Wpedantic` in addition to the existing warning set; warnings uncovered during hardening were corrected without intentional runtime behaviour changes.
 
 ## 0.2.0 — 2026-08-09
 
@@ -53,7 +75,7 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 - Added `README_ARPEGGIATOR.md` as the complete second-layer operation, parameter, sync, persistence and testing reference.
 - Added an AVR resource-budget CI gate to preserve engineering headroom for flash and static SRAM.
 - Applied the same AVR flash/SRAM resource-budget gate to tagged release builds so published Nano artifacts cannot bypass the engineering limits enforced by CI.
-- Raised the ATmega328P application-flash engineering budget from 85% to 95% of the 30,720-byte Nano application space (29,184 bytes); the static-SRAM budget remains unchanged at 70% of 2 KB.
+- Raised the ATmega328P application-flash engineering budget from 85% to 92.5% of the 30,720-byte Nano application space (28,416 bytes); the static-SRAM budget remains unchanged at 70% of 2 KB.
 - Added dedicated per-channel Arpeggiator state and regression coverage for A-only, B-only and linked operation.
 - Added live green/red/amber comparison feedback to LED brightness calibration so colour balance and the resulting amber mix can be judged while either emitter is adjusted.
 - Added regression coverage for the calibration comparison view, calibration colour selection and the 1500 ms startup note-ring duration ceiling.
