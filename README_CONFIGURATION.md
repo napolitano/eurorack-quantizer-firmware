@@ -94,6 +94,9 @@ Per-channel analogue calibration is configured with integer affine corrections:
 - ADC: offset, then gain numerator/denominator.
 - DAC: gain numerator/denominator, then offset.
 
+> [!NOTE]
+> These software gain/offset corrections are an extension of this firmware. Quinn Freedman's original Rust Quantizer maps the ADC value directly into the semitone domain and the resulting pitch directly into a DAC code; the shared upstream MCP4922 driver writes that code without a per-channel calibration transform. The detailed measurement and verification workflow is documented in [README_CALIBRATION.md](README_CALIBRATION.md).
+
 ## UI timing
 
 `UiConfig.h` contains all normal control timing, including:
