@@ -30,4 +30,3 @@ coverage.html
 # Python bytecode/cache artifacts
 __pycache__/
 *.py[cod]
-.vscode/
