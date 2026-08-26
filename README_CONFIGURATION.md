@@ -89,13 +89,15 @@ The original PCB uses the proven Rust ladder values
 
 The AVR ADC scanner runs interrupt-driven at 125 kHz (prescaler 128), explicitly starts conversions, discards the first conversion after a MUX change and uses a median-of-three filter to match the effective Rust `fm-lib` behaviour.
 
-Per-channel analogue calibration is configured with integer affine corrections:
+Per-channel analogue calibration uses integer affine corrections:
 
 - ADC: offset, then gain numerator/denominator.
 - DAC: gain numerator/denominator, then offset.
 
+`AnalogConfig.h` defines the **factory/fallback** profile only. On boot, a valid persistent `CalibrationProfile` from the redundant EEPROM calibration journal takes precedence. The boot-time maintenance console can edit the active profile in RAM, save/reload it, restore the factory profile, and perform verified per-channel DAC loopback self-calibration without recompiling firmware.
+
 > [!NOTE]
-> These software gain/offset corrections are an extension of this firmware. Quinn Freedman's original Rust Quantizer maps the ADC value directly into the semitone domain and the resulting pitch directly into a DAC code; the shared upstream MCP4922 driver writes that code without a per-channel calibration transform. The detailed measurement and verification workflow is documented in [README_CALIBRATION.md](README_CALIBRATION.md).
+> These software gain/offset corrections are an extension of this firmware. Quinn Freedman's original Rust Quantizer maps the ADC value directly into the semitone domain and the resulting pitch directly into a DAC code; the shared upstream MCP4922 driver writes that code without a per-channel calibration transform. The detailed measurement, persistence and loopback workflow is documented in [README_CALIBRATION.md](README_CALIBRATION.md).
 
 ## UI timing
 
@@ -196,7 +198,9 @@ The per-channel persistent configuration contains enable, rate/clock ratio, patt
 
 Scale slots remain compact scale-only records. A full-configuration payload is 32 bytes and contains the Quantizer state, both Arpeggiator configurations, the selected channel and the active Quantizer/Arpeggiator UI layer. The layer uses a spare bit in the selected-channel byte, so the payload size does not grow. Full-configuration records are versioned and CRC-protected. New writes use save-format v5; v4 scale/config records remain readable for in-place firmware upgrades.
 
-The live-state record additionally stores the two-byte LED brightness calibration. The current layout leaves a wear-levelled ring of 12 live-state records before the final startup-sequence metadata byte. The validity marker is committed last.
+The live-state record additionally stores the two-byte LED brightness calibration. Firmware 0.2.2 uses **11 × 42-byte** wear-levelled live-state records at EEPROM bytes 504…965. Byte 966 is retained as the former twelfth-slot marker for upgrade detection. Two **28-byte** redundant analogue-calibration records occupy bytes 967…1022, and byte 1023 remains the startup-sequence metadata. Record validity markers are committed last.
+
+A <=0.2.1 image may have its newest live state in the former twelfth slot beginning at byte 966. 0.2.2 still scans that record and migrates it into the eleven-slot ring before the overlapping tail bytes are reused by the calibration journal.
 
 `PersistenceConfig.h::kLiveAutosaveQuiescenceMs` is currently 3000 ms. A front-panel configuration change marks live state dirty; once no further change has occurred for that interval and the shared EEPROM writer is idle, the complete state is queued asynchronously. Runtime phase, current Arpeggiator step and current Glide position are not serialized. The UI layer **is** serialized in both full configurations and live state so the front-panel function map matches the restored Arpeggiator status after preset loads and reboot. A legacy record with an enabled Arpeggiator but no layer bit is migrated to the Arpeggiator layer.
 

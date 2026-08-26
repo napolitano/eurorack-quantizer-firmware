@@ -55,7 +55,10 @@ bool LiveStateStore::load(LiveState &out) {
   uint16_t bestIndex = 0u;
   uint8_t bestVersion = 0u;
 
-  for (uint16_t i = 0; i < kLiveSlotCount; ++i) {
+  // Scan the eleven current slots plus the former twelfth slot used by
+  // firmware <=0.2.1. The extra record overlaps the new calibration payload
+  // region, so it remains valid only until calibration data is first stored.
+  for (uint16_t i = 0; i < kPreviousLiveSlotCount; ++i) {
     uint32_t seq = 0u;
     uint8_t version = 0u;
     if (readRecord(eeprom_, slotAddress(i), buffer, seq, version) &&
@@ -110,8 +113,18 @@ bool LiveStateStore::load(LiveState &out) {
   if (!validBrightness(out.brightness.greenStep)) {
     out.brightness.greenStep = BrightnessCalibration::kUseLegacyDefault;
   }
-  head_ = bestIndex;
+  const bool loadedLegacyExtraSlot = bestIndex >= kLiveSlotCount;
+  head_ = loadedLegacyExtraSlot
+              ? static_cast<uint16_t>(kLiveSlotCount - 1u)
+              : bestIndex;
   seq_ = bestSeq;
+
+  if (loadedLegacyExtraSlot) {
+    // Preserve a newest <=0.2.1 record before the overlapping bytes are ever
+    // reused by CalibrationStore. The old record remains untouched until this
+    // asynchronous migration has fully committed, so a power loss is safe.
+    (void)commit(out.configuration, out.brightness, out.uiLayer);
+  }
   return true;
 }
 

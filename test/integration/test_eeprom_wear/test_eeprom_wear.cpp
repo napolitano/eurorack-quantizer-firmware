@@ -21,7 +21,7 @@ using namespace fmqtest;
 void setUp() {}
 void tearDown() {}
 
-static void test_twenty_four_live_commits_are_evenly_wear_levelled(void) {
+static void test_two_full_live_ring_cycles_are_evenly_wear_levelled(void) {
   FakeEeprom eeprom;
   AsyncEepromWriter writer(eeprom);
   LiveStateStore live(eeprom, writer);
@@ -30,7 +30,7 @@ static void test_twenty_four_live_commits_are_evenly_wear_levelled(void) {
   eeprom.resetWriteCount();
 
   StoredConfiguration state;
-  for (uint8_t commit = 0u; commit < 24u; ++commit) {
+  for (uint8_t commit = 0u; commit < static_cast<uint8_t>(2u * kLiveSlotCount); ++commit) {
     state.selectedChannelIndex = static_cast<uint8_t>(commit & 1u);
     state.quantizer.channels[kChannelAIndex].config().glideAmount =
         static_cast<uint8_t>(commit % 12u);
@@ -43,7 +43,7 @@ static void test_twenty_four_live_commits_are_evenly_wear_levelled(void) {
     live.flush();
   }
 
-  TEST_ASSERT_EQUAL_UINT32(24u, live.currentSequence());
+  TEST_ASSERT_EQUAL_UINT32(2u * kLiveSlotCount, live.currentSequence());
   for (uint16_t slot = 0u; slot < kLiveSlotCount; ++slot) {
     const uint16_t base = static_cast<uint16_t>(
         kLiveRingBase + slot * kLiveSlotSize);
@@ -86,7 +86,7 @@ static void test_startup_sequence_rewriting_same_value_does_not_add_wear(void) {
 
 int main(void) {
   UNITY_BEGIN();
-  RUN_TEST(test_twenty_four_live_commits_are_evenly_wear_levelled);
+  RUN_TEST(test_two_full_live_ring_cycles_are_evenly_wear_levelled);
   RUN_TEST(test_eeprom_double_write_is_suppressed_for_unchanged_byte);
   RUN_TEST(test_startup_sequence_rewriting_same_value_does_not_add_wear);
   return UNITY_END();

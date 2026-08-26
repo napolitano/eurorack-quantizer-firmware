@@ -39,9 +39,7 @@ does not require a new manual unless user-visible behaviour has changed enough
 to justify one.
 
 For a tagged firmware release, the release workflow selects the **highest manual
-version that is not newer than the firmware version**. For example, firmware
-`0.2.1` reuses `quantizer-user-manual.0.2.0.odt` when no `0.2.1` manual exists.
-A newer manual is never attached to an older firmware release. If no compatible
+version that is not newer than the firmware version**. For example, firmware `0.2.1` reuses `quantizer-user-manual.0.2.0.odt` when no `0.2.1` manual exists, while firmware `0.2.2` selects the exact `quantizer-user-manual.0.2.2.odt`. A newer manual is never attached to an older firmware release. If no compatible
 manual exists at all, the firmware release continues and emits a workflow
 warning instead of failing.
 

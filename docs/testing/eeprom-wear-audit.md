@@ -26,10 +26,12 @@ The ATmega328P provides 1024 bytes of EEPROM. Microchip specifies EEPROM enduran
 |---|---:|---|
 | Scale slots | 12 × 6 bytes | User scales |
 | Full-config slots | 12 × 36 bytes | User Full Configurations |
-| Live-state ring | 12 × 42 bytes | Wear-levelled working state + LED calibration |
+| Live-state ring | 11 × 42 bytes | Wear-levelled working state + LED calibration |
+| Legacy live marker | 1 byte at address 966 | Former 12th-slot marker retained for <=0.2.1 migration detection |
+| Analogue calibration | 2 × 28 bytes | Redundant ADC/DAC A/B affine profile journal with CRC16 |
 | Startup sequence | 1 byte at address 1023 | Next startup animation |
 
-The live ring begins at byte 504. Twelve complete 42-byte records fit before startup metadata, leaving a small unused gap.
+The live ring begins at byte 504 and occupies bytes 504…965. The former twelfth live slot began at byte 966; 0.2.2 still inspects it during upgrade migration. Calibration records use bytes 967…1022, and startup metadata remains at byte 1023.
 
 ## Write behavior
 
@@ -39,7 +41,7 @@ Live-state autosave is different: a relevant front-panel edit marks state dirty,
 
 ## Live-state worst case
 
-The ring contains 12 slots. A payload cell is revisited only after 12 live-state commits. The record-marker byte is the conservative limiting cell because on an already-used slot it can physically transition twice during a rewrite:
+The ring contains 11 slots. A payload cell is revisited only after 11 live-state commits. The record-marker byte is the conservative limiting cell because on an already-used slot it can physically transition twice during a rewrite:
 
 1. `0xA5 → 0xFF` to invalidate the old record;
 2. `0xFF → 0xA5` to commit the new record.
@@ -47,22 +49,22 @@ The ring contains 12 slots. A payload cell is revisited only after 12 live-state
 Using a conservative 100,000-cycle endurance figure per EEPROM byte, the marker-cell bound corresponds to approximately:
 
 ```text
-12 slots × 100,000 cycles / 2 marker writes ≈ 600,000 live-state commits
+11 slots × 100,000 cycles / 2 marker writes ≈ 550,000 live-state commits
 ```
 
-Other live-record bytes have a conservative upper bound of approximately 1.2 million ring commits before the same cell reaches 100,000 physical writes, and unchanged values are skipped entirely.
+Other live-record bytes have a conservative upper bound of approximately 1.1 million ring commits before the same cell reaches 100,000 physical writes, and unchanged values are skipped entirely.
 
-The theoretical absolute stress case of one persistent-state change followed by exactly 3 seconds of quiescence, continuously around the clock, would reach the marker-cell bound in roughly 21 days. That is intentionally an unrealistic abuse case, but it shows why the wear-levelled ring matters.
+The theoretical absolute stress case of one persistent-state change followed by exactly 3 seconds of quiescence, continuously around the clock, would reach the marker-cell bound in roughly 19 days. That is intentionally an unrealistic abuse case, but it shows why the wear-levelled ring matters.
 
 For perspective only:
 
-| Sustained live-state commits | Approx. time to 600k commits |
+| Sustained live-state commits | Approx. time to 550k commits |
 |---:|---:|
-| 10/day | 164 years |
-| 50/day | 33 years |
-| 100/day | 16.4 years |
-| 500/day | 3.3 years |
-| 1,000/day | 1.6 years |
+| 10/day | 151 years |
+| 50/day | 30 years |
+| 100/day | 15.1 years |
+| 500/day | 3.0 years |
+| 1,000/day | 1.5 years |
 
 > [!IMPORTANT]
 > These figures are arithmetic based on the conservative per-byte endurance figure and the current write algorithm. They are not predicted product lifetimes. Temperature, silicon variation, actual byte-change patterns, and usage all matter.
@@ -79,13 +81,17 @@ The startup-sequence selector uses one fixed EEPROM byte. With rotating startup 
 
 ### LED calibration
 
-LED calibration is carried inside the wear-levelled live state rather than assigned a repeatedly rewritten fixed byte.
+LED brightness calibration is carried inside the wear-levelled live state rather than assigned a repeatedly rewritten fixed byte.
+
+### Analogue ADC/DAC calibration
+
+The hardware-specific affine profile is stored only on an explicit console `:save` or after a successful verified loopback self-calibration. It uses two alternating 28-byte records. The destination marker is invalidated first and committed last, so the previous valid record remains the fallback until the replacement is complete. These writes are maintenance operations rather than periodic autosaves.
 
 ## Verification
 
 `integration/test_eeprom_wear` instruments the EEPROM test double with per-address physical-write counters. It verifies that:
 
-- 24 consecutive live-state commits visit every one of the 12 live slots exactly twice;
+- 22 consecutive live-state commits visit every one of the 11 live slots exactly twice;
 - each live marker receives the expected three physical writes across those two visits;
 - non-marker live bytes receive no more than two writes;
 - no unrelated EEPROM region is touched;
@@ -96,7 +102,7 @@ This makes the arithmetic above a checked property of the current implementation
 
 ## Conclusion
 
-The current live-state design is appropriate for normal musical use: it combines a 3-second quiescence delay, a 12-record ring, asynchronous byte writes, and unchanged-byte suppression. No EEPROM algorithm change is justified by the audit at this time.
+The current live-state design is appropriate for normal musical use: it combines a 3-second quiescence delay, an 11-record ring, asynchronous byte writes, and unchanged-byte suppression. No EEPROM algorithm change is justified by the audit at this time.
 
 A future change that increases autosave frequency, reduces the ring, or writes fixed metadata more often must update this audit and its tests.
 

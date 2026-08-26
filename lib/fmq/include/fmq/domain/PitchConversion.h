@@ -15,22 +15,9 @@
 #include <stdint.h>
 
 #include "fmq/domain/FixedPoint.h"
+#include "fmq/domain/CalibrationProfile.h"
 
 namespace fmq {
-
-/**
- * Integer affine calibration used by the analogue input and output paths.
- *
- * ADC calibration applies @p offset before the gain ratio. DAC calibration
- * applies the gain ratio before @p offset. The public helpers below expose
- * those exact runtime operations so diagnostics can verify the same path
- * without duplicating the arithmetic.
- */
-struct LinearCalibration {
-  int32_t offset;
-  uint16_t gainNumerator;
-  uint16_t gainDenominator;
-};
 
 /**
  * Apply an ADC calibration to a raw 10-bit code.

@@ -5,7 +5,7 @@ This guide describes the practical calibration workflow for the Free Modular Qua
 > [!IMPORTANT]
 > Calibration values are hardware-specific. Do not copy another build's LED, CV, DAC, or ladder values blindly; measure the actual module and verify the result electrically and musically.
 
-The firmware does not invent analogue correction values. Measurements should be taken on the real module and then transferred into the corresponding configuration constants.
+The firmware does not invent analogue correction values. Measurements are taken on the real module and stored as a persistent affine calibration profile. `AnalogConfig.h` supplies factory/fallback values only; a valid EEPROM profile takes precedence at boot.
 
 ## Contents
 
@@ -16,9 +16,10 @@ The firmware does not invent analogue correction values. Measurements should be 
 - [3. Resistor-ladder verification](#3-resistor-ladder-verification)
 - [4. CV input calibration](#4-cv-input-calibration)
 - [5. DAC output calibration](#5-dac-output-calibration)
-- [6. Musical verification](#6-musical-verification)
-- [7. Automatic ladder-rest check](#7-automatic-ladder-rest-check)
-- [8. Runtime diagnostics](#8-runtime-diagnostics)
+- [6. Loopback self-calibration](#6-loopback-self-calibration)
+- [7. Musical verification](#7-musical-verification)
+- [8. Automatic ladder-rest check](#8-automatic-ladder-rest-check)
+- [9. Runtime diagnostics](#9-runtime-diagnostics)
 - [Calibration checklist](#calibration-checklist)
 
 ## What you need
@@ -36,10 +37,10 @@ For higher-confidence verification, an oscilloscope and a precision voltage refe
 
 Quinn Freedman's original Rust firmware is the behavioural and hardware reference for this project, but it does **not** implement per-channel software offset/gain correction for the CV ADC inputs or MCP4922 DAC outputs. The upstream signal path converts the 10-bit ADC reading directly into the 0…120-semitone domain and converts the resulting semitone value directly into a 12-bit DAC code. The shared upstream `fm-lib` MCP4922 driver then writes the supplied DAC code without another calibration layer.
 
-The original firmware also does not contain the boot-time serial calibration console described in this document. `AnalogConfig.h`, the per-channel ADC/DAC affine corrections, and the RAW/CAL verification console are extensions of this C++/PlatformIO firmware.
+The original firmware also does not contain the boot-time serial calibration console described in this document. `AnalogConfig.h`, the per-channel ADC/DAC affine corrections, the redundant EEPROM calibration journal, the RAW/CAL verification console, and loopback self-calibration are extensions of this C++/PlatformIO firmware.
 
 > [!NOTE]
-> Do not try to derive `AnalogConfig.h` semantics from the upstream firmware: there are no equivalent offset/numerator/denominator constants there. Use the RAW measurements from this firmware to characterize the assembled hardware, then use CAL output to verify the correction applied by this firmware.
+> Do not try to derive `AnalogConfig.h` semantics from the upstream firmware: there are no equivalent offset/numerator/denominator constants there. In 0.2.2 these values are factory/fallback defaults. Use RAW measurements to characterize the assembled hardware, set the active calibration from the console, and persist it only after verification.
 
 Upstream reference sources:
 
@@ -109,15 +110,17 @@ Serial settings:
 
 - **115200 baud**
 
-The console prints the active ADC/DAC calibration constants when it starts and deliberately distinguishes two signal paths:
+The console prints the active ADC/DAC calibration profile when it starts and deliberately distinguishes two signal paths:
 
-- **RAW** values are the uncorrected hardware ADC/DAC codes. Use them to derive offset and gain corrections.
-- **CAL** values pass through the exact same calibration helpers used by normal quantizer operation. Use them to verify the values compiled into `AnalogConfig.h`.
+- **RAW** values are uncorrected hardware ADC/DAC codes. Use them to characterize the assembled analogue path.
+- **CAL** values pass through the same calibration helpers used by normal quantizer operation. Use them to verify the active profile.
+
+A valid calibration profile is loaded from the redundant CRC16-protected EEPROM journal at boot. If no valid record exists, the factory values from `AnalogConfig.h` are used. Console edits affect RAM first; `:save` is the explicit persistence operation, except for a successful `:self a` / `:self b`, which verifies and saves automatically.
 
 > [!IMPORTANT]
-> Changing `AnalogConfig.h` does not change the **RAW** readings. That is intentional: RAW is the measurement of the hardware itself. Use the **CAL** view to confirm that the firmware correction is actually being applied.
+> `:defaults` restores the factory/fallback profile in RAM. It does **not** overwrite EEPROM until `:save` is issued. A full EEPROM erase removes the persistent ADC/DAC profile as well as the other EEPROM-backed state.
 
-Commands:
+Immediate commands:
 
 | Command | Function |
 |---|---|
@@ -127,12 +130,28 @@ Commands:
 | `z` | Set both DACs to **RAW** code 0 |
 | `m` | Set both DACs to **RAW** code 2048 |
 | `f` | Set both DACs to **RAW** code 4095 |
-| `Z` | Send nominal code 0 through the normal runtime DAC calibration and output the corrected codes |
-| `M` | Send nominal code 2048 through the normal runtime DAC calibration and output the corrected codes |
-| `F` | Send nominal code 4095 through the normal runtime DAC calibration and output the corrected codes |
+| `Z` | Send nominal code 0 through the active DAC calibration |
+| `M` | Send nominal code 2048 through the active DAC calibration |
+| `F` | Send nominal code 4095 through the active DAC calibration |
 | `[` / `]` | Decrement / increment DAC A by one **RAW** hardware code |
 | `{` / `}` | Decrement / increment DAC B by one **RAW** hardware code |
 | `?` | Print abbreviated help |
+
+Line commands:
+
+| Command | Function |
+|---|---|
+| `:show` | Print the complete active calibration profile |
+| `:adc a OFFSET NUM DEN` | Set Channel A ADC affine correction in RAM |
+| `:adc b OFFSET NUM DEN` | Set Channel B ADC affine correction in RAM |
+| `:dac a OFFSET NUM DEN` | Set Channel A DAC affine correction in RAM |
+| `:dac b OFFSET NUM DEN` | Set Channel B DAC affine correction in RAM |
+| `:save` | Atomically persist the active profile |
+| `:load` | Reload the newest valid persisted profile; fall back to factory values if none exists |
+| `:defaults` | Restore `AnalogConfig.h` factory/fallback values in RAM |
+| `:self a` | Run verified OUT A → IN A loopback self-calibration and save on success |
+| `:self b` | Run verified OUT B → IN B loopback self-calibration and save on success |
+| `:help` | Print line-command help |
 
 Example ADC output:
 
@@ -180,7 +199,7 @@ Do not change the original-board values merely to hide unstable hardware. Large 
 
 ## 4. CV input calibration
 
-The ADC path supports independent correction for Channel A and Channel B.
+The ADC path supports independent correction for Channel A and Channel B. The active ADC calibration is also the measurement reference used by loopback self-calibration, so it must be established against a trustworthy external voltage reference first.
 
 The normal runtime applies ADC calibration in this order:
 
@@ -205,10 +224,10 @@ CAL = clamp(round((RAW + offset) * numerator / denominator), 0, 1023)
 3. Apply a second accurate reference, preferably **5 V**.
 4. Record the second **RAW** ADC value.
 5. Derive the required offset and gain correction.
-6. Enter the values for Channel A in `AnalogConfig.h`.
-7. Rebuild and flash the firmware.
-8. Return to the console and use `r` or `s` to compare **RAW** and **CAL** values directly.
-9. Repeat independently for Channel B.
+6. Enter it with `:adc a OFFSET NUM DEN`.
+7. Use `r`, `s`, or `:show` to verify the correction before persistence.
+8. Persist the verified profile with `:save`.
+9. Repeat independently for Channel B with `:adc b ...`.
 
 For example, if Channel A measures:
 
@@ -230,7 +249,13 @@ gainNumerator   = 1023
 gainDenominator = 1006
 ```
 
-because `1023 / 1006` represents `511.5 / 503`. With those constants compiled in, a RAW value near 510 should appear as a CAL value near 512.
+because `1023 / 1006` represents `511.5 / 503`. Apply it with:
+
+```text
+:adc a -7 1023 1006
+```
+
+A RAW value near 510 should then appear as a CAL value near 512.
 
 ### Recommended verification points
 
@@ -249,7 +274,7 @@ For 1 V/octave use, errors should not accumulate significantly across octaves. I
 
 ## 5. DAC output calibration
 
-DAC A and DAC B also have independent gain and offset correction.
+DAC A and DAC B have independent gain and offset correction.
 
 The DAC correction intentionally uses the opposite affine order from the ADC path:
 
@@ -262,25 +287,48 @@ CORRECTED = clamp(round(NOMINAL * numerator / denominator) + offset, 0, 4095)
 ```
 
 > [!IMPORTANT]
-> Lowercase `z` / `m` / `f` are **RAW hardware tests** and bypass the configured DAC correction. Uppercase `Z` / `M` / `F` use the same calibrated-code function as normal runtime output. Use RAW commands to characterize the analogue path and CAL commands to verify the compiled correction.
+> Lowercase `z` / `m` / `f` are **RAW hardware tests** and bypass the active DAC correction. Uppercase `Z` / `M` / `F` use the same calibrated-code function as normal runtime output. Use RAW commands to characterize the analogue path and CAL commands to verify the active correction.
 
-### Procedure
+### Manual procedure
 
 1. Enter the boot-time calibration console.
 2. Use `z` to command **RAW** DAC code 0 and measure both CV outputs accurately.
 3. Use `f` to command **RAW** DAC code 4095 and measure again.
 4. Use `m` as a midpoint linearity check at RAW code 2048.
-5. Derive the per-channel DAC gain and offset values and enter them in `AnalogConfig.h`.
-6. Rebuild and flash the firmware.
+5. Derive the per-channel DAC gain and offset values.
+6. Apply them with `:dac a OFFSET NUM DEN` and `:dac b OFFSET NUM DEN`.
 7. Use `Z`, `M` and `F` to verify the corrected runtime-equivalent output points.
-8. Repeat the measurements until the error is acceptably small.
+8. Persist the verified profile with `:save`.
 
 The `[` / `]` and `{` / `}` commands always operate on **RAW** codes and remain useful when investigating the analogue stage or confirming DAC monotonicity one hardware code at a time.
 
 > [!CAUTION]
 > Software calibration cannot recover headroom beyond the physical 12-bit range. If the required corrected code would exceed 4095, it clips at 4095. The same applies below code 0.
 
-## 6. Musical verification
+## 6. Loopback self-calibration
+
+Firmware 0.2.2 can calibrate the DAC/output affine correction by measuring the module through its already calibrated CV input. The procedure deliberately changes **only the selected DAC calibration**; ADC calibration remains fixed as the measurement reference.
+
+For Channel A:
+
+1. Establish and persist a trustworthy ADC A calibration first.
+2. Patch **CV OUT A → CV IN A** directly.
+3. Enter the boot-time calibration console.
+4. Run `:self a`.
+5. Leave the patch undisturbed while the firmware measures, fits, and verifies.
+
+Use `:self b` with **CV OUT B → CV IN B** for Channel B.
+
+The self-calibration routine first characterizes several RAW DAC support points, rejects an absent or implausible loop, checks monotonicity and usable span, fits a new affine DAC correction in RAM, and then verifies that candidate at independent points. A passing candidate is saved automatically to the redundant EEPROM calibration journal.
+
+If loop detection, measurement, fitting, verification, or persistence fails, the previously active calibration is restored and the existing persisted record remains valid. A failed self-calibration therefore does not replace a known-good profile.
+
+> [!IMPORTANT]
+> Loopback is **not an independent absolute voltage standard**. It observes the composition of the output path and the already calibrated input path. ADC and DAC errors cannot be solved independently from the same closed loop. If the ADC calibration is wrong, loopback self-calibration can transfer or hide that error instead of correcting it.
+
+The 0.2.2 implementation intentionally uses affine gain/offset correction only. It does not allocate EEPROM for a 121-note residual lookup table; such a table is only justified after real hardware measurements show material repeatable non-linearity beyond the affine model.
+
+## 7. Musical verification
 
 After electrical calibration, perform a musical check rather than relying only on raw voltages.
 
@@ -292,13 +340,13 @@ After electrical calibration, perform a musical check rather than relying only o
 6. Verify Track-and-Hold with an unpatched sample input; the original hardware normalises it HIGH and should therefore quantize continuously.
 7. Patch a gate and verify Track-and-Hold and Sample-and-Hold independently.
 
-## 7. Automatic ladder-rest check
+## 8. Automatic ladder-rest check
 
 During normal startup the firmware evaluates fresh asynchronous ADC snapshots. A rest calibration is accepted only when the measured value is stable and lies inside the configured rest interval.
 
 If this check fails, the complete note ring flashes red three times. The firmware then continues with the nominal ladder value instead of accepting a likely pressed button or unstable input as a reference.
 
-## 8. Runtime diagnostics
+## 9. Runtime diagnostics
 
 Set:
 
@@ -327,12 +375,14 @@ Before considering a module calibrated:
 - [ ] green brightness is comfortable and clearly visible;
 - [ ] red brightness is balanced against green;
 - [ ] amber is visually distinct from both red and green;
-- [ ] RAW and CAL console readings are clearly understood and the compiled ADC correction has been verified;
+- [ ] RAW and CAL console readings are clearly understood and the active ADC correction has been verified;
 - [ ] CV input A tracks accurately across several volts;
 - [ ] CV input B tracks accurately across several volts;
-- [ ] RAW DAC measurements and CAL runtime-equivalent verification agree with the intended correction;
+- [ ] RAW DAC measurements and CAL runtime-equivalent verification agree with the active correction;
 - [ ] DAC output A is calibrated at low, midpoint and high values;
 - [ ] DAC output B is calibrated at low, midpoint and high values;
+- [ ] `:save` / `:load` preserve a verified ADC/DAC profile across reboot;
+- [ ] if loopback self-calibration is used, `:self a` / `:self b` pass only with the intended patch and preserve the prior calibration on failure;
 - [ ] several octave intervals have been checked musically;
 - [ ] Track-and-Hold and Sample-and-Hold have both been verified with real gates.
 

@@ -48,18 +48,43 @@ constexpr uint16_t kLiveSlotSize =
     1 + 4 + 1 + kStoredConfigurationBytes + kBrightnessBytes + 2;
 constexpr uint16_t kLiveRingBase = kConfigRegionBase + kConfigRegionSize;
 
+// Firmware <=0.2.1 used twelve 42-byte live-state slots. Firmware 0.2.2
+// reserves the tail of EEPROM for two redundant analogue-calibration records,
+// reducing the active wear-levelled live ring to eleven slots. The former
+// twelfth slot starts at byte 966 and is still inspected once during migration.
+constexpr uint16_t kPreviousLiveSlotCount = 12u;
+constexpr uint16_t kLiveSlotCount = 11u;
+constexpr uint16_t kLegacyExtraLiveSlotAddress =
+    kLiveRingBase + kLiveSlotCount * kLiveSlotSize;
+
+// Persistent analogue calibration: two atomic/CRC-protected records. Each
+// record stores four affine calibrations (ADC A/B, DAC A/B), six bytes each.
+// Byte 966 is intentionally left outside the new region because it is the old
+// twelfth live-record marker used to detect/migrate a <=0.2.1 image.
+constexpr uint8_t kCalibrationRecordCount = 2u;
+constexpr uint16_t kCalibrationPayloadBytes = 24u;
+constexpr uint16_t kCalibrationRecordSize = 28u;
+constexpr uint16_t kCalibrationRegionBase = kLegacyExtraLiveSlotAddress + 1u;
+constexpr uint16_t kCalibrationRegionSize =
+    kCalibrationRecordCount * kCalibrationRecordSize;
+
 constexpr uint16_t kStartupSequenceAddress = kEepromSize - 1u;
-constexpr uint16_t kLiveSlotCount =
-    (kStartupSequenceAddress - kLiveRingBase) / kLiveSlotSize;
 
 static_assert(kStateBytes == 17, "quantizer state layout changed unexpectedly");
 static_assert(kStoredConfigurationBytes == 32,
               "stored musical configuration layout changed unexpectedly");
 static_assert(kLiveSlotCount >= 8,
               "live ring too small for effective wear levelling");
-static_assert(kLiveRingBase + kLiveSlotCount * kLiveSlotSize <=
+static_assert(kLiveRingBase + kLiveSlotCount * kLiveSlotSize ==
+                  kLegacyExtraLiveSlotAddress,
+              "live-state ring boundary mismatch");
+static_assert(kPreviousLiveSlotCount == kLiveSlotCount + 1u,
+              "legacy live-ring migration assumes one removed slot");
+static_assert(kCalibrationRegionBase + kCalibrationRegionSize ==
                   kStartupSequenceAddress,
-              "live-state ring overlaps startup metadata");
+              "calibration region must end immediately before startup metadata");
+static_assert(kCalibrationPayloadBytes + 4u == kCalibrationRecordSize,
+              "calibration record framing mismatch");
 static_assert(kStartupSequenceAddress < kEepromSize,
               "startup metadata address is outside EEPROM");
 

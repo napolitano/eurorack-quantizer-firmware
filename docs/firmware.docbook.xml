@@ -182,15 +182,21 @@
       </seglistitem>
       <seglistitem>
         <seg>Live "last state" ring</seg>
-        <seg>12 slots of 42 bytes: marker, 32-bit sequence number, version,
-        32-byte full configuration, 2-byte brightness calibration, CRC-16.</seg>
+        <seg>11 slots of 42 bytes: marker, 32-bit sequence number, version,
+        32-byte full configuration, 2-byte brightness calibration, CRC-16.
+        The former twelfth slot is still inspected during <=0.2.1 migration.</seg>
+      </seglistitem>
+      <seglistitem>
+        <seg>Analogue calibration journal</seg>
+        <seg>2 redundant records of 28 bytes: marker, version/generation metadata,
+        24-byte ADC/DAC affine profile and CRC-16.</seg>
       </seglistitem>
     </segmentedlist>
 
     <para>The live state is written round-robin across the ring, each write
     carrying a monotonically increasing sequence number. On load, the valid slot
     with the highest sequence number wins; if none is valid, safe defaults are
-    used. This spreads erase/write wear across the ring and guarantees that a
+    used. This spreads erase/write wear across the eleven-slot ring and guarantees that a
     power loss mid-write cannot corrupt the previously good state. Writes use the
     EEPROM's update semantics (a cell is only physically written when its value
     changes), and the working configuration is mirrored to the ring only a few

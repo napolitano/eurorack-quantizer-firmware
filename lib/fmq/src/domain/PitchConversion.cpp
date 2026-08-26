@@ -16,30 +16,6 @@
 
 namespace fmq {
 
-namespace {
-
-constexpr uint8_t kChannelA = 0;
-
-LinearCalibration inputCalibrationFor(uint8_t channel) {
-  if (channel == kChannelA) {
-    return {config::kAdcOffsetA, config::kAdcGainNumeratorA,
-            config::kAdcGainDenominatorA};
-  }
-  return {config::kAdcOffsetB, config::kAdcGainNumeratorB,
-          config::kAdcGainDenominatorB};
-}
-
-LinearCalibration outputCalibrationFor(uint8_t channel) {
-  if (channel == kChannelA) {
-    return {config::kDacOffsetA, config::kDacGainNumeratorA,
-            config::kDacGainDenominatorA};
-  }
-  return {config::kDacOffsetB, config::kDacGainNumeratorB,
-          config::kDacGainDenominatorB};
-}
-
-}  // namespace
-
 uint16_t applyAdcCalibration(uint16_t rawAdc,
                              const LinearCalibration &calibration) {
   int32_t corrected = static_cast<int32_t>(rawAdc) + calibration.offset;
@@ -67,11 +43,13 @@ uint16_t applyDacCalibration(int32_t rawDacCode,
 }
 
 uint16_t calibratedAdcCode(uint16_t rawAdc, uint8_t channel) {
-  return applyAdcCalibration(rawAdc, inputCalibrationFor(channel));
+  const uint8_t index = channel == 0u ? 0u : 1u;
+  return applyAdcCalibration(rawAdc, activeCalibrationProfile().adc[index]);
 }
 
 uint16_t calibratedDacCode(int32_t rawDacCode, uint8_t channel) {
-  return applyDacCalibration(rawDacCode, outputCalibrationFor(channel));
+  const uint8_t index = channel == 0u ? 0u : 1u;
+  return applyDacCalibration(rawDacCode, activeCalibrationProfile().dac[index]);
 }
 
 SemitoneQ8_8 adcToSemitones(uint16_t adcValue, uint8_t channel) {

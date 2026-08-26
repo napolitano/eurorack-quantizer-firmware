@@ -14,7 +14,7 @@ An independent alternative firmware for the **Free Modular Quantizer** Eurorack 
 It keeps the module recognisably the same instrument: the original pin mapping, panel controls and core quantizer workflow remain intact. The implementation focuses on easier builds, stronger testability and persistence, hardware calibration, well-defined edge-case behaviour and an additional performance-oriented Arpeggiator layer.
 
 > [!NOTE]
-> **Status:** Active, hardware-tested firmware. The portable core is covered by host-side tests; analog calibration and final LED brightness values remain specific to the actual module and fitted components.
+> **Status:** Active, hardware-tested firmware. The portable core is covered by host-side tests; analog calibration and final LED brightness values remain specific to the actual module and fitted components; 0.2.2 can persist the measured analogue profile and self-calibrate each DAC output by loopback.
 
 ## Acknowledgement — Quinn Freedman
 
@@ -96,7 +96,7 @@ This alternative firmware adds or deliberately changes the following:
 - **Built-in factory preset bank:** empty full-configuration slots expose twelve useful factory scales; saving a user configuration to a slot transparently overrides its factory fallback.
 - **Live-state restore:** the working state can be restored after power cycling, including both channel configurations, Arpeggiator settings, selected channel and active UI layer.
 - **More robust EEPROM persistence:** records are versioned, CRC-checked and range-validated, and writes are handled asynchronously rather than accepting a slot solely because a sentinel byte is present.
-- **Per-channel software analogue calibration:** independent ADC and DAC offset/gain correction for Channels A/B, plus a boot-time RAW/CAL console that separates hardware measurements from runtime-corrected verification. The original Rust firmware has no equivalent software calibration layer.
+- **Persistent per-channel analogue calibration:** independent ADC and DAC offset/gain correction for Channels A/B is loaded from a redundant CRC16 EEPROM journal, with `AnalogConfig.h` as factory fallback. The boot-time RAW/CAL console can edit/save/load the profile and run verified `CV OUT → CV IN` DAC self-calibration. The original Rust firmware has no equivalent software calibration layer.
 - **On-device LED colour calibration:** red and green brightness can be adjusted independently over the TLC5947 range while green, red and amber are shown together for direct visual balancing.
 - **Improved power-on behaviour:** the default scale is chromatic, the final enabled scale note is protected against accidental removal, four short startup animations rotate between boots, and the four discrete status LEDs receive a separate self-test.
 - **Corrected edge cases from the reference implementation:** verified issues such as Track-and-Hold with delay, negative scale shifts, full-scale ADC mapping and interrupted/invalid persistence are handled explicitly; the detailed comparison is documented below.
@@ -379,6 +379,7 @@ This firmware uses semantic versioning to distinguish compatibility fixes from l
 - **0.1.1 — August 7, 2026:** Patch release limited to correcting and restoring native test-suite and CI execution. Intended quantizer runtime behavior remained unchanged from 0.1.0.
 - **0.2.0 — August 9, 2026:** First substantial feature expansion of the alternative firmware. It adds the full second Arpeggiator control layer, symmetric SHIFT double-click entry and exit, expanded scale-aware patterns and clocking, more complete live/full-configuration restore, tighter external-clock capture, corrected initial hysteresis and resistor-ladder validation, broader regression coverage, and the extended release/manual infrastructure.
 - **0.2.1 — August 17, 2026:** Maintenance and calibration-verification patch. It makes RAW versus runtime-calibrated ADC/DAC behaviour explicit in the boot-time console, expands the native verification net to 32 suites / 271 tests with sanitizers, requirement traceability and frozen EEPROM fixtures, strengthens release reproducibility and hardware-qualification tooling, and raises the AVR flash engineering ceiling to 95% while retaining the existing hardware and user workflow.
+- **0.2.2 — August 26, 2026:** Persistent analogue-calibration patch. ADC/DAC A/B affine correction now lives in a redundant CRC16 EEPROM journal, the boot console can edit/save/load/default the profile and perform verified per-channel DAC loopback self-calibration, the live-state ring migrates safely from the former 12th slot to an 11-slot layout, and native verification expands to 34 suites / 281 tests.
 
 # Technical reference
 

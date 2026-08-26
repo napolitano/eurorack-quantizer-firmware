@@ -39,6 +39,21 @@ class SelectReleaseManualTests(unittest.TestCase):
             assert selected is not None
             self.assertEqual(str(selected.version), "0.2.1")
 
+    def test_0_2_2_exact_manual_wins_without_affecting_0_2_1(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "quantizer-user-manual.0.2.0.odt").touch()
+            (root / "quantizer-user-manual.0.2.2.odt").touch()
+
+            old = select_manual(root, Version.parse("0.2.1"))
+            current = select_manual(root, Version.parse("0.2.2"))
+
+            self.assertIsNotNone(old)
+            self.assertIsNotNone(current)
+            assert old is not None and current is not None
+            self.assertEqual(str(old.version), "0.2.0")
+            self.assertEqual(str(current.version), "0.2.2")
+
     def test_newer_manual_is_never_used_for_older_firmware(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

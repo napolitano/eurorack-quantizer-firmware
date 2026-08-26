@@ -25,6 +25,13 @@ constexpr uint32_t kStartupInputSettleMs = 5;
 constexpr uint32_t kLadderCalibrationTimeoutMs = 1000;
 constexpr uint16_t kCalibrationConsoleStartupDelayMs = 50;
 constexpr uint16_t kCalibrationStreamPeriodMs = 100;
+constexpr uint8_t kCalibrationCommandBufferBytes = 48;
+constexpr uint16_t kCalibrationPersistenceTimeoutMs = 1500;
+constexpr uint16_t kSelfCalibrationSettleMs = 8;
+constexpr uint8_t kSelfCalibrationAverageSamples = 12;
+constexpr uint16_t kSelfCalibrationSampleTimeoutMs = 150;
+constexpr uint16_t kSelfCalibrationMaxFitResidualDacCodes = 20;
+constexpr uint16_t kSelfCalibrationMaxVerifyResidualDacCodes = 16;
 constexpr bool kCalibrationConsoleEnabled = true;
 // Product behaviour: restore and asynchronously autosave the complete musical
 // working state (Quantizer + per-channel Arpeggiator + selected channel).

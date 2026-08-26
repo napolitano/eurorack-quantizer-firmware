@@ -59,6 +59,7 @@ jobs:
           - regression/test_quantizer
           - integration/test_arpeggiator_layer
           - integration/test_controls
+          - integration/test_calibration_persistence
           - integration/test_menu
           - integration/test_menu_shortcuts
           - integration/test_persistence
@@ -74,6 +75,7 @@ jobs:
           - unit/test_brightness
           - unit/test_buttons
           - unit/test_crc
+          - unit/test_self_calibration
           - unit/test_pitch
           - unit/test_ladder_boundaries
           - unit/test_led_frame_matrix

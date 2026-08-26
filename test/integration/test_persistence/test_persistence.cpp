@@ -398,8 +398,12 @@ static void test_v5_live_state_migrates_enabled_arp_to_arpeggiator_layer(void) {
   const uint16_t crc = crc16Ccitt(record, kOffCrc);
   record[kOffCrc] = static_cast<uint8_t>(crc >> 8u);
   record[kOffCrc + 1u] = static_cast<uint8_t>(crc);
+  // Place the legacy record in the former twelfth live slot. 0.2.2 must
+  // inspect that slot once and migrate it into the new eleven-slot ring before
+  // the overlapping tail bytes are reused for calibration persistence.
   for (uint16_t i = 0u; i < kLiveSlotSize; ++i) {
-    eep.writeByte(static_cast<uint16_t>(kLiveRingBase + i), record[i]);
+    eep.writeByte(static_cast<uint16_t>(kLegacyExtraLiveSlotAddress + i),
+                  record[i]);
   }
 
   AsyncEepromWriter writer(eep);
@@ -409,6 +413,16 @@ static void test_v5_live_state_migrates_enabled_arp_to_arpeggiator_layer(void) {
   TEST_ASSERT_EQUAL(UiLayer::Arpeggiator, restored.uiLayer);
   TEST_ASSERT_TRUE(restored.configuration.arpeggiators[kChannelBIndex].enabled);
   TEST_ASSERT_EQUAL_UINT8(kChannelBIndex, restored.configuration.selectedChannelIndex);
+
+  // load() queues an atomic migration into the current ring. Once it finishes,
+  // destroying the old extra-slot marker must not affect recovery.
+  live.flush();
+  eep.corruptByte(kLegacyExtraLiveSlotAddress, kErasedByte);
+  LiveStateStore rebooted(eep, writer);
+  LiveState migrated;
+  TEST_ASSERT_TRUE(rebooted.load(migrated));
+  TEST_ASSERT_EQUAL(UiLayer::Arpeggiator, migrated.uiLayer);
+  TEST_ASSERT_TRUE(migrated.configuration.arpeggiators[kChannelBIndex].enabled);
 }
 
 // FA-099..102 / acceptance criterion 16: every scale slot round-trips and

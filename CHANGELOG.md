@@ -12,6 +12,38 @@ A new section should be added when a release version is explicitly declared. Eac
 
 ## Unreleased
 
+## 0.2.2 — 2026-08-26
+
+### Release summary
+
+Version 0.2.2 makes the per-channel analogue calibration introduced in the 0.2.x line persistent and usable without recompiling firmware while preserving the existing Quantizer/Arpeggiator workflow and original Nano R3 hardware.
+A redundant CRC16-protected EEPROM journal now stores ADC A/B and DAC A/B affine calibration, with `AnalogConfig.h` retained only as the factory/fallback profile when no valid persisted record exists.
+The boot-time console can edit, save, reload and restore calibration defaults and adds verified `CV OUT → CV IN` loopback self-calibration for each DAC output using the already calibrated ADC channel as its measurement reference.
+Self-calibration characterizes raw output at multiple points, rejects missing, non-monotonic or implausible loops, fits only the DAC affine correction in RAM, verifies independent points, and persists the result only after verification succeeds.
+The EEPROM live-state ring is reduced from twelve to eleven records to reserve the calibration journal; a newest legacy twelfth-slot live record from firmware <=0.2.1 is detected and migrated safely.
+Verification expands to **34 independently runnable native suites / 281 tests**, with dedicated calibration-persistence and self-calibration solver coverage and updated EEPROM-wear documentation.
+A new 0.2.2 user manual documents persistent CV calibration, loopback self-calibration, EEPROM semantics and the update/erase implications.
+
+### Added
+
+- Added a single runtime `CalibrationProfile` containing affine ADC A/B and DAC A/B correction. Normal pitch conversion and calibration diagnostics consume the same active profile.
+- Added two redundant 28-byte calibration records at the end of EEPROM. Each record carries the four 6-byte affine calibrations, generation/version metadata and CRC16; replacement records invalidate the destination first and commit the marker last so the previously valid profile survives interrupted writes.
+- Added boot-console commands `:adc`, `:dac`, `:save`, `:load`, `:defaults`, `:show`, `:self a` and `:self b` while retaining all existing RAW/CAL diagnostic commands.
+- Added loopback DAC self-calibration using multiple raw-DAC support points, monotonicity/span/gain plausibility checks, an integer-only affine solver, independent verification points and automatic persistence only after a PASS result.
+- Added `integration/test_calibration_persistence` and `unit/test_self_calibration`, bringing the default native suite to **34 suites / 281 tests**.
+- Added a versioned 0.2.2 user manual with a dedicated CV calibration and loopback self-calibration section.
+
+### Changed
+
+- `AnalogConfig.h` calibration constants are now factory/fallback values rather than the only runtime source. A valid EEPROM calibration profile takes precedence at boot.
+- Reduced the wear-levelled live-state ring from 12 to 11 × 42-byte records to make room for the 56-byte redundant calibration journal while retaining the startup-sequence byte at address 1023.
+- Updated EEPROM-wear, configuration, calibration, testing, technical-reference and hardware-qualification documentation for the new layout and maintenance workflow.
+
+### Fixed
+
+- Added upgrade migration for the former twelfth live-state slot used by firmware <=0.2.1. If that slot contains the newest valid live record, 0.2.2 restores it and commits an equivalent record into the new eleven-slot ring before the overlapping EEPROM tail is relied upon for persistent calibration.
+- Failed loopback calibration no longer risks replacing a known-good profile: missing/wrong patching, ADC timeout, non-monotonic response, implausible gain, excessive fit residual, failed verification or persistence failure all leave/restore the previous active calibration.
+
 ## 0.2.1 — 2026-08-17
 
 ### Release summary

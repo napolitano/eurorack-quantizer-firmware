@@ -20,6 +20,8 @@
 #include "fmq/application/ControlInputProcessor.h"
 #include "fmq/ui/LedFrameEncoder.h"
 #include "fmq/persistence/LiveStateStore.h"
+#include "fmq/persistence/CalibrationStore.h"
+#include "fmq/domain/CalibrationProfile.h"
 #include "fmq/ui/Menu.h"
 #include "fmq/domain/PitchConversion.h"
 #include "fmq/domain/Quantizer.h"
@@ -132,6 +134,7 @@ static QuantizerState g_quantizer;
 static AsyncEepromWriter g_eepromWriter(g_eeprom);
 static SaveSlotStore g_slotStore(g_eeprom, g_eepromWriter);
 static LiveStateStore g_liveStore(g_eeprom, g_eepromWriter);
+static CalibrationStore g_calibrationStore(g_eeprom, g_eepromWriter);
 static StartupSequenceStore g_startupSequenceStore(g_eeprom, g_eepromWriter);
 static Menu g_menu;
 static ArpeggiatorBank g_arpeggiators;
@@ -300,6 +303,16 @@ void FirmwareController::begin() {
   g_spi.begin();
   g_ledDriver.begin();  // clear LEDs and enable the driver outputs
 
+  // Hardware-specific ADC/DAC correction is loaded before either the normal
+  // signal path or the maintenance console can use pitch conversion. Invalid
+  // or absent records fall back to the compile-time factory profile.
+  CalibrationProfile storedCalibration;
+  if (g_calibrationStore.load(storedCalibration)) {
+    (void)setActiveCalibrationProfile(storedCalibration);
+  } else {
+    resetActiveCalibrationProfile();
+  }
+
   // Restore the last complete musical configuration and the front-panel layer
   // when a valid live-state record exists. Runtime phase remains transient.
   // Restoring the layer is deliberately side-effect free: it must not retrigger
@@ -312,6 +325,18 @@ void FirmwareController::begin() {
       g_menu.setCommittedBrightness(restored.brightness);
     }
   }
+
+  // Upgrading from <=0.2.1 may have restored the newest state from the former
+  // twelfth live slot. That record overlaps the new calibration region, so
+  // LiveStateStore queues an atomic copy into the current eleven-slot ring.
+  // Finish that one-time migration before startup animation or the calibration
+  // console can enqueue another EEPROM transaction. The control timer and ADC
+  // are not running yet, so this cannot steal time from the 1 kHz path.
+  while (g_eepromWriter.busy()) {
+    g_eepromWriter.service();
+  }
+  g_liveStore.observeWriter();
+
   g_menu.begin(g_slotStore);
 
   playStartupAnimation();
@@ -326,7 +351,8 @@ void FirmwareController::begin() {
   const bool shiftPressedAtBoot = kButtonsActiveLow ? !g_shift.isHigh() : g_shift.isHigh();
 #if !defined(FMQ_TIMING_PROBE)
   if (config::kCalibrationConsoleEnabled && shiftPressedAtBoot) {
-    CalibrationConsole console(g_analog, g_dac);
+    CalibrationConsole console(g_analog, g_dac, g_calibrationStore,
+                               g_eepromWriter);
     console.run();
   }
 #else
@@ -386,6 +412,7 @@ void FirmwareController::run() {
   if (pending == 0) {
     g_eepromWriter.service();
     g_liveStore.observeWriter();
+    g_calibrationStore.observeWriter();
     return;
   }
   // In the dedicated timing build D1/TX was raised by the 1 kHz Timer2 ISR.
@@ -528,6 +555,7 @@ void FirmwareController::run() {
   // advances at most one byte, so no control deadline is monopolised.
   g_eepromWriter.service();
   g_liveStore.observeWriter();
+  g_calibrationStore.observeWriter();
   if (config::kAutosaveLiveState && g_liveDirty && !g_eepromWriter.busy() &&
       now - g_lastChangeMs >= config::kLiveAutosaveQuiescenceMs) {
     const StoredConfiguration stored =
