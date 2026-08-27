@@ -1,0 +1,119 @@
+/**
+ * @file MaintenanceFeedback.cpp
+ * Implements visual status feedback for the calibration/maintenance firmware.
+ *
+ * @author Axel Napolitano
+ * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
+ * @copyright Copyright (C) 2026 Axel Napolitano
+ * @license GPL-3.0-or-later
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+#include "platform/nano_atmega328p/MaintenanceFeedback.h"
+
+#include <Arduino.h>
+
+#include "fmq/config/LedConfig.h"
+#include "fmq/config/MaintenanceConfig.h"
+#include "fmq/domain/LedColor.h"
+#include "fmq/ui/BrightnessCalibration.h"
+#include "fmq/ui/LedFrameEncoder.h"
+
+namespace fmq::platform::nano {
+namespace {
+
+uint16_t percentOf(uint16_t level, uint8_t percent) {
+  const uint32_t scaled = static_cast<uint32_t>(level) * percent + 50u;
+  return static_cast<uint16_t>(scaled / 100u);
+}
+
+}  // namespace
+
+void MaintenanceFeedback::begin() {
+  channelLedA_.set(statusLedsActiveHigh_ ? false : true);
+  channelLedB_.set(statusLedsActiveHigh_ ? false : true);
+  ring_.begin();
+  showRingOff();
+}
+
+void MaintenanceFeedback::playBootIndication() {
+  setChannelIndicators(false, false);
+  blink(BrightnessCalibration::kLegacyRedLevel,
+        BrightnessCalibration::kLegacyGreenLevel,
+        config::kMaintenanceBootBlinkCount);
+  showIdle();
+}
+
+void MaintenanceFeedback::showIdle() {
+  setChannelIndicators(false, false);
+  writeUniform(percentOf(BrightnessCalibration::kLegacyRedLevel,
+                         config::kMaintenanceIdleBrightnessPercent),
+               percentOf(BrightnessCalibration::kLegacyGreenLevel,
+                         config::kMaintenanceIdleBrightnessPercent));
+}
+
+void MaintenanceFeedback::beginChannelMeasurement(uint8_t channel) {
+  showRingOff();
+  setChannelIndicators(channel == 0u, channel == 1u);
+}
+
+void MaintenanceFeedback::beginDualChannelMeasurement() {
+  showRingOff();
+  setChannelIndicators(true, true);
+}
+
+void MaintenanceFeedback::showPass() {
+  setChannelIndicators(false, false);
+  blink(0u, BrightnessCalibration::kLegacyGreenLevel,
+        config::kMaintenanceResultBlinkCount);
+  showIdle();
+}
+
+void MaintenanceFeedback::showFail() {
+  setChannelIndicators(false, false);
+  blink(BrightnessCalibration::kLegacyRedLevel, 0u,
+        config::kMaintenanceResultBlinkCount);
+  showIdle();
+}
+
+void MaintenanceFeedback::showReportPass() {
+  setChannelIndicators(false, false);
+  blink(0u, BrightnessCalibration::kLegacyGreenLevel,
+        config::kMaintenanceReportBlinkCount);
+  showIdle();
+}
+
+void MaintenanceFeedback::showReportFail() {
+  setChannelIndicators(false, false);
+  blink(BrightnessCalibration::kLegacyRedLevel, 0u,
+        config::kMaintenanceReportBlinkCount);
+  showIdle();
+}
+
+void MaintenanceFeedback::setChannelIndicators(bool channelA, bool channelB) {
+  channelLedA_.set(statusLedsActiveHigh_ ? channelA : !channelA);
+  channelLedB_.set(statusLedsActiveHigh_ ? channelB : !channelB);
+}
+
+void MaintenanceFeedback::writeUniform(uint16_t redLevel,
+                                       uint16_t greenLevel) {
+  LedFrame frame;
+  for (uint8_t i = 0u; i < kNoteCount; ++i) frame[i] = LedColor::Amber;
+
+  uint8_t bytes[kTlc5947FrameBytes];
+  encodeLedFrame(frame, redLevel, greenLevel, bytes);
+  ring_.writeFrame(bytes);
+}
+
+void MaintenanceFeedback::showRingOff() { writeUniform(0u, 0u); }
+
+void MaintenanceFeedback::blink(uint16_t redLevel, uint16_t greenLevel,
+                                uint8_t count) {
+  for (uint8_t i = 0u; i < count; ++i) {
+    writeUniform(redLevel, greenLevel);
+    delay(config::kMaintenanceFeedbackBlinkOnMs);
+    showRingOff();
+    if (i + 1u < count) delay(config::kMaintenanceFeedbackBlinkOffMs);
+  }
+}
+
+}  // namespace fmq::platform::nano

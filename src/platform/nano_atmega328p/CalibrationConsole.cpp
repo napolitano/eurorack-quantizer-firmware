@@ -198,23 +198,30 @@ void CalibrationConsole::handleLine(char *line) {
     if (strcmp(action, "report") == 0) {
       if (strtok(nullptr, " \t") != nullptr) {
         Serial.println(F("Usage: cal report"));
+        feedback_.showFail();
         return;
       }
-      printCalibrationReport();
+      feedback_.beginDualChannelMeasurement();
+      const bool ok = printCalibrationReport();
+      if (ok) feedback_.showReportPass();
+      else feedback_.showReportFail();
       return;
     }
     if (strcmp(action, "load") == 0) {
-      loadCalibration();
+      if (loadCalibration()) feedback_.showPass();
+      else feedback_.showFail();
       return;
     }
     if (strcmp(action, "save") == 0) {
-      saveCalibration();
+      if (saveCalibration()) feedback_.showPass();
+      else feedback_.showFail();
       return;
     }
     if (strcmp(action, "defaults") == 0) {
       resetActiveCalibrationProfile();
       Serial.println(F("Factory profile active in RAM; use 'cal save' to persist."));
       printCalibration();
+      feedback_.showPass();
       return;
     }
     if (strcmp(action, "adc") == 0 || strcmp(action, "self") == 0 ||
@@ -223,17 +230,22 @@ void CalibrationConsole::handleLine(char *line) {
       if (!parseChannel(strtok(nullptr, " \t"), channel) ||
           strtok(nullptr, " \t") != nullptr) {
         Serial.println(F("Usage: cal adc|self|verify a|b"));
+        feedback_.showFail();
         return;
       }
-      if (strcmp(action, "adc") == 0) runAdcWizard(channel);
-      else if (strcmp(action, "self") == 0) runSelfCalibration(channel);
+      feedback_.beginChannelMeasurement(channel);
+      bool ok = false;
+      if (strcmp(action, "adc") == 0) ok = runAdcWizard(channel);
+      else if (strcmp(action, "self") == 0) ok = runSelfCalibration(channel);
       else {
         uint16_t residual = 0u;
-        const bool ok = verifyDacCalibration(channel, residual);
+        ok = verifyDacCalibration(channel, residual);
         Serial.print(ok ? F("PASS max residual=") : F("FAIL max residual="));
         Serial.print(residual);
         Serial.println(F(" DAC codes"));
       }
+      if (ok) feedback_.showPass();
+      else feedback_.showFail();
       return;
     }
     if (strcmp(action, "set") == 0) {
@@ -250,6 +262,7 @@ void CalibrationConsole::handleLine(char *line) {
           !parseUnsigned16(strtok(nullptr, " \t"), denominator) ||
           strtok(nullptr, " \t") != nullptr) {
         Serial.println(F("Usage: cal set adc|dac a|b OFFSET NUM DEN"));
+        feedback_.showFail();
         return;
       }
       CalibrationProfile profile = activeCalibrationProfile();
@@ -259,10 +272,12 @@ void CalibrationConsole::handleLine(char *line) {
       target = {offset, numerator, denominator};
       if (!setActiveCalibrationProfile(profile)) {
         Serial.println(F("Rejected calibration."));
+        feedback_.showFail();
         return;
       }
       Serial.println(F("Changed in RAM; use 'cal save' after verification."));
       printCalibration();
+      feedback_.showPass();
       return;
     }
   }
@@ -273,7 +288,9 @@ void CalibrationConsole::handleLine(char *line) {
     if (what != nullptr && strcmp(what, "adc") == 0 &&
         parseChannel(strtok(nullptr, " \t"), channel) &&
         strtok(nullptr, " \t") == nullptr) {
-      measureAdc(channel);
+      feedback_.beginChannelMeasurement(channel);
+      if (measureAdc(channel)) feedback_.showPass();
+      else feedback_.showFail();
       return;
     }
   }
@@ -284,11 +301,15 @@ void CalibrationConsole::handleLine(char *line) {
     if (action != nullptr && parseChannel(strtok(nullptr, " \t"), channel) &&
         strtok(nullptr, " \t") == nullptr) {
       if (strcmp(action, "noise") == 0) {
-        diagnoseNoise(channel);
+        feedback_.beginChannelMeasurement(channel);
+        if (diagnoseNoise(channel)) feedback_.showPass();
+        else feedback_.showFail();
         return;
       }
       if (strcmp(action, "sweep") == 0) {
-        diagnoseSweep(channel);
+        feedback_.beginChannelMeasurement(channel);
+        if (diagnoseSweep(channel)) feedback_.showPass();
+        else feedback_.showFail();
         return;
       }
     }
@@ -299,16 +320,19 @@ void CalibrationConsole::handleLine(char *line) {
     if (action != nullptr && strtok(nullptr, " \t") == nullptr) {
       if (strcmp(action, "status") == 0) {
         printEepromStatus();
+        feedback_.showPass();
         return;
       }
       if (strcmp(action, "backup") == 0) {
         printEepromBackup();
+        feedback_.showPass();
         return;
       }
     }
   }
 
   Serial.println(F("Unknown/invalid command. Type 'help'."));
+  feedback_.showFail();
 }
 
 void CalibrationConsole::printCalibrationLine(
@@ -343,28 +367,28 @@ void CalibrationConsole::printCalibration() const {
   else Serial.println(static_cast<int>(status.activeIndex));
 }
 
-void CalibrationConsole::printCalibrationReport() {
+bool CalibrationConsole::printCalibrationReport() {
   if (!waitForPersistence()) {
     Serial.println(F("FAIL: calibration EEPROM busy timeout."));
-    return;
+    return false;
   }
 
   CalibrationProfile storedProfile;
   if (!calibrationStore_.load(storedProfile)) {
     Serial.println(F("CAL REPORT FAIL: no valid stored calibration record."));
     Serial.println(F("Factory fallback profiles are not eligible for a calibration label."));
-    return;
+    return false;
   }
   if (!calibrationProfileEqual(storedProfile, activeCalibrationProfile())) {
     Serial.println(F("CAL REPORT FAIL: active RAM profile differs from stored calibration."));
     Serial.println(F("Use 'cal save' to persist verified changes or 'cal load' to discard them."));
-    return;
+    return false;
   }
 
   const CalibrationJournalStatus status = calibrationStore_.inspect();
   if (status.activeIndex < 0) {
     Serial.println(F("CAL REPORT FAIL: calibration journal status is inconsistent."));
-    return;
+    return false;
   }
   const uint8_t activeIndex = static_cast<uint8_t>(status.activeIndex);
   const uint8_t generation = status.records[activeIndex].generation;
@@ -435,6 +459,7 @@ void CalibrationConsole::printCalibrationReport() {
   Serial.println(F("Date/time are intentionally host-side; the Nano has no RTC."));
   Serial.println(F("END FMQ CALIBRATION REPORT"));
   Serial.println();
+  return overallPass;
 }
 
 void CalibrationConsole::servicePersistence() {
@@ -454,31 +479,33 @@ bool CalibrationConsole::waitForPersistence() {
   return true;
 }
 
-void CalibrationConsole::saveCalibration() {
+bool CalibrationConsole::saveCalibration() {
   if (!waitForPersistence()) {
     Serial.println(F("FAIL: calibration EEPROM busy timeout."));
-    return;
+    return false;
   }
   if (!calibrationStore_.save(activeCalibrationProfile()) ||
       !waitForPersistence()) {
     Serial.println(F("FAIL: calibration was not persisted."));
-    return;
+    return false;
   }
   Serial.println(F("Calibration stored atomically."));
+  return true;
 }
 
-void CalibrationConsole::loadCalibration() {
+bool CalibrationConsole::loadCalibration() {
   if (!waitForPersistence()) {
     Serial.println(F("FAIL: calibration EEPROM busy timeout."));
-    return;
+    return false;
   }
   CalibrationProfile profile;
   if (!calibrationStore_.load(profile) || !setActiveCalibrationProfile(profile)) {
     Serial.println(F("No valid stored calibration; active profile unchanged."));
-    return;
+    return false;
   }
   Serial.println(F("Stored calibration loaded."));
   printCalibration();
+  return true;
 }
 
 bool CalibrationConsole::captureAdcStats(uint8_t channel, uint16_t count,
@@ -511,13 +538,13 @@ bool CalibrationConsole::captureAdcStats(uint8_t channel, uint16_t count,
   return true;
 }
 
-void CalibrationConsole::measureAdc(uint8_t channel) {
+bool CalibrationConsole::measureAdc(uint8_t channel) {
   AdcStats raw;
   AdcStats calibrated;
   if (!captureAdcStats(channel, kMeasureSamples, false, raw) ||
       !captureAdcStats(channel, kMeasureSamples, true, calibrated)) {
     Serial.println(F("ADC measurement timeout."));
-    return;
+    return false;
   }
   Serial.print(F("ADC "));
   Serial.print(channel == 0u ? 'A' : 'B');
@@ -529,13 +556,14 @@ void CalibrationConsole::measureAdc(uint8_t channel) {
   Serial.print(calibrated.minimum); Serial.print('/'); Serial.print(calibrated.mean);
   Serial.print('/'); Serial.print(calibrated.maximum);
   Serial.print(F(" span=")); Serial.println(calibrated.maximum - calibrated.minimum);
+  return true;
 }
 
-void CalibrationConsole::diagnoseNoise(uint8_t channel) {
+bool CalibrationConsole::diagnoseNoise(uint8_t channel) {
   AdcStats raw;
   if (!captureAdcStats(channel, kNoiseSamples, false, raw)) {
     Serial.println(F("ADC noise measurement timeout."));
-    return;
+    return false;
   }
   Serial.print(F("ADC noise "));
   Serial.print(channel == 0u ? 'A' : 'B');
@@ -543,6 +571,7 @@ void CalibrationConsole::diagnoseNoise(uint8_t channel) {
   Serial.print(F(" mean=")); Serial.print(raw.mean);
   Serial.print(F(" max=")); Serial.print(raw.maximum);
   Serial.print(F(" p-p=")); Serial.println(raw.maximum - raw.minimum);
+  return true;
 }
 
 bool CalibrationConsole::waitForEnter(const __FlashStringHelper *prompt) {
@@ -564,30 +593,30 @@ bool CalibrationConsole::waitForEnter(const __FlashStringHelper *prompt) {
   }
 }
 
-void CalibrationConsole::runAdcWizard(uint8_t channel) {
+bool CalibrationConsole::runAdcWizard(uint8_t channel) {
   Serial.print(F("ADC "));
   Serial.print(channel == 0u ? 'A' : 'B');
   Serial.println(F(" two-point calibration (RAM only until 'cal save')."));
   Serial.println(F("Use a trustworthy external voltage reference."));
 
-  if (!waitForEnter(F("Connect exactly 0.000 V to CV IN, then press ENTER."))) return;
+  if (!waitForEnter(F("Connect exactly 0.000 V to CV IN, then press ENTER."))) return false;
   AdcStats zero;
   if (!captureAdcStats(channel, kAdcWizardSamples, false, zero)) {
     Serial.println(F("FAIL: 0 V measurement timeout."));
-    return;
+    return false;
   }
 
-  if (!waitForEnter(F("Connect exactly 10.000 V to CV IN, then press ENTER."))) return;
+  if (!waitForEnter(F("Connect exactly 10.000 V to CV IN, then press ENTER."))) return false;
   AdcStats full;
   if (!captureAdcStats(channel, kAdcWizardSamples, false, full)) {
     Serial.println(F("FAIL: 10 V measurement timeout."));
-    return;
+    return false;
   }
 
   if (full.mean <= zero.mean ||
       static_cast<uint16_t>(full.mean - zero.mean) < kAdcWizardMinimumSpan) {
     Serial.println(F("FAIL: ADC span is implausible; profile unchanged."));
-    return;
+    return false;
   }
 
   const uint16_t span = static_cast<uint16_t>(full.mean - zero.mean);
@@ -602,14 +631,14 @@ void CalibrationConsole::runAdcWizard(uint8_t channel) {
   if (correctedZero > 2u ||
       absoluteDifference(correctedFull, config::kAdcMaximumCode) > 2u) {
     Serial.println(F("FAIL: fitted ADC correction did not verify endpoints."));
-    return;
+    return false;
   }
 
   CalibrationProfile candidate = activeCalibrationProfile();
   candidate.adc[channel] = calibration;
   if (!setActiveCalibrationProfile(candidate)) {
     Serial.println(F("FAIL: fitted ADC correction rejected."));
-    return;
+    return false;
   }
 
   Serial.print(F("0V raw mean/span=")); Serial.print(zero.mean); Serial.print('/');
@@ -618,6 +647,7 @@ void CalibrationConsole::runAdcWizard(uint8_t channel) {
   Serial.println(full.maximum - full.minimum);
   Serial.println(F("ADC fit PASS; active in RAM. Verify intermediate voltages before saving."));
   printCalibrationLine(channel == 0u ? F("ADC A") : F("ADC B"), calibration);
+  return true;
 }
 
 void CalibrationConsole::zeroSelectedOutput(uint8_t channel) {
@@ -651,10 +681,10 @@ bool CalibrationConsole::verifyDacCalibration(uint8_t channel,
   return true;
 }
 
-void CalibrationConsole::runSelfCalibration(uint8_t channel) {
+bool CalibrationConsole::runSelfCalibration(uint8_t channel) {
   if (!waitForPersistence()) {
     Serial.println(F("Selfcal aborted: calibration EEPROM busy."));
-    return;
+    return false;
   }
 
   Serial.print(F("Patch CV OUT "));
@@ -674,7 +704,7 @@ void CalibrationConsole::runSelfCalibration(uint8_t channel) {
                          true, stats)) {
       zeroSelectedOutput(channel);
       Serial.println(F("Selfcal FAIL: ADC timeout; calibration unchanged."));
-      return;
+      return false;
     }
     samples[i] = {rawDac, stats.mean};
   }
@@ -688,7 +718,7 @@ void CalibrationConsole::runSelfCalibration(uint8_t channel) {
     Serial.print(static_cast<uint8_t>(fit.status));
     Serial.print(F(" residual="));
     Serial.println(fit.maxFitResidualDacCodes);
-    return;
+    return false;
   }
 
   CalibrationProfile candidate = previous;
@@ -696,7 +726,7 @@ void CalibrationConsole::runSelfCalibration(uint8_t channel) {
   if (!setActiveCalibrationProfile(candidate)) {
     zeroSelectedOutput(channel);
     Serial.println(F("Selfcal FAIL: fitted profile rejected."));
-    return;
+    return false;
   }
 
   Serial.println(F("verify_nominal,measured,residual"));
@@ -705,7 +735,7 @@ void CalibrationConsole::runSelfCalibration(uint8_t channel) {
     (void)setActiveCalibrationProfile(previous);
     zeroSelectedOutput(channel);
     Serial.println(F("Selfcal FAIL: verification; previous calibration restored."));
-    return;
+    return false;
   }
 
   if (!calibrationStore_.save(activeCalibrationProfile()) ||
@@ -713,17 +743,19 @@ void CalibrationConsole::runSelfCalibration(uint8_t channel) {
     (void)setActiveCalibrationProfile(previous);
     zeroSelectedOutput(channel);
     Serial.println(F("Selfcal FAIL: persistence; previous calibration restored."));
-    return;
+    return false;
   }
 
   Serial.print(F("Selfcal PASS; max residual="));
   Serial.print(maxResidual);
   Serial.println(F(" DAC codes; calibration stored."));
   printCalibration();
+  return true;
 }
 
-void CalibrationConsole::diagnoseSweep(uint8_t channel) {
+bool CalibrationConsole::diagnoseSweep(uint8_t channel) {
   Serial.println(F("raw_dac,adc_raw,adc_cal,equivalent_dac"));
+  bool ok = true;
   uint16_t code = 0u;
   for (;;) {
     dac_.write(dacChannel(channel), code);
@@ -732,6 +764,7 @@ void CalibrationConsole::diagnoseSweep(uint8_t channel) {
     if (!captureAdcStats(channel, config::kSelfCalibrationAverageSamples,
                          false, raw)) {
       Serial.println(F("# sweep aborted: ADC timeout"));
+      ok = false;
       break;
     }
     const uint16_t cal = calibratedAdcCode(raw.mean, channel);
@@ -744,6 +777,7 @@ void CalibrationConsole::diagnoseSweep(uint8_t channel) {
                : static_cast<uint16_t>(code + kDacSweepStep);
   }
   zeroSelectedOutput(channel);
+  return ok;
 }
 
 void CalibrationConsole::printEepromStatus() const {

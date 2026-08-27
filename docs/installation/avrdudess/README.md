@@ -154,7 +154,7 @@ After programming, the Nano resets and starts the newly installed firmware.
 > [!CAUTION]
 > **DO NOT UNPLUG THE USB CABLE YET.** The update is not considered complete until AVRDUDE has finished **and the Quantizer has completed its startup LED sequence**.
 
-For the normal production image, wait until the fixed startup fade has completed and the normal UI state is visible. For the calibration/maintenance image, wait until the serial maintenance console is available at 115200 baud. Only then consider the newly written image booted successfully.
+For the normal production image, wait until the fixed startup fade has completed and the normal UI state is visible. For the calibration/maintenance image, confirm **three amber full-ring flashes followed by a steady dim-amber ring**, then verify that the serial maintenance console is available at 115200 baud. Only then consider the newly written image booted successfully.
 
 This final boot check confirms that the newly written firmware actually starts before the next service step or before the module is returned to the rack.
 

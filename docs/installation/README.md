@@ -70,6 +70,8 @@ production -> calibration/maintenance -> production
 
 Both image swaps must preserve EEPROM. The maintenance image writes analog calibration only through the physical EEPROM partition `967..1022`; presets and normal live-state records are outside its writer address space. See [README_CALIBRATION.md](../../README_CALIBRATION.md) for the complete console and calibration procedure.
 
+A successfully booted maintenance image identifies itself visually with **three amber full-ring flashes**, then holds a **steady dim-amber ring** while the console is idle. This is intentionally different from the production startup fade.
+
 ## Remove the module from the rack
 
 1. **Switch the Eurorack case OFF.**

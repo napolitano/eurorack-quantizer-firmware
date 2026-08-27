@@ -28,6 +28,8 @@
 #include "platform/nano_atmega328p/BoardConfig.h"
 #include "platform/nano_atmega328p/CalibrationConsole.h"
 #include "platform/nano_atmega328p/Mcp4922Dac.h"
+#include "platform/nano_atmega328p/MaintenanceFeedback.h"
+#include "platform/nano_atmega328p/Tlc5947LedDriver.h"
 
 namespace fmq::platform::nano {
 namespace {
@@ -46,10 +48,18 @@ CalibrationStore g_calibrationStore(g_calibrationEeprom, g_calibrationWriter);
 AvrSpiBus g_spi;
 AvrAnalogInputs g_analog(kPinButtonLadder, kPinCvInputA, kPinCvInputB);
 AvrDigitalOutput g_dacCs(kPinDacChipSelect, /*initialHigh=*/true);
+AvrDigitalOutput g_ledCs(kPinLedChipSelect, /*initialHigh=*/true);
 AvrDigitalOutput g_ledBlank(kPinLedBlank, /*initialHigh=*/true);
 AvrDigitalOutput g_trigOutA(kPinTrigOutputA, /*initialHigh=*/false);
 AvrDigitalOutput g_trigOutB(kPinTrigOutputB, /*initialHigh=*/false);
+AvrDigitalOutput g_inputLedA(kPinInputLedA, /*initialHigh=*/!kStatusLedsActiveHigh);
+AvrDigitalOutput g_outputLedA(kPinOutputLedA, /*initialHigh=*/!kStatusLedsActiveHigh);
+AvrDigitalOutput g_inputLedB(kPinInputLedB, /*initialHigh=*/!kStatusLedsActiveHigh);
+AvrDigitalOutput g_outputLedB(kPinOutputLedB, /*initialHigh=*/!kStatusLedsActiveHigh);
 Mcp4922Dac g_dac(g_spi, g_dacCs);
+Tlc5947LedDriver g_ledDriver(g_spi, g_ledCs, g_ledBlank);
+MaintenanceFeedback g_feedback(g_ledDriver, g_inputLedA, g_inputLedB,
+                               kStatusLedsActiveHigh);
 
 }  // namespace
 
@@ -60,15 +70,25 @@ void CalibrationFirmwareController::begin() {
 
   // Keep normal module outputs quiet while the maintenance image owns the MCU.
   g_dacCs.begin();
+  g_ledCs.begin();
   g_ledBlank.begin();
   g_trigOutA.begin();
   g_trigOutB.begin();
+  g_inputLedA.begin();
+  g_outputLedA.begin();
+  g_inputLedB.begin();
+  g_outputLedB.begin();
   g_trigOutA.set(!kTriggerOutputsActiveHigh);
   g_trigOutB.set(!kTriggerOutputsActiveHigh);
+  g_inputLedA.set(!kStatusLedsActiveHigh);
+  g_outputLedA.set(!kStatusLedsActiveHigh);
+  g_inputLedB.set(!kStatusLedsActiveHigh);
+  g_outputLedB.set(!kStatusLedsActiveHigh);
   g_ledBlank.set(true);  // TLC5947 BLANK is active high.
 
   analogReference(kUseExternalAref ? EXTERNAL : DEFAULT);
   g_spi.begin();
+  g_feedback.begin();
   g_dac.write(Mcp4922Dac::Channel::A, 0u);
   g_dac.write(Mcp4922Dac::Channel::B, 0u);
 
@@ -89,11 +109,12 @@ void CalibrationFirmwareController::begin() {
   }
 
   g_analog.begin(kUseExternalAref);
+  g_feedback.playBootIndication();
 }
 
 [[noreturn]] void CalibrationFirmwareController::run() {
   CalibrationConsole console(g_analog, g_dac, g_calibrationStore,
-                             g_calibrationWriter, g_eeprom);
+                             g_calibrationWriter, g_eeprom, g_feedback);
   console.run();
 }
 

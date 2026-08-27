@@ -20,6 +20,7 @@ class __FlashStringHelper;
 #include "fmq/ports/AnalogInputs.h"
 #include "fmq/ports/Eeprom.h"
 #include "platform/nano_atmega328p/Mcp4922Dac.h"
+#include "platform/nano_atmega328p/MaintenanceFeedback.h"
 
 namespace fmq::platform::nano {
 
@@ -29,10 +30,10 @@ class CalibrationConsole {
   CalibrationConsole(IAnalogInputs &adc, Mcp4922Dac &dac,
                      CalibrationStore &calibrationStore,
                      AsyncEepromWriter &calibrationWriter,
-                     const IEeprom &fullEeprom)
+                     const IEeprom &fullEeprom, MaintenanceFeedback &feedback)
       : adc_(adc), dac_(dac), calibrationStore_(calibrationStore),
         calibrationWriter_(calibrationWriter), fullEeprom_(fullEeprom),
-        commandLength_(0u) {
+        feedback_(feedback), commandLength_(0u) {
     command_[0] = '\0';
   }
 
@@ -50,7 +51,7 @@ class CalibrationConsole {
   void printBanner() const;
   void printHelp() const;
   void printCalibration() const;
-  void printCalibrationReport();
+  bool printCalibrationReport();
   void printCalibrationLine(const __FlashStringHelper *label,
                             const LinearCalibration &calibration) const;
   void printEepromStatus() const;
@@ -58,19 +59,19 @@ class CalibrationConsole {
 
   bool waitForPersistence();
   void servicePersistence();
-  void saveCalibration();
-  void loadCalibration();
+  bool saveCalibration();
+  bool loadCalibration();
 
   bool captureAdcStats(uint8_t channel, uint16_t count, bool calibrated,
                        AdcStats &stats);
-  void measureAdc(uint8_t channel);
-  void diagnoseNoise(uint8_t channel);
-  void diagnoseSweep(uint8_t channel);
+  bool measureAdc(uint8_t channel);
+  bool diagnoseNoise(uint8_t channel);
+  bool diagnoseSweep(uint8_t channel);
 
-  void runAdcWizard(uint8_t channel);
+  bool runAdcWizard(uint8_t channel);
   bool waitForEnter(const __FlashStringHelper *prompt);
 
-  void runSelfCalibration(uint8_t channel);
+  bool runSelfCalibration(uint8_t channel);
   bool verifyDacCalibration(uint8_t channel, uint16_t &maxResidual);
   void zeroSelectedOutput(uint8_t channel);
 
@@ -85,6 +86,7 @@ class CalibrationConsole {
   CalibrationStore &calibrationStore_;
   AsyncEepromWriter &calibrationWriter_;
   const IEeprom &fullEeprom_;
+  MaintenanceFeedback &feedback_;
   char command_[kCommandBufferBytes];
   uint8_t commandLength_;
 };

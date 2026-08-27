@@ -15,6 +15,7 @@ A new section should be added when a release version is explicitly declared. Eac
 ### Added
 
 - Added maintenance-console `cal report`: it requires a valid stored calibration record, re-verifies both DAC loopbacks without writing EEPROM, prints coefficients/journal generation and emits compact module-label text only after a full PASS.
+- Added dedicated maintenance-mode visual feedback: three amber boot flashes, steady dim-amber idle indication, ring-off analog measurement phases with channel Input-LED identification, two green/red flashes for normal PASS/FAIL, and three green/red flashes for `cal report` PASS/FAIL.
 
 - Added persistent per-module ADC A/B and DAC A/B affine calibration using two redundant 28-byte CRC16-protected EEPROM records. `AnalogConfig.h` remains the factory/fallback profile when no valid journal record exists.
 - Added a dedicated Nano **calibration/maintenance firmware image** (`nanoatmega328new_calibration` / `nanoatmega328_calibration`) instead of carrying the serial calibration shell in production firmware. Normal bootloader uploads of either image preserve EEPROM.

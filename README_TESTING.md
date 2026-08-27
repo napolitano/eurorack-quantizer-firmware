@@ -231,6 +231,8 @@ Native tests cannot validate analog or physical effects such as:
 
 The final `cal report` certificate/label path is therefore part of **real-hardware qualification**, not a substitute for it. The hardware qualification checklist verifies that the command reports both loopbacks, emits a label block only after full PASS, and leaves EEPROM unchanged.
 
+The maintenance-image visual state machine is also hardware-qualified rather than inferred from native tests: three amber boot flashes followed by steady dim amber, ring-off measurement phases with the correct channel Input LED, two green/red flashes for normal PASS/FAIL, and three green/red flashes for `cal report` PASS/FAIL. The ring-off requirement is specifically checked during analog capture so maintenance feedback does not add changing TLC5947 PWM load to the measurement interval.
+
 Those require calibrated hardware-in-the-loop measurements. The native suite exists to make the digital behaviour deterministic before hardware uncertainty is introduced.
 
 ### Strict compiler warnings and Unity

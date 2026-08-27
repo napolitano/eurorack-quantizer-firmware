@@ -19,6 +19,19 @@ constexpr uint32_t kMaintenanceBaud = 115200u;
 constexpr uint16_t kMaintenanceConsoleStartupDelayMs = 50u;
 constexpr uint16_t kMaintenancePersistenceTimeoutMs = 1500u;
 
+// Visual maintenance-mode feedback. The ring is deliberately static and dim
+// while idle, and completely off during analog measurements.
+constexpr uint8_t kMaintenanceIdleBrightnessPercent = 8u;
+constexpr uint8_t kMaintenanceBootBlinkCount = 3u;
+constexpr uint8_t kMaintenanceResultBlinkCount = 2u;
+constexpr uint8_t kMaintenanceReportBlinkCount = 3u;
+constexpr uint16_t kMaintenanceFeedbackBlinkOnMs = 80u;
+constexpr uint16_t kMaintenanceFeedbackBlinkOffMs = 70u;
+
+static_assert(kMaintenanceIdleBrightnessPercent >= 5u &&
+                  kMaintenanceIdleBrightnessPercent <= 10u,
+              "maintenance idle brightness must remain deliberately dim");
+
 constexpr uint16_t kSelfCalibrationSettleMs = 8u;
 constexpr uint8_t kSelfCalibrationAverageSamples = 12u;
 constexpr uint16_t kSelfCalibrationSampleTimeoutMs = 150u;

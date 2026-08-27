@@ -8,7 +8,7 @@ Configuration is split by responsibility under `lib/fmq/include/fmq/config/`:
 - `LedConfig.h` — normal LED brightness and fixed startup-fade timing.
 - `PersistenceConfig.h` — EEPROM/autosave timing.
 - `RuntimeConfig.h` — production scheduler, diagnostics and startup-input timing.
-- `MaintenanceConfig.h` — serial, persistence and self-calibration timing used only by the dedicated maintenance image.
+- `MaintenanceConfig.h` — serial, persistence, self-calibration timing, and maintenance-only visual feedback timing/brightness used only by the dedicated maintenance image.
 - `FirmwareConfig.h` — convenience umbrella include for the configuration above.
 - `src/platform/nano_atmega328p/BoardConfig.h` — selected board profile, pin map, ADC-reference choice and electrical polarities.
 
@@ -148,7 +148,7 @@ EEPROM byte 1023, formerly used by development builds for rotating startup metad
 
 ## Runtime and diagnostics
 
-`RuntimeConfig.h` centralises production UI/LED task dividers, diagnostics period, startup input settle time and ladder-calibration timeout. `MaintenanceConfig.h` separately contains maintenance serial, persistence and self-calibration timing so those concerns do not leak into the production configuration surface. Automatic live-state restore and asynchronous autosave are enabled by default. The musical state and the active Quantizer/Arpeggiator UI layer are restored on boot. Layer restoration is side-effect free: it does not enable/disable an Arpeggiator or replay toggle feedback.
+`RuntimeConfig.h` centralises production UI/LED task dividers, diagnostics period, startup input settle time and ladder-calibration timeout. `MaintenanceConfig.h` separately contains maintenance serial, persistence, self-calibration, and maintenance visual-feedback timing/brightness so those concerns do not leak into the production configuration surface. The maintenance defaults are three amber boot flashes, an 8% dim-amber idle ring, two green/red normal result flashes, and three green/red `cal report` result flashes; the ring is forced off during analog measurements. Automatic live-state restore and asynchronous autosave are enabled by default. The musical state and the active Quantizer/Arpeggiator UI layer are restored on boot. Layer restoration is side-effect free: it does not enable/disable an Arpeggiator or replay toggle feedback.
 
 
 ### LED calibration scale

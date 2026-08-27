@@ -255,13 +255,14 @@
     </section>
 
     <section xml:id="analogue-maintenance">
-      <title>Analogue calibration/maintenance image (Unreleased)</title>
+      <title>Analog calibration/maintenance image (Unreleased)</title>
       <para>The development tree after 0.2.1 moves serial ADC/DAC calibration and
       loopback self-calibration out of the production image. The maintenance image
       boots directly to a 115200-baud serial console, can create and verify the
       persistent affine profile, and exposes diagnostic ADC/noise/sweep commands.
       Normal production firmware contains no calibration command parser and has no
       calibration write API.</para>
+      <para>The maintenance image has a hardware-visible state indication independent of the serial terminal. A successful boot flashes the complete note ring amber three times and then holds a dim amber idle indication. During analog measurements the note ring is fully off and the selected channel input-status LED identifies A or B; dual-channel report verification enables both input-status LEDs. Normal PASS/FAIL results use two green/red ring flashes, while <literal>cal report</literal> uses three green/red flashes. Every result returns to dim amber idle. Keeping the TLC5947 ring dark during acquisition avoids changing PWM load during analog measurement windows.</para>
       <para>The maintenance-only <literal>cal report</literal> command requires a
       valid stored profile, refuses unsaved RAM-only coefficients, re-verifies
       both DAC loopbacks without writing EEPROM, reports the active journal

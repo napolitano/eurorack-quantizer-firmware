@@ -13,6 +13,7 @@ The key design rule is simple: the normal production firmware **uses** calibrati
 - [EEPROM isolation](#eeprom-isolation)
 - [Build and upload targets](#build-and-upload-targets)
 - [Maintenance console](#maintenance-console)
+- [Maintenance visual feedback](#maintenance-visual-feedback)
 - [Recommended calibration workflow](#recommended-calibration-workflow)
 - [ADC calibration](#adc-calibration)
 - [DAC loopback self-calibration](#dac-loopback-self-calibration)
@@ -186,6 +187,26 @@ Main commands:
 | `eeprom backup` | Print a read-only 1024-byte EEPROM hex dump |
 
 There is intentionally **no generic EEPROM restore/erase command** in the maintenance console. That would defeat the write-isolation design.
+
+## Maintenance visual feedback
+
+The calibration/maintenance image deliberately uses a different LED language from normal production firmware. This makes it possible to confirm that the correct image is running and to see whether a hardware operation is active even if the serial terminal is not in view.
+
+| State | Visual indication |
+|---|---|
+| Successful maintenance-image boot | Full note ring flashes **amber three times** |
+| Console idle / ready | Full note ring remains **steady dim amber** at 8% of the configured default red/green PWM levels |
+| Channel A measurement/calibration | Note ring **off**; **Input LED A on** |
+| Channel B measurement/calibration | Note ring **off**; **Input LED B on** |
+| Dual-channel `cal report` verification | Note ring **off**; **Input LEDs A and B on** |
+| Normal command/calibration PASS | Full note ring flashes **green twice** |
+| Normal command/calibration FAIL | Full note ring flashes **red twice** |
+| `cal report` full PASS | Full note ring flashes **green three times** |
+| `cal report` FAIL | Full note ring flashes **red three times** |
+
+After every PASS/FAIL indication, the firmware returns automatically to the steady dim-amber idle state. Informational commands such as `help`, `version`, and `cal show` do not need a success flash because the persistent dim-amber ring already indicates that the maintenance console is alive and ready.
+
+The note ring is intentionally switched completely off while analog measurements are in progress. This avoids unnecessary 24-channel TLC5947 PWM activity and changing LED load during ADC noise measurements, guided ADC calibration, DAC loopback self-calibration, verification, and sweeps. Only the selected channel's discrete Input LED remains on as the channel marker.
 
 ## Recommended calibration workflow
 

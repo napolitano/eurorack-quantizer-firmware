@@ -91,6 +91,12 @@ The detailed oscilloscope procedure is in [`timing-qualification.md`](timing-qua
 - [ ] CV B zero point and octave scaling are measured.
 - [ ] DAC/output A reaches the expected calibrated range monotonically.
 - [ ] DAC/output B reaches the expected calibrated range monotonically.
+- [ ] The maintenance image boots with exactly three amber full-ring flashes and then holds a steady dim-amber idle ring.
+- [ ] During Channel A analog measurement/calibration the note ring is completely off and Input LED A is on; Channel B behaves equivalently with Input LED B.
+- [ ] During dual-channel `cal report` verification the note ring is completely off and both channel Input LEDs are on.
+- [ ] A normal maintenance PASS produces exactly two green full-ring flashes; a normal FAIL produces exactly two red full-ring flashes; both return to steady dim amber.
+- [ ] `cal report` PASS produces exactly three green full-ring flashes and FAIL produces exactly three red full-ring flashes; both return to steady dim amber.
+- [ ] No changing TLC5947 ring PWM activity occurs during ADC/DAC measurement windows.
 - [ ] In the maintenance image, `cal self a` passes with OUT A patched to IN A and persists the verified DAC-A correction.
 - [ ] In the maintenance image, `cal self b` passes with OUT B patched to IN B and persists the verified DAC-B correction.
 - [ ] With both OUT->IN loopbacks patched, `cal report` re-verifies A and B, reports the active journal generation and coefficients, produces a compact label block only on full PASS, and performs no EEPROM write.
