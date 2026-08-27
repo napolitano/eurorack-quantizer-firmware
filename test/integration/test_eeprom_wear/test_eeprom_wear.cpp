@@ -13,7 +13,8 @@
 #include "fmq/persistence/LiveStateStore.h"
 #include "fmq/persistence/PersistenceLayout.h"
 #include "fmq/persistence/SaveSlotStore.h"
-#include "fmq/persistence/StartupSequenceStore.h"
+#include "fmq/persistence/CalibrationStore.h"
+#include "fmq/persistence/EepromPartition.h"
 
 using namespace fmq;
 using namespace fmqtest;
@@ -71,23 +72,27 @@ static void test_eeprom_double_write_is_suppressed_for_unchanged_byte(void) {
   TEST_ASSERT_EQUAL_UINT32(1u, eeprom.writeCount(100u));
 }
 
-static void test_startup_sequence_rewriting_same_value_does_not_add_wear(void) {
+static void test_calibration_partition_does_not_write_presets_or_reserved_tail(void) {
   FakeEeprom eeprom;
-  AsyncEepromWriter writer(eeprom);
-  StartupSequenceStore startup(eeprom, writer);
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
+  CalibrationProfile profile = factoryCalibrationProfile();
+  profile.dac[0].offset = 3;
 
-  TEST_ASSERT_TRUE(startup.storeNextSequence(2u));
-  writer.flush();
-  TEST_ASSERT_TRUE(startup.storeNextSequence(2u));
-  writer.flush();
+  TEST_ASSERT_TRUE(store.save(profile));
+  store.flush();
 
-  TEST_ASSERT_EQUAL_UINT32(1u, eeprom.writeCount(kStartupSequenceAddress));
+  for (uint16_t address = 0u; address < kCalibrationRegionBase; ++address) {
+    TEST_ASSERT_EQUAL_UINT32(0u, eeprom.writeCount(address));
+  }
+  TEST_ASSERT_EQUAL_UINT32(0u, eeprom.writeCount(kReservedEepromTailAddress));
 }
 
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_two_full_live_ring_cycles_are_evenly_wear_levelled);
   RUN_TEST(test_eeprom_double_write_is_suppressed_for_unchanged_byte);
-  RUN_TEST(test_startup_sequence_rewriting_same_value_does_not_add_wear);
+  RUN_TEST(test_calibration_partition_does_not_write_presets_or_reserved_tail);
   return UNITY_END();
 }

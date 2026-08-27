@@ -45,17 +45,30 @@ The Nano may remain mounted on the Quantizer PCB during the update. For the proc
 
 ## Choose the correct firmware file
 
-Every tagged release publishes two Nano HEX files:
+The latest declared release is 0.2.1 and publishes the two normal production HEX files below. The current `Unreleased` development tree also builds a separate calibration/maintenance HEX for each bootloader; those maintenance assets become public release files only when the next release is explicitly tagged.
 
-| Nano bootloader | Release asset | AVRDUDESS baud rate |
-|---|---|---:|
-| New bootloader / Optiboot | `fm-quantizer-nano-new-bootloader.hex` | `115200` |
-| Old Nano bootloader | `fm-quantizer-nano-old-bootloader.hex` | `57600` |
+| Nano bootloader | Production asset | Calibration/maintenance asset (`Unreleased`) | AVRDUDESS baud rate |
+|---|---|---|---:|
+| New bootloader / Optiboot | `fm-quantizer-nano-new-bootloader.hex` | `fm-quantizer-calibration-nano-new-bootloader.hex` | `115200` |
+| Old Nano bootloader | `fm-quantizer-nano-old-bootloader.hex` | `fm-quantizer-calibration-nano-old-bootloader.hex` | `57600` |
 
 Arduino documents the newer ATmega328P Nano bootloader as the normal choice for boards sold from 2018 onward; older boards and some third-party Nano boards may require the old-bootloader option. If you do not know which bootloader is installed, trying the wrong upload speed should simply fail to establish communication; try the other variant next.
 
 > [!NOTE]
 > Both targets use the same **ATmega328P at 16 MHz** hardware. The release keeps separate artifacts so the supported upload path is explicit and reproducible.
+
+
+### Calibration image swap
+
+The dedicated calibration image is a service tool, not normal musical firmware. **It is not required for routine firmware updates.** Use it only for a module that has not yet been individually calibrated, after calibration data have been lost/erased, after relevant analog-path hardware changes, or when measured pitch / 1 V/oct performance indicates a calibration problem.
+
+For a calibration session, the module remains powered from the Nano's **USB connection only**. Keep the Eurorack ribbon cable disconnected for the entire production → maintenance → production workflow. The intended sequence is:
+
+```text
+production -> calibration/maintenance -> production
+```
+
+Both image swaps must preserve EEPROM. The maintenance image writes analog calibration only through the physical EEPROM partition `967..1022`; presets and normal live-state records are outside its writer address space. See [README_CALIBRATION.md](../../README_CALIBRATION.md) for the complete console and calibration procedure.
 
 ## Remove the module from the rack
 

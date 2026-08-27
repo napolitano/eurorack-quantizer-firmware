@@ -92,10 +92,12 @@ jobs:
           gcovr --root . --filter lib/fmq/src --exclude test --xml-pretty --output coverage/coverage.xml
           python scripts/check_native_coverage.py coverage/coverage.xml
 
-      - name: Build both Nano targets
+      - name: Build production and calibration Nano targets
         run: |
           pio run -e nanoatmega328new
           pio run -e nanoatmega328
+          pio run -e nanoatmega328new_calibration
+          pio run -e nanoatmega328_calibration
 
       - name: Compile timing qualification image
         run: pio run -e nanoatmega328new_timing
@@ -104,6 +106,8 @@ jobs:
         run: |
           python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328new/firmware.elf
           python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328/firmware.elf
+          python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328new_calibration/firmware.elf
+          python scripts/check_avr_resource_budget.py .pio/build/nanoatmega328_calibration/firmware.elf
 
       - name: Install manual PDF tooling
         if: steps.manual.outputs.found == 'true'
@@ -118,6 +122,10 @@ jobs:
           cp .pio/build/nanoatmega328new/firmware.elf dist/fm-quantizer-nano-new-bootloader.elf
           cp .pio/build/nanoatmega328/firmware.hex dist/fm-quantizer-nano-old-bootloader.hex
           cp .pio/build/nanoatmega328/firmware.elf dist/fm-quantizer-nano-old-bootloader.elf
+          cp .pio/build/nanoatmega328new_calibration/firmware.hex dist/fm-quantizer-calibration-nano-new-bootloader.hex
+          cp .pio/build/nanoatmega328new_calibration/firmware.elf dist/fm-quantizer-calibration-nano-new-bootloader.elf
+          cp .pio/build/nanoatmega328_calibration/firmware.hex dist/fm-quantizer-calibration-nano-old-bootloader.hex
+          cp .pio/build/nanoatmega328_calibration/firmware.elf dist/fm-quantizer-calibration-nano-old-bootloader.elf
           cp README.md LICENSE dist/
           python scripts/write_build_info.py --output dist/BUILD-INFO.txt --environment nanoatmega328new
 

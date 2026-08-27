@@ -11,7 +11,6 @@
 #include "fmq/persistence/AsyncEepromWriter.h"
 #include "fmq/persistence/LiveStateStore.h"
 #include "fmq/persistence/SaveSlotStore.h"
-#include "fmq/persistence/StartupSequenceStore.h"
 
 using namespace fmq;
 using namespace fmqtest;
@@ -76,7 +75,6 @@ void assertImageLoads(const uint8_t (&image)[1024]) {
   AsyncEepromWriter writer(eeprom);
   SaveSlotStore slots(eeprom, writer);
   LiveStateStore live(eeprom, writer);
-  StartupSequenceStore startup(eeprom, writer);
 
   bool notes[kNoteCount] = {};
   TEST_ASSERT_TRUE(slots.readScale(2u, notes));
@@ -95,7 +93,9 @@ void assertImageLoads(const uint8_t (&image)[1024]) {
   TEST_ASSERT_EQUAL_UINT8(9u, liveState.brightness.greenStep);
   TEST_ASSERT_EQUAL_UINT32(1u, live.currentSequence());
 
-  TEST_ASSERT_EQUAL_UINT8(3u, startup.loadSequenceToPlay(4u));
+  // Byte 1023 may contain legacy rotating-startup metadata. It is now reserved
+  // and deliberately ignored/preserved by the fixed startup implementation.
+  TEST_ASSERT_EQUAL_UINT8(3u, eeprom.readByte(kReservedEepromTailAddress));
 }
 }  // namespace
 

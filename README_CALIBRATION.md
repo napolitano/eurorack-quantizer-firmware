@@ -1,391 +1,367 @@
-# Calibration guide
+# Analog calibration and maintenance
 
-This guide describes the practical calibration workflow for the Free Modular Quantizer C++/PlatformIO firmware. Calibration is intentionally split into **LED**, **CV input**, **DAC output**, and **button-ladder** checks because these depend on the actual assembled hardware rather than firmware alone.
+This document describes the hardware-calibration workflow for the Free Modular Quantizer firmware development tree after release 0.2.1. The split-image calibration architecture is currently **Unreleased** and is intended for the next release; it must not be described as a published 0.2.2 release until that release is explicitly declared.
 
-> [!IMPORTANT]
-> Calibration values are hardware-specific. Do not copy another build's LED, CV, DAC, or ladder values blindly; measure the actual module and verify the result electrically and musically.
-
-The firmware does not invent analogue correction values. Measurements are taken on the real module and stored as a persistent affine calibration profile. `AnalogConfig.h` supplies factory/fallback values only; a valid EEPROM profile takes precedence at boot.
+The key design rule is simple: the normal production firmware **uses** calibration, while a separate calibration/maintenance firmware **creates and verifies** it. Both images share the same versioned EEPROM calibration format.
 
 ## Contents
 
-- [What you need](#what-you-need)
-- [Upstream context: calibration is an extension](#upstream-context-calibration-is-an-extension)
-- [1. LED brightness calibration](#1-led-brightness-calibration)
-- [2. Boot-time hardware calibration console](#2-boot-time-hardware-calibration-console)
-- [3. Resistor-ladder verification](#3-resistor-ladder-verification)
-- [4. CV input calibration](#4-cv-input-calibration)
-- [5. DAC output calibration](#5-dac-output-calibration)
-- [6. Loopback self-calibration](#6-loopback-self-calibration)
-- [7. Musical verification](#7-musical-verification)
-- [8. Automatic ladder-rest check](#8-automatic-ladder-rest-check)
-- [9. Runtime diagnostics](#9-runtime-diagnostics)
+- [When calibration is required](#when-calibration-is-required)
+- [Power and connection safety](#power-and-connection-safety)
+- [Architecture](#architecture)
+- [Why calibration survives firmware uploads](#why-calibration-survives-firmware-uploads)
+- [EEPROM isolation](#eeprom-isolation)
+- [Build and upload targets](#build-and-upload-targets)
+- [Maintenance console](#maintenance-console)
+- [Recommended calibration workflow](#recommended-calibration-workflow)
+- [ADC calibration](#adc-calibration)
+- [DAC loopback self-calibration](#dac-loopback-self-calibration)
+- [Diagnostics](#diagnostics)
+- [Manual affine calibration](#manual-affine-calibration)
+- [Failure and recovery behavior](#failure-and-recovery-behavior)
+- [EEPROM erase warning](#eeprom-erase-warning)
+- [LED and button-ladder calibration](#led-and-button-ladder-calibration)
 - [Calibration checklist](#calibration-checklist)
 
-## What you need
+## When calibration is required
 
-For basic calibration:
+Analog calibration is **not periodic maintenance** and is not required simply because the firmware has been updated. Use the calibration/maintenance image when at least one of the following applies:
 
-- the assembled module and a stable Eurorack power supply;
-- a reliable digital multimeter;
-- a known CV source or precision voltage source for input calibration;
-- a computer with a serial terminal at **115200 baud** for the boot-time calibration console.
+- the module has never been individually ADC/DAC calibrated;
+- the persistent calibration journal has been erased, corrupted, or intentionally reset;
+- components in the analog CV input/output path or voltage-reference path have been replaced or materially changed;
+- measurement shows a meaningful pitch or 1 V/oct error that cannot be explained by the external test setup.
 
-For higher-confidence verification, an oscilloscope and a precision voltage reference are useful but not mandatory.
+If a module already has a valid, verified calibration profile and normal EEPROM-preserving firmware uploads are used, **do not recalibrate it merely because a new firmware image was installed**. The production image continues to load the existing calibration journal.
 
-## Upstream context: calibration is an extension
-
-Quinn Freedman's original Rust firmware is the behavioural and hardware reference for this project, but it does **not** implement per-channel software offset/gain correction for the CV ADC inputs or MCP4922 DAC outputs. The upstream signal path converts the 10-bit ADC reading directly into the 0…120-semitone domain and converts the resulting semitone value directly into a 12-bit DAC code. The shared upstream `fm-lib` MCP4922 driver then writes the supplied DAC code without another calibration layer.
-
-The original firmware also does not contain the boot-time serial calibration console described in this document. `AnalogConfig.h`, the per-channel ADC/DAC affine corrections, the redundant EEPROM calibration journal, the RAW/CAL verification console, and loopback self-calibration are extensions of this C++/PlatformIO firmware.
-
-> [!NOTE]
-> Do not try to derive `AnalogConfig.h` semantics from the upstream firmware: there are no equivalent offset/numerator/denominator constants there. In 0.2.2 these values are factory/fallback defaults. Use RAW measurements to characterize the assembled hardware, set the active calibration from the console, and persist it only after verification.
-
-Upstream reference sources:
-
-- Quantizer firmware: <https://github.com/QuinnFreedman/modular/tree/main/modules/Quantizer/Firmware>
-- Quantizer `main.rs`: <https://github.com/QuinnFreedman/modular/blob/main/modules/Quantizer/Firmware/src/main.rs>
-- shared `fm-lib`: <https://github.com/QuinnFreedman/modular/tree/main/fm-lib>
-- MCP4922 driver: <https://github.com/QuinnFreedman/modular/blob/main/fm-lib/src/mcp4922.rs>
-
-## 1. LED brightness calibration
-
-### Why this must be calibrated empirically
-
-The red and green channels of the bi-colour LEDs can differ dramatically in perceived brightness. The result depends on the fitted LED type, forward voltage, optical efficiency, viewing angle, diffuser/button cap and series resistors.
-
-The current hardware, for example, uses very different resistor values for the two colour channels. Therefore equal numerical PWM values do **not** imply equal visible brightness. There is no reliable formula that will produce a final red/green/amber balance for every build.
-
-> [!NOTE]
-> LED PWM values are starting points, not universal calibration constants. Perceived red/green balance depends strongly on the fitted LEDs, resistors, optics, and viewing conditions.
-
-**LED brightness must therefore be adjusted empirically and iteratively on the actual module.** The values shipped in the firmware are starting values only.
-
-### Entering LED calibration
-
-Hold:
-
-**SHIFT + LOAD + SAVE for 5 seconds**
-
-The calibration interface uses the twelve note positions as a linear representation of the complete 12-bit TLC5947 PWM range.
-
-- Channel A represents **green**.
-- Channel B represents **red**.
-- Channel A / green is selected initially.
-- `SHIFT + A` selects green.
-- `SHIFT + B` selects red.
-
-### Calibration scale
-
-The ring spans the real hardware range **0…4095 inclusive**:
-
-- 12 o'clock / first position = **0**, true off;
-- final clockwise position = **4095**, the TLC5947 maximum;
-- the ten intermediate positions divide the range into eleven equal intervals.
-
-If the current configured PWM value falls between two displayed steps, the firmware selects the **nearest** step.
-
-During active calibration the ring deliberately stops behaving like a numeric bar. Instead it shows a repeating **green / red / amber** comparison pattern around all twelve positions. The currently stored red and green PWM levels are applied live, and amber uses both at the same time. This makes the actual balance visible while either emitter is adjusted instead of forcing the builder to remember how the other colour looked.
-
-After a note button selects a new step, that ring position is shown briefly as a dark gap. The gap is only a position marker; the full green/red/amber comparison pattern returns automatically. The two discrete status LEDs for Channel A are lit while **green** is being edited, and the Channel B pair is lit while **red** is being edited.
-
-### Practical procedure
-
-1. Enter calibration mode.
-2. Start with Channel A / green. The Channel A status-LED pair identifies the active editor.
-3. Choose a note position for the green PWM step while watching the green, red and amber samples together.
-4. Switch to Channel B / red with `SHIFT + B`; the Channel B status-LED pair now identifies the active editor.
-5. Adjust red while judging both the direct red/green balance and the amber mixture.
-6. Move back to green with `SHIFT + A` if another correction is useful. Because all three colours stay visible, repeated A/B switching is no longer required merely to compare brightness.
-7. Hold **SHIFT alone for 5 seconds** to save and leave calibration.
-
-Do not optimise only for maximum brightness. The target is a readable, comfortable normal level with a convincing amber mixture and sufficient headroom.
-
-## 2. Boot-time hardware calibration console
-
-Hold **SHIFT while powering on**. After the startup LED self-test, the firmware enters the serial calibration console instead of normal operation.
-
-Serial settings:
-
-- **115200 baud**
-
-The console prints the active ADC/DAC calibration profile when it starts and deliberately distinguishes two signal paths:
-
-- **RAW** values are uncorrected hardware ADC/DAC codes. Use them to characterize the assembled analogue path.
-- **CAL** values pass through the same calibration helpers used by normal quantizer operation. Use them to verify the active profile.
-
-A valid calibration profile is loaded from the redundant CRC16-protected EEPROM journal at boot. If no valid record exists, the factory values from `AnalogConfig.h` are used. Console edits affect RAM first; `:save` is the explicit persistence operation, except for a successful `:self a` / `:self b`, which verifies and saves automatically.
-
-> [!IMPORTANT]
-> `:defaults` restores the factory/fallback profile in RAM. It does **not** overwrite EEPROM until `:save` is issued. A full EEPROM erase removes the persistent ADC/DAC profile as well as the other EEPROM-backed state.
-
-Immediate commands:
-
-| Command | Function |
-|---|---|
-| `r` | Print current RAW ADC readings plus calibrated CV-A/CV-B codes |
-| `s` | Toggle a 10 Hz RAW+CAL ADC stream |
-| `c` | Print the active ADC and DAC offset/gain constants |
-| `z` | Set both DACs to **RAW** code 0 |
-| `m` | Set both DACs to **RAW** code 2048 |
-| `f` | Set both DACs to **RAW** code 4095 |
-| `Z` | Send nominal code 0 through the active DAC calibration |
-| `M` | Send nominal code 2048 through the active DAC calibration |
-| `F` | Send nominal code 4095 through the active DAC calibration |
-| `[` / `]` | Decrement / increment DAC A by one **RAW** hardware code |
-| `{` / `}` | Decrement / increment DAC B by one **RAW** hardware code |
-| `?` | Print abbreviated help |
-
-Line commands:
-
-| Command | Function |
-|---|---|
-| `:show` | Print the complete active calibration profile |
-| `:adc a OFFSET NUM DEN` | Set Channel A ADC affine correction in RAM |
-| `:adc b OFFSET NUM DEN` | Set Channel B ADC affine correction in RAM |
-| `:dac a OFFSET NUM DEN` | Set Channel A DAC affine correction in RAM |
-| `:dac b OFFSET NUM DEN` | Set Channel B DAC affine correction in RAM |
-| `:save` | Atomically persist the active profile |
-| `:load` | Reload the newest valid persisted profile; fall back to factory values if none exists |
-| `:defaults` | Restore `AnalogConfig.h` factory/fallback values in RAM |
-| `:self a` | Run verified OUT A → IN A loopback self-calibration and save on success |
-| `:self b` | Run verified OUT B → IN B loopback self-calibration and save on success |
-| `:help` | Print line-command help |
-
-Example ADC output:
-
-```text
-ADC RAW ladder=558 A=510 B=508
-ADC CAL A=512 B=511
-```
-
-Example calibrated DAC verification:
-
-```text
-DAC CAL A=2048->2057 B=2048->2046
-```
-
-The value before `->` is the nominal runtime DAC code. The value after `->` is the corrected code actually written to the MCP4922.
-
-The console is enabled by `kCalibrationConsoleEnabled` in `RuntimeConfig.h`.
-
-## 3. Resistor-ladder verification
-
-The original PCB uses the proven Rust-firmware ladder reference values:
-
-```text
-0, 93, 171, 236, 292, 341, 384, 421, 455, 485, 512, 536, 558
-```
-
-The final value represents the released/no-button state. The original-board profile uses these absolute values with 64 ms debounce. Decoding first finds the nearest nominal key, then accepts it only when the reading is within ±10 ADC counts; implausible gap values are treated as no button. The released/high region begins at ADC 548.
-
-### Verification procedure
-
-1. Enter the boot-time calibration console.
-2. Use `s` to enable the ADC stream.
-3. Record the released ladder value.
-4. Press each of the twelve note buttons individually and record its stable ADC value.
-5. Repeat the complete sequence at least twice.
-6. Verify that every button forms a clearly distinguishable cluster around its expected value.
-
-If a custom PCB, different resistor network or different ADC reference is used, adjust the ladder configuration in:
-
-```text
-lib/fmq/include/fmq/config/AnalogConfig.h
-```
-
-Do not change the original-board values merely to hide unstable hardware. Large or inconsistent deviations should first be investigated electrically.
-
-## 4. CV input calibration
-
-The ADC path supports independent correction for Channel A and Channel B. The active ADC calibration is also the measurement reference used by loopback self-calibration, so it must be established against a trustworthy external voltage reference first.
-
-The normal runtime applies ADC calibration in this order:
-
-1. add the input offset;
-2. clamp to the 10-bit ADC range;
-3. apply the integer gain ratio;
-4. round to the nearest code and clamp again.
-
-In compact form:
-
-```text
-CAL = clamp(round((RAW + offset) * numerator / denominator), 0, 1023)
-```
-
-> [!NOTE]
-> The full 0–10 V range maps to ADC codes 0…1023. The mathematical 5 V midpoint is therefore **511.5**, not exactly 512. Integer calibration ratios can represent that half-code relationship without pretending that the ADC itself has half-code resolution.
-
-### Minimum two-point procedure
-
-1. Connect a precise **0 V** source to CV input A.
-2. Record the **RAW** ADC value using the calibration console.
-3. Apply a second accurate reference, preferably **5 V**.
-4. Record the second **RAW** ADC value.
-5. Derive the required offset and gain correction.
-6. Enter it with `:adc a OFFSET NUM DEN`.
-7. Use `r`, `s`, or `:show` to verify the correction before persistence.
-8. Persist the verified profile with `:save`.
-9. Repeat independently for Channel B with `:adc b ...`.
-
-For example, if Channel A measures:
-
-```text
-0 V -> RAW 7
-5 V -> RAW 510
-```
-
-the zero-point correction is:
-
-```text
-offset = -7
-```
-
-After removing the offset, the measured 0–5 V span is 503 codes. A precise integer representation of the required midpoint correction is:
-
-```text
-gainNumerator   = 1023
-gainDenominator = 1006
-```
-
-because `1023 / 1006` represents `511.5 / 503`. Apply it with:
-
-```text
-:adc a -7 1023 1006
-```
-
-A RAW value near 510 should then appear as a CAL value near 512.
-
-### Recommended verification points
-
-After applying the correction, check several points across the intended range, for example:
-
-```text
-0 V
-1 V
-2 V
-3 V
-4 V
-5 V
-```
-
-For 1 V/octave use, errors should not accumulate significantly across octaves. If the middle of the range is correct but the ends drift, the gain still needs adjustment. If the error is nearly constant everywhere, the offset is the more likely cause.
-
-## 5. DAC output calibration
-
-DAC A and DAC B have independent gain and offset correction.
-
-The DAC correction intentionally uses the opposite affine order from the ADC path:
-
-1. apply the integer gain ratio to the nominal DAC code;
-2. add the output offset;
-3. round and clamp to the 12-bit DAC range.
-
-```text
-CORRECTED = clamp(round(NOMINAL * numerator / denominator) + offset, 0, 4095)
-```
-
-> [!IMPORTANT]
-> Lowercase `z` / `m` / `f` are **RAW hardware tests** and bypass the active DAC correction. Uppercase `Z` / `M` / `F` use the same calibrated-code function as normal runtime output. Use RAW commands to characterize the analogue path and CAL commands to verify the active correction.
-
-### Manual procedure
-
-1. Enter the boot-time calibration console.
-2. Use `z` to command **RAW** DAC code 0 and measure both CV outputs accurately.
-3. Use `f` to command **RAW** DAC code 4095 and measure again.
-4. Use `m` as a midpoint linearity check at RAW code 2048.
-5. Derive the per-channel DAC gain and offset values.
-6. Apply them with `:dac a OFFSET NUM DEN` and `:dac b OFFSET NUM DEN`.
-7. Use `Z`, `M` and `F` to verify the corrected runtime-equivalent output points.
-8. Persist the verified profile with `:save`.
-
-The `[` / `]` and `{` / `}` commands always operate on **RAW** codes and remain useful when investigating the analogue stage or confirming DAC monotonicity one hardware code at a time.
+## Power and connection safety
 
 > [!CAUTION]
-> Software calibration cannot recover headroom beyond the physical 12-bit range. If the required corrected code would exceed 4095, it clips at 4095. The same applies below code 0.
+> **Use USB power only during firmware update and calibration/maintenance.** Switch the Eurorack case off, remove the module, disconnect the Eurorack power ribbon, and leave that ribbon disconnected for the entire maintenance session. Do not power the module from the Eurorack bus and USB at the same time.
 
-## 6. Loopback self-calibration
+The Arduino Nano may remain installed on the Quantizer PCB. Connect the Nano to the computer with a data-capable USB cable; that USB connection powers the module while the maintenance image and serial console are in use.
 
-Firmware 0.2.2 can calibrate the DAC/output affine correction by measuring the module through its already calibrated CV input. The procedure deliberately changes **only the selected DAC calibration**; ADC calibration remains fixed as the measurement reference.
+When an external precision voltage source, DMM, or loopback cable is used, connect only the measurement connections required by the procedure. Do not introduce a second power supply to the module. Keep the exposed PCB on a clean, dry, nonconductive surface and avoid touching components while USB power is present.
 
-For Channel A:
+## Architecture
 
-1. Establish and persist a trustworthy ADC A calibration first.
-2. Patch **CV OUT A → CV IN A** directly.
-3. Enter the boot-time calibration console.
-4. Run `:self a`.
-5. Leave the patch undisturbed while the firmware measures, fits, and verifies.
+The production image contains only the runtime pieces required to apply a previously stored analog profile:
 
-Use `:self b` with **CV OUT B → CV IN B** for Channel B.
-
-The self-calibration routine first characterizes several RAW DAC support points, rejects an absent or implausible loop, checks monotonicity and usable span, fits a new affine DAC correction in RAM, and then verifies that candidate at independent points. A passing candidate is saved automatically to the redundant EEPROM calibration journal.
-
-If loop detection, measurement, fitting, verification, or persistence fails, the previously active calibration is restored and the existing persisted record remains valid. A failed self-calibration therefore does not replace a known-good profile.
-
-> [!IMPORTANT]
-> Loopback is **not an independent absolute voltage standard**. It observes the composition of the output path and the already calibrated input path. ADC and DAC errors cannot be solved independently from the same closed loop. If the ADC calibration is wrong, loopback self-calibration can transfer or hide that error instead of correcting it.
-
-The 0.2.2 implementation intentionally uses affine gain/offset correction only. It does not allocate EEPROM for a 121-note residual lookup table; such a table is only justified after real hardware measurements show material repeatable non-linearity beyond the affine model.
-
-## 7. Musical verification
-
-After electrical calibration, perform a musical check rather than relying only on raw voltages.
-
-1. Use a chromatic scale.
-2. Feed a known 1 V/octave source into Channel A.
-3. Check octave intervals across the usable voltage range with a tuner or frequency counter.
-4. Repeat for Channel B.
-5. Select a sparse scale and sweep slowly across note boundaries to verify stable quantization and hysteresis.
-6. Verify Track-and-Hold with an unpatched sample input; the original hardware normalises it HIGH and should therefore quantize continuously.
-7. Patch a gate and verify Track-and-Hold and Sample-and-Hold independently.
-
-## 8. Automatic ladder-rest check
-
-During normal startup the firmware evaluates fresh asynchronous ADC snapshots. A rest calibration is accepted only when the measured value is stable and lies inside the configured rest interval.
-
-If this check fails, the complete note ring flashes red three times. The firmware then continues with the nominal ladder value instead of accepting a likely pressed button or unstable input as a reference.
-
-## 9. Runtime diagnostics
-
-Set:
-
-```cpp
-kDiagnosticsEnabled = true;
+```text
+Production firmware
+    |
+    +-- CalibrationReader          read only
+    +-- CalibrationProfile         ADC A/B + DAC A/B affine correction
+    +-- runtime ADC/DAC conversion
+    |
+    `-- EEPROM calibration partition 967..1022
 ```
 
-in `RuntimeConfig.h` to enable periodic serial diagnostics.
+The maintenance image contains the writer and diagnostic tools:
 
-The report includes:
+```text
+Calibration/maintenance firmware
+    |
+    +-- CalibrationReader
+    +-- CalibrationStore           read/write
+    +-- guided ADC calibration
+    +-- DAC loopback self-calibration
+    +-- independent verification
+    +-- noise / sweep diagnostics
+    +-- EEPROM status / read-only backup
+    |
+    `-- EepromPartition 967..1022
+```
 
-- processed 1 kHz control ticks;
-- probable missed deadlines;
-- maximum pending-tick queue depth;
-- ticks that reused an older ADC snapshot;
-- UI-state-machine executions;
-- attempted LED refreshes.
+The serial command parser, help text, self-calibration solver and verbose diagnostics are therefore not linked into the normal musical firmware. This keeps scarce ATmega328P application flash available for actual product behavior.
 
-Diagnostics are disabled by default because serial traffic can itself affect real-time behaviour.
+`AnalogConfig.h` remains the **factory/fallback** profile. A valid EEPROM profile takes precedence in both images.
+
+> [!NOTE]
+> Per-channel ADC/DAC affine calibration, the maintenance image and loopback self-calibration are extensions of this C++ firmware. Quinn Freedman's original Rust firmware does not provide an equivalent software calibration layer.
+
+## Why calibration survives firmware uploads
+
+The ATmega328P stores program code and EEPROM data in separate memories. The normal serial bootloader upload targets used by this project program **flash only**; they do not intentionally rewrite EEPROM.
+
+The intended workflow is therefore:
+
+```text
+production firmware
+        |
+        | flash calibration image
+        v
+calibration/maintenance firmware
+        |
+        | measure + save profile
+        v
+EEPROM calibration journal
+        |
+        | flash production image
+        v
+production firmware loads same profile
+```
+
+Changing between the production and maintenance images does not require recalibration as long as the upload process preserves EEPROM.
+
+This guarantee does **not** apply to an explicit chip erase, an ISP workflow configured to erase EEPROM, or a tool invocation that deliberately programs/clears EEPROM. See [EEPROM erase warning](#eeprom-erase-warning).
+
+## EEPROM isolation
+
+The complete 1 KiB EEPROM is partitioned by responsibility:
+
+| Physical EEPROM bytes | Purpose | Writer |
+|---:|---|---|
+| `0..71` | 12 scale presets | production preset store |
+| `72..503` | 12 full-configuration presets | production preset store |
+| `504..965` | 11 × 42-byte wear-levelled live-state records | production live-state store |
+| `966` | legacy <=0.2.1 twelfth live-slot marker / migration detection | migration path only |
+| `967..1022` | 2 × 28-byte analog-calibration records | maintenance calibration store only |
+| `1023` | reserved, intentionally unwritten | none |
+
+The maintenance `CalibrationStore` is not given unrestricted access to the parent EEPROM. It receives an `EepromPartition` with a local address range of only `0..55`, mapped physically to `967..1022`. Any attempted access outside that local range is rejected by the partition abstraction.
+
+This makes collision prevention structural: a calibration bug cannot address scale presets or normal live-state bytes through the calibration writer API.
+
+### Upgrade from <=0.2.1
+
+Older firmware used twelve 42-byte live-state slots, so the former twelfth slot starts at physical byte `966` and overlaps the new calibration area.
+
+Both production and maintenance startup paths therefore inspect/migrate the legacy slot **before** the calibration tail is treated as writable. If the old twelfth slot contains the newest valid live state, it is committed into the new 11-slot ring and the asynchronous migration write is completed before calibration proceeds.
+
+This specifically protects the direct upgrade path:
+
+```text
+0.2.1 production -> calibration image -> new production image
+```
+
+## Build and upload targets
+
+PlatformIO provides separate environments for both Nano bootloader generations.
+
+### Production firmware
+
+```text
+pio run -e nanoatmega328new -t upload
+pio run -e nanoatmega328 -t upload
+```
+
+### Calibration/maintenance firmware
+
+```text
+pio run -e nanoatmega328new_calibration -t upload
+pio run -e nanoatmega328_calibration -t upload
+```
+
+Use the environment matching the Nano bootloader already installed on the module. These normal upload targets are intended to program application flash while preserving EEPROM.
+
+The tagged-release workflow is prepared to publish separate HEX/ELF artifacts for production and calibration images once the next release is actually declared.
+
+## Maintenance console
+
+Connect a serial terminal at **115200 baud** after flashing the calibration image. The image boots directly into the maintenance console; no SHIFT-at-power-on gesture is required.
+
+The banner identifies the firmware as an **Unreleased** development target and reports the active calibration state.
+
+Main commands:
+
+| Command | Purpose |
+|---|---|
+| `help` | Show command summary |
+| `version` | Show maintenance firmware/version information |
+| `cal show` | Show active ADC/DAC calibration and journal state |
+| `cal load` | Reload the newest valid persistent profile |
+| `cal save` | Persist the current in-RAM profile atomically |
+| `cal defaults` | Restore `AnalogConfig.h` fallback values in RAM only |
+| `cal set adc a|b OFFSET NUM DEN` | Set one ADC affine correction in RAM |
+| `cal set dac a|b OFFSET NUM DEN` | Set one DAC affine correction in RAM |
+| `cal adc a|b` | Guided two-point ADC calibration |
+| `cal self a|b` | Fit, verify and persist DAC loopback calibration |
+| `cal verify a|b` | Verify the active DAC correction through loopback |
+| `measure adc a|b` | Show RAW and calibrated ADC statistics |
+| `diag noise a|b` | Capture ADC stability/noise statistics |
+| `diag sweep a|b` | Emit a raw DAC-loopback CSV sweep |
+| `eeprom status` | Show partition boundaries, journal records and legacy/reserved bytes |
+| `eeprom backup` | Print a read-only 1024-byte EEPROM hex dump |
+
+There is intentionally **no generic EEPROM restore/erase command** in the maintenance console. That would defeat the write-isolation design.
+
+## Recommended calibration workflow
+
+Power the module from **USB only**, with the Eurorack ribbon cable disconnected. Allow the USB-powered module, external voltage reference/source, and DMM to thermally settle before precision measurements.
+
+1. Confirm that calibration is actually required according to [When calibration is required](#when-calibration-is-required).
+2. Switch the Eurorack case off, remove the module, disconnect the Eurorack power ribbon, and leave it disconnected for the complete maintenance session.
+3. Connect the Nano to the computer with a data-capable USB cable; USB powers the module.
+4. Flash the calibration/maintenance image without erasing EEPROM.
+5. Open a serial terminal at 115200 baud.
+6. Run `eeprom status` and, when appropriate, capture `eeprom backup` before changing anything.
+7. Establish ADC calibration against a trustworthy external voltage reference/source:
+   - `cal adc a`
+   - `cal adc b`
+8. Inspect the result with `cal show`, `measure adc a|b` and optionally `diag noise a|b`.
+9. Persist the verified ADC profile with `cal save`.
+10. Patch `CV OUT A -> CV IN A`; run `cal self a`, then `cal verify a`.
+11. Patch `CV OUT B -> CV IN B`; run `cal self b`, then `cal verify b`.
+12. Use `diag sweep a|b` when characterizing residual output non-linearity is useful.
+13. Flash the matching production firmware without erasing EEPROM, while the module remains USB-powered and the Eurorack ribbon remains disconnected.
+14. After the production image has booted successfully, disconnect USB. With the case still off, reconnect the Eurorack ribbon and reinstall the module.
+15. Power the case on and perform a musical 1 V/oct verification on the normal production image.
+
+## ADC calibration
+
+The ADC path uses independent integer affine corrections for channels A and B. Runtime order is:
+
+```text
+corrected_adc = (raw_adc + offset) * numerator / denominator
+```
+
+with safe integer rounding/clamping in the shared conversion code.
+
+The guided `cal adc a` / `cal adc b` command performs a two-point fit using externally known **0.000 V** and **10.000 V** references. For each endpoint it samples the real ADC repeatedly, reports min/mean/max/span, rejects an implausibly unstable or compressed measurement, and computes an affine candidate in RAM.
+
+The ADC calibration is the measurement reference for later DAC loopback self-calibration. It therefore needs an external reference first; DAC self-calibration cannot independently fix a wrong ADC scale.
+
+> [!IMPORTANT]
+> The mathematical midpoint of a 10-bit `0..1023` ADC range is 511.5 codes. Do not force a physical midpoint measurement to exactly 512 merely because the runtime representation is integer.
+
+After the wizard, inspect the candidate before `cal save`. `cal defaults` can restore factory/fallback constants in RAM without destroying the last valid EEPROM record.
+
+## DAC loopback self-calibration
+
+The intended patch is:
+
+```text
+CV OUT A -> CV IN A
+```
+
+or the corresponding B channel.
+
+`cal self a` / `cal self b` deliberately modifies **only the selected DAC/output affine correction**. The active ADC calibration remains fixed and acts as the measurement reference.
+
+The routine:
+
+1. verifies that a plausible loop exists;
+2. drives several RAW DAC support points;
+3. rejects inadequate span, non-monotonic response and unstable/invalid measurements;
+4. fits a new integer affine DAC correction in RAM;
+5. tests that candidate at independent verification points;
+6. restores the old profile if verification fails;
+7. atomically persists the new profile only after PASS.
+
+The DAC runtime order is:
+
+```text
+corrected_dac = nominal_dac * numerator / denominator + offset
+```
+
+and the result is clipped to the physical 12-bit range `0..4095`.
+
+### Physical limitation of loopback
+
+Loopback observes the composition of output and input paths:
+
+```text
+DAC -> output stage -> patch cable -> input stage -> ADC
+```
+
+It does not create an independent voltage standard. An ADC gain error can be transferred into the fitted DAC correction or can mask an opposing output error. For that reason ADC calibration must be established independently first.
+
+The current development implementation intentionally stores only affine offset/gain calibration. A per-semitone residual table is not justified until repeatable hardware sweeps demonstrate material residual non-linearity that the affine model cannot meet.
+
+## Diagnostics
+
+### `measure adc a|b`
+
+Captures repeated samples and reports RAW and calibrated statistics. Use it to check endpoint placement and verify the effect of the current affine correction.
+
+### `diag noise a|b`
+
+Captures 1024 ADC samples and reports integer min/mean/max/peak-to-peak values. It deliberately avoids floating-point statistics on the ATmega328P.
+
+### `diag sweep a|b`
+
+Drives the selected DAC over a broad RAW-code sweep and prints CSV-compatible rows:
+
+```text
+raw_dac,adc_raw,adc_cal,equivalent_dac
+```
+
+This is intended for host-side plotting/analysis of repeatable INL, output-stage curvature and residual error. The sweep itself does not alter persistent calibration.
+
+### `eeprom status`
+
+Reports the known EEPROM regions, calibration journal validity/generation, legacy byte 966 and reserved byte 1023. It is a diagnostic read; it does not modify preset storage.
+
+### `eeprom backup`
+
+Prints the complete EEPROM as a read-only hex dump before risky service operations. The console intentionally does not provide the inverse restore operation.
+
+## Manual affine calibration
+
+For controlled development work the profile can be edited directly:
+
+```text
+cal set adc a OFFSET NUM DEN
+cal set adc b OFFSET NUM DEN
+cal set dac a OFFSET NUM DEN
+cal set dac b OFFSET NUM DEN
+```
+
+Rules:
+
+- denominator must be non-zero;
+- values must fit the persistent calibration format;
+- edits affect RAM first;
+- use `cal show` to inspect the result;
+- use `cal save` only after verification.
+
+Production firmware has no command path that can save or mutate these values.
+
+## Failure and recovery behavior
+
+The persistence journal uses two alternating 28-byte records with format metadata, a generation number and CRC16. The destination validity marker is invalidated before data is replaced and committed last. Until the replacement is complete, the previous valid record remains recoverable.
+
+On load:
+
+- the newest valid generation wins;
+- a corrupt/newer record falls back to the other valid record;
+- if neither record is valid, `AnalogConfig.h` factory values are used;
+- invalid persistent data never becomes a partially accepted profile.
+
+During `cal self` a failed loop, failed fit, failed independent verification or failed persistence operation restores the previous active profile and leaves the previous valid EEPROM journal entry usable.
+
+## EEPROM erase warning
+
+> [!WARNING]
+> Normal production/maintenance bootloader uploads are intended to preserve EEPROM. An explicit chip erase, an ISP workflow that erases EEPROM, `avrdude -e`, AVRDUDESS **Erase flash and EEPROM**, or an equivalent programming operation can remove **presets, live state, LED brightness calibration and the ADC/DAC calibration journal**.
+
+Before such service work, capture an EEPROM backup and understand the programmer/fuse settings being used. Reburning a bootloader is not equivalent to a routine firmware upload.
+
+## LED and button-ladder calibration
+
+The separate maintenance image is for analog CV/DAC service. Existing user-facing LED brightness calibration remains part of the production UI because the stored red/green PWM pair is ordinary front-panel configuration and is needed during normal use.
+
+The twelve-note resistor ladder remains characterized by the original-board values in `AnalogConfig.h`. Startup rest/ladder handling is part of normal production initialization; maintenance diagnostics can be used to investigate analog instability, but changing the ladder model still requires a deliberate firmware configuration change.
 
 ## Calibration checklist
 
-Before considering a module calibrated:
+Before considering a module electrically calibrated:
 
-- [ ] all twelve note buttons decode reliably;
-- [ ] green brightness is comfortable and clearly visible;
-- [ ] red brightness is balanced against green;
-- [ ] amber is visually distinct from both red and green;
-- [ ] RAW and CAL console readings are clearly understood and the active ADC correction has been verified;
-- [ ] CV input A tracks accurately across several volts;
-- [ ] CV input B tracks accurately across several volts;
-- [ ] RAW DAC measurements and CAL runtime-equivalent verification agree with the active correction;
-- [ ] DAC output A is calibrated at low, midpoint and high values;
-- [ ] DAC output B is calibrated at low, midpoint and high values;
-- [ ] `:save` / `:load` preserve a verified ADC/DAC profile across reboot;
-- [ ] if loopback self-calibration is used, `:self a` / `:self b` pass only with the intended patch and preserve the prior calibration on failure;
-- [ ] several octave intervals have been checked musically;
-- [ ] Track-and-Hold and Sample-and-Hold have both been verified with real gates.
-
----
-
-<p align="center">From Munich With <img src="docs/assets/blue-heart.svg" alt="blue heart" width="14" height="14"></p>
+- [ ] Calibration is actually required (uncalibrated hardware, lost/erased calibration, relevant analog-path hardware change, or verified pitch/1 V/oct problem).
+- [ ] Eurorack power ribbon is disconnected for the complete maintenance session; the module is powered from USB only.
+- [ ] Latest public release versus `Unreleased` development status is understood.
+- [ ] Correct Nano bootloader environment selected.
+- [ ] Maintenance image flashed without EEPROM erase.
+- [ ] `eeprom status` shows sane partition/journal state.
+- [ ] Optional pre-service `eeprom backup` captured.
+- [ ] ADC A calibrated against external 0 V / 10 V reference and verified.
+- [ ] ADC B calibrated against external 0 V / 10 V reference and verified.
+- [ ] ADC stability/noise is acceptable on both channels.
+- [ ] Verified ADC profile persisted with `cal save`.
+- [ ] `CV OUT A -> CV IN A` self-calibration passes and `cal verify a` passes.
+- [ ] `CV OUT B -> CV IN B` self-calibration passes and `cal verify b` passes.
+- [ ] Production image reflashed without EEPROM erase.
+- [ ] Persistent profile survives the image swap and reboot.
+- [ ] Presets/live state remain intact.
+- [ ] Final 1 V/oct musical/output verification passes on the production image.

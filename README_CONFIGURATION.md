@@ -2,12 +2,13 @@
 
 Configuration is split by responsibility under `lib/fmq/include/fmq/config/`:
 
-- `ProductConfig.h` — factory scale, sample mode, quantizer limits and optional product behaviour.
+- `ProductConfig.h` — factory scale, sample mode, quantizer limits and optional product behavior.
 - `UiConfig.h` — debounce, long-press and menu timing.
-- `AnalogConfig.h` — resistor-ladder model, ADC behaviour and per-channel ADC/DAC calibration.
-- `LedConfig.h` — normal LED brightness and startup/self-test timing.
+- `AnalogConfig.h` — resistor-ladder model, ADC behavior and per-channel ADC/DAC calibration.
+- `LedConfig.h` — normal LED brightness and fixed startup-fade timing.
 - `PersistenceConfig.h` — EEPROM/autosave timing.
-- `RuntimeConfig.h` — task dividers, diagnostics and calibration-console timing.
+- `RuntimeConfig.h` — production scheduler, diagnostics and startup-input timing.
+- `MaintenanceConfig.h` — serial, persistence and self-calibration timing used only by the dedicated maintenance image.
 - `FirmwareConfig.h` — convenience umbrella include for the configuration above.
 - `src/platform/nano_atmega328p/BoardConfig.h` — selected board profile, pin map, ADC-reference choice and electrical polarities.
 
@@ -21,7 +22,7 @@ Major ranges are guarded by compile-time assertions where practical.
 - [Resistor ladder and ADC](#resistor-ladder-and-adc)
 - [UI timing](#ui-timing)
 - [Normal LED brightness](#normal-led-brightness)
-- [Startup sequences](#startup-sequences)
+- [Startup fade](#startup-fade)
 - [Runtime and diagnostics](#runtime-and-diagnostics)
 - [Factory full-config fallbacks](#factory-full-config-fallbacks)
 - [Arpeggiator layer](#arpeggiator-layer)
@@ -78,7 +79,7 @@ At $g=0$, the multiplier is 1 and the output jumps directly to the target. Incre
 
 ## ADC reference and original PCB
 
-The original Rust `main.rs` initially constructs an ADC with an AREF setting, but `fm-lib::async_adc::init_async_adc()` subsequently writes `ADMUX.REFS=AVCC`. The effective reference of the original firmware is therefore **AVCC**, and the original board profile follows that behaviour.
+The original Rust `main.rs` initially constructs an ADC with an AREF setting, but `fm-lib::async_adc::init_async_adc()` subsequently writes `ADMUX.REFS=AVCC`. The effective reference of the original firmware is therefore **AVCC**, and the original board profile follows that behavior.
 
 Any future PCB revision using a true external reference should get its own verified board profile rather than silently changing the original profile.
 
@@ -87,14 +88,17 @@ Any future PCB revision using a true external reference should get its own verif
 The original PCB uses the proven Rust ladder values
 `[0, 93, 171, 236, 292, 341, 384, 421, 455, 485, 512, 536, 558]` and 64 ms debounce. The original-board profile disables rest normalization. A nearest-value candidate is accepted only within ±10 ADC counts of its nominal key value; readings in the gaps are treated as no button. Values from the documented rest floor upward are also no button.
 
-The AVR ADC scanner runs interrupt-driven at 125 kHz (prescaler 128), explicitly starts conversions, discards the first conversion after a MUX change and uses a median-of-three filter to match the effective Rust `fm-lib` behaviour.
+The AVR ADC scanner runs interrupt-driven at 125 kHz (prescaler 128), explicitly starts conversions, discards the first conversion after a MUX change and uses a median-of-three filter to match the effective Rust `fm-lib` behavior.
 
-Per-channel analogue calibration uses integer affine corrections:
+Per-channel analog calibration uses integer affine corrections:
 
 - ADC: offset, then gain numerator/denominator.
 - DAC: gain numerator/denominator, then offset.
 
-`AnalogConfig.h` defines the **factory/fallback** profile only. On boot, a valid persistent `CalibrationProfile` from the redundant EEPROM calibration journal takes precedence. The boot-time maintenance console can edit the active profile in RAM, save/reload it, restore the factory profile, and perform verified per-channel DAC loopback self-calibration without recompiling firmware.
+`AnalogConfig.h` defines the **factory/fallback** profile only. On boot, a valid persistent `CalibrationProfile` from the redundant EEPROM calibration journal takes precedence. The production firmware loads this profile through a read-only `CalibrationReader`. Editing, diagnostics, persistence and loopback self-calibration live only in the separate calibration/maintenance image, which uses a partition-limited `CalibrationStore`.
+
+> [!NOTE]
+> The maintenance image is not part of routine updating. A valid, verified analog calibration remains in EEPROM across normal flash-only firmware updates. Recalibrate only for an uncalibrated module, lost/erased calibration data, relevant analog-path hardware changes, or a measured pitch / 1 V/oct problem. The maintenance procedure uses USB-only module power with the Eurorack ribbon disconnected.
 
 > [!NOTE]
 > These software gain/offset corrections are an extension of this firmware. Quinn Freedman's original Rust Quantizer maps the ADC value directly into the semitone domain and the resulting pitch directly into a DAC code; the shared upstream MCP4922 driver writes that code without a per-channel calibration transform. The detailed measurement, persistence and loopback workflow is documented in [README_CALIBRATION.md](README_CALIBRATION.md).
@@ -126,33 +130,25 @@ kDefaultGreenPwm = 0x0D00;
 > [!IMPORTANT]
 > The default PWM values are **not universal brightness values**. They must be verified on the actual assembled module and adjusted when the fitted LEDs or resistor values differ.
 
-These are **not universal brightness values**. Red and green must be tuned for the actual LEDs and series resistors on the assembled module. LED efficiency, forward voltage and resistor values can differ strongly; in the tested hardware the colour channels use very different series resistances, so numerically similar PWM values would not produce a visually balanced result.
+These are **not universal brightness values**. Red and green must be tuned for the actual LEDs and series resistors on the assembled module. LED efficiency, forward voltage and resistor values can differ strongly; in the tested hardware the color channels use very different series resistances, so numerically similar PWM values would not produce a visually balanced result.
 
-There is no reliable formula that predicts the final perceived red/green/amber balance from the nominal component values alone. Final values therefore need to be determined **empirically and iteratively on the real module**. Adjust red and green independently until the individual colours and their amber combination look correct.
+There is no reliable formula that predicts the final perceived red/green/amber balance from the nominal component values alone. Final values therefore need to be determined **empirically and iteratively on the real module**. Adjust red and green independently until the individual colors and their amber combination look correct.
 
-## Startup sequences
+## Startup fade
 
-`LedConfig.h` contains all timing and behaviour values for the four cyclic boot
-animations: `ColorFade`, `Glowworm`, `Cog` and `Sparkles`. The EEPROM selector
-contains the sequence to play on the next boot; after playback it advances with
-wraparound to sequence 0. Set `kRotateStartupSequences` to `false` to always use
-sequence 0.
+The normal firmware uses one fixed ring fade implemented by `StartupAnimation`:
 
-Relevant settings include `kStartupFadeInMs`, `kStartupFadeOutMs`,
-`kStartupInterColorPauseMs`, `kGlowwormStepMs`, the Glowworm tail intensity
-table, `kCogStepMs`, `kCogRotations`, `kSparklesDurationMs`,
-`kSparklesFrameMs`, and the discrete status-LED timings.
-`kStartupRingMaximumDurationMs` is a hard upper bound for the twelve-note ring
-portion of every animation and is currently 1500 ms; compile-time assertions
-reject a timing change that would exceed it. The separate four-status-LED
-self-test is intentionally outside that ring-animation limit. All note-ring
-effects use the normal calibrated red/green brightness as their full-scale
-reference. Both ring animation and discrete-LED test can be disabled
-independently.
+```text
+off -> green -> amber -> red -> off
+```
+
+Its four phases total 700 ms and a compile-time assertion keeps the complete ring effect at or below 750 ms. Every note position receives the same red/green PWM pair, so the implementation does not need per-note animation tables, random state, sequence selection, or startup metadata in EEPROM. The current/persisted UI frame is restored immediately after the fade.
+
+EEPROM byte 1023, formerly used by development builds for rotating startup metadata, is now reserved and deliberately not written.
 
 ## Runtime and diagnostics
 
-`RuntimeConfig.h` centralises UI/LED task dividers, diagnostics period, calibration-console timing, serial baud, startup input settle time and ladder-calibration timeout. Automatic live-state restore and asynchronous autosave are enabled by default. The musical state and the active Quantizer/Arpeggiator UI layer are restored on boot. Layer restoration is side-effect free: it does not enable/disable an Arpeggiator or replay toggle feedback.
+`RuntimeConfig.h` centralises production UI/LED task dividers, diagnostics period, startup input settle time and ladder-calibration timeout. `MaintenanceConfig.h` separately contains maintenance serial, persistence and self-calibration timing so those concerns do not leak into the production configuration surface. Automatic live-state restore and asynchronous autosave are enabled by default. The musical state and the active Quantizer/Arpeggiator UI layer are restored on boot. Layer restoration is side-effect free: it does not enable/disable an Arpeggiator or replay toggle feedback.
 
 
 ### LED calibration scale
@@ -180,7 +176,7 @@ Changing these masks changes firmware defaults only; it does not rewrite EEPROM.
 
 ## Arpeggiator layer
 
-The Arpeggiator is a full second UI layer. `UiConfig.h` defines the debounced SHIFT double-click layer-switch gesture and the nine Arpeggiator function positions. Both SHIFT presses must remain within the short-click limit, and the second raw press must begin within 350 ms of the first debounced release. Entering that layer enables the selected Arpeggiator if necessary. The interaction grammar does **not** change between layers: unmodified note buttons continue to edit/show the scale, while `SHIFT + note` selects the active layer's menu function. A, A# and B therefore remain `SHIFT+A` Link, `SHIFT+A#` Channel A and `SHIFT+B` Channel B in both layers. Scalar Arpeggiator parameters use the next unmodified note press as their value selector, matching the established Quantizer menu behaviour.
+The Arpeggiator is a full second UI layer. `UiConfig.h` defines the debounced SHIFT double-click layer-switch gesture and the nine Arpeggiator function positions. Both SHIFT presses must remain within the short-click limit, and the second raw press must begin within 350 ms of the first debounced release. Entering that layer enables the selected Arpeggiator if necessary. The interaction grammar does **not** change between layers: unmodified note buttons continue to edit/show the scale, while `SHIFT + note` selects the active layer's menu function. A, A# and B therefore remain `SHIFT+A` Link, `SHIFT+A#` Channel A and `SHIFT+B` Channel B in both layers. Scalar Arpeggiator parameters use the next unmodified note press as their value selector, matching the established Quantizer menu behavior.
 
 The factory/default Arpeggiator sync mode is `FREE`; no external clock is required. `RESET` and `CLOCK` are explicit additional modes selected from the Arpeggiator Sync menu.
 
@@ -192,15 +188,15 @@ The factory/default Arpeggiator sync mode is `FREE`; no external clock is requir
 - `kArpMaximumRange = 4`;
 - `kArpMaximumSwingStep = 11`.
 
-The per-channel persistent configuration contains enable, rate/clock ratio, pattern, shape, length, octave range, step-trigger enable, sync mode and swing. FREE and RESET use the internal rate table; CLOCK interprets the same index as a divider/multiplier of the channel's Sample/Gate clock. Full behaviour and all value tables are documented in [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md).
+The per-channel persistent configuration contains enable, rate/clock ratio, pattern, shape, length, octave range, step-trigger enable, sync mode and swing. FREE and RESET use the internal rate table; CLOCK interprets the same index as a divider/multiplier of the channel's Sample/Gate clock. Full behavior and all value tables are documented in [README_ARPEGGIATOR.md](README_ARPEGGIATOR.md).
 
 ## EEPROM layout and live state
 
 Scale slots remain compact scale-only records. A full-configuration payload is 32 bytes and contains the Quantizer state, both Arpeggiator configurations, the selected channel and the active Quantizer/Arpeggiator UI layer. The layer uses a spare bit in the selected-channel byte, so the payload size does not grow. Full-configuration records are versioned and CRC-protected. New writes use save-format v5; v4 scale/config records remain readable for in-place firmware upgrades.
 
-The live-state record additionally stores the two-byte LED brightness calibration. Firmware 0.2.2 uses **11 × 42-byte** wear-levelled live-state records at EEPROM bytes 504…965. Byte 966 is retained as the former twelfth-slot marker for upgrade detection. Two **28-byte** redundant analogue-calibration records occupy bytes 967…1022, and byte 1023 remains the startup-sequence metadata. Record validity markers are committed last.
+The live-state record additionally stores the two-byte LED brightness calibration. The current `Unreleased` development layout uses **11 × 42-byte** wear-levelled live-state records at EEPROM bytes 504…965. Byte 966 is retained as the former twelfth-slot marker for upgrade detection. Two **28-byte** redundant analog-calibration records occupy bytes 967…1022. Byte 1023 is reserved and deliberately left unwritten. Calibration record validity markers are committed last.
 
-A <=0.2.1 image may have its newest live state in the former twelfth slot beginning at byte 966. 0.2.2 still scans that record and migrates it into the eleven-slot ring before the overlapping tail bytes are reused by the calibration journal.
+A <=0.2.1 image may have its newest live state in the former twelfth slot beginning at byte 966. The current `Unreleased` migration path scans that record and migrates it into the eleven-slot ring before the overlapping tail bytes are reused by the calibration journal.
 
 `PersistenceConfig.h::kLiveAutosaveQuiescenceMs` is currently 3000 ms. A front-panel configuration change marks live state dirty; once no further change has occurred for that interval and the shared EEPROM writer is idle, the complete state is queued asynchronously. Runtime phase, current Arpeggiator step and current Glide position are not serialized. The UI layer **is** serialized in both full configurations and live state so the front-panel function map matches the restored Arpeggiator status after preset loads and reboot. A legacy record with an enabled Arpeggiator but no layer bit is migrated to the Arpeggiator layer.
 

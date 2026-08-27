@@ -29,9 +29,9 @@ The ATmega328P provides 1024 bytes of EEPROM. Microchip specifies EEPROM enduran
 | Live-state ring | 11 × 42 bytes | Wear-levelled working state + LED calibration |
 | Legacy live marker | 1 byte at address 966 | Former 12th-slot marker retained for <=0.2.1 migration detection |
 | Analogue calibration | 2 × 28 bytes | Redundant ADC/DAC A/B affine profile journal with CRC16 |
-| Startup sequence | 1 byte at address 1023 | Next startup animation |
+| Reserved tail | 1 byte at address 1023 | Deliberately unwritten; former development startup metadata |
 
-The live ring begins at byte 504 and occupies bytes 504…965. The former twelfth live slot began at byte 966; 0.2.2 still inspects it during upgrade migration. Calibration records use bytes 967…1022, and startup metadata remains at byte 1023.
+The live ring begins at byte 504 and occupies bytes 504…965. The former twelfth live slot began at byte 966; the `Unreleased` migration path still inspects it when upgrading from <=0.2.1. Calibration records use bytes 967…1022. Byte 1023 is reserved and receives no new writes.
 
 ## Write behavior
 
@@ -75,9 +75,9 @@ For perspective only:
 
 These are not wear-levelled because SAVE is an explicit user action. The marker receives two physical transitions when overwriting a previously valid record; payload bytes are skipped when unchanged.
 
-### Startup-sequence byte
+### Reserved byte 1023
 
-The startup-sequence selector uses one fixed EEPROM byte. With rotating startup sequences enabled it normally changes once per boot. Even without wear levelling, reaching 100,000 physical changes would require 100,000 power-up sequence updates. Writing the same value again is suppressed.
+The former rotating-startup selector has been removed. EEPROM byte 1023 is intentionally reserved and no production or maintenance path writes it. A stale value left by an earlier development build is ignored.
 
 ### LED calibration
 
@@ -85,7 +85,7 @@ LED brightness calibration is carried inside the wear-levelled live state rather
 
 ### Analogue ADC/DAC calibration
 
-The hardware-specific affine profile is stored only on an explicit console `:save` or after a successful verified loopback self-calibration. It uses two alternating 28-byte records. The destination marker is invalidated first and committed last, so the previous valid record remains the fallback until the replacement is complete. These writes are maintenance operations rather than periodic autosaves.
+The hardware-specific affine profile is stored only by the dedicated maintenance image, on an explicit `cal save` or after a successful verified loopback self-calibration. It uses two alternating 28-byte records. The destination marker is invalidated first and committed last, so the previous valid record remains the fallback until the replacement is complete. These writes are maintenance operations rather than periodic autosaves.
 
 ## Verification
 
@@ -96,7 +96,7 @@ The hardware-specific affine profile is stored only on an explicit console `:sav
 - non-marker live bytes receive no more than two writes;
 - no unrelated EEPROM region is touched;
 - rewriting an unchanged byte is suppressed;
-- storing an unchanged startup-sequence value does not add a physical write.
+- calibration writes remain inside physical bytes 967…1022 and do not touch byte 1023, presets, or the live-state ring.
 
 This makes the arithmetic above a checked property of the current implementation rather than documentation that can silently drift.
 

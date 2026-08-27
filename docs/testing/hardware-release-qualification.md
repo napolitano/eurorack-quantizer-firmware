@@ -24,7 +24,7 @@ The hardware platform is fixed for this firmware project. Qualification never as
 ## Preconditions
 
 - [ ] Candidate commit/tag is identified.
-- [ ] CI is green for both Nano bootloader targets.
+- [ ] CI is green for production and calibration/maintenance images on both Nano bootloader targets.
 - [ ] AVR flash/SRAM resource gates pass.
 - [ ] Native coverage and requirements traceability pass.
 - [ ] ASan/UBSan native run passes.
@@ -37,7 +37,7 @@ The hardware platform is fixed for this firmware project. Qualification never as
 
 ## Core functional qualification
 
-- [ ] Cold boot completes the expected startup sequence without spurious outputs.
+- [ ] Cold boot completes the fixed <=750 ms startup fade without spurious outputs and restores the expected UI frame.
 - [ ] Warm reset/reboot restores the expected live state.
 - [ ] Channel A quantizes independently across representative CV values.
 - [ ] Channel B quantizes independently in Absolute mode.
@@ -65,9 +65,9 @@ The hardware platform is fixed for this firmware project. Qualification never as
 - [ ] Arpeggiator-layer + ARP-OFF survives a normal power cycle.
 - [ ] User presets survive a normal firmware update.
 - [ ] LED calibration survives a normal firmware update.
-- [ ] Persistent ADC/DAC calibration survives a normal firmware update.
+- [ ] Persistent ADC/DAC calibration survives production -> maintenance -> production flash-only image swaps.
 - [ ] Upgrade from a <=0.2.1 EEPROM image with the newest live state in the former twelfth slot restores and migrates that state.
-- [ ] Startup-sequence metadata remains valid after update.
+- [ ] Reserved EEPROM byte 1023 remains untouched; a stale historical startup-selector value is ignored.
 - [ ] SAVE+LOAD erase clears user slots without being described or treated as a factory reset.
 - [ ] New-bootloader Nano artifact flashes and boots.
 - [ ] Old-bootloader Nano artifact flashes and boots when such a board is available for qualification.
@@ -91,9 +91,10 @@ The detailed oscilloscope procedure is in [`timing-qualification.md`](timing-qua
 - [ ] CV B zero point and octave scaling are measured.
 - [ ] DAC/output A reaches the expected calibrated range monotonically.
 - [ ] DAC/output B reaches the expected calibrated range monotonically.
-- [ ] `:self a` passes with OUT A patched to IN A and persists the verified DAC-A correction.
-- [ ] `:self b` passes with OUT B patched to IN B and persists the verified DAC-B correction.
+- [ ] In the maintenance image, `cal self a` passes with OUT A patched to IN A and persists the verified DAC-A correction.
+- [ ] In the maintenance image, `cal self b` passes with OUT B patched to IN B and persists the verified DAC-B correction.
 - [ ] Selfcal with the loop absent or deliberately mispatched fails without changing the previously stored calibration.
+- [ ] Maintenance calibration writes are observed only in EEPROM bytes 967…1022; scale/config/live-state regions and byte 1023 remain unchanged.
 - [ ] A sweep on CV A does not create measurable digital-path movement on B in Absolute mode beyond analog noise/crosstalk expectations.
 - [ ] A sweep on CV B does not create movement on A beyond analog noise/crosstalk expectations.
 - [ ] Trigger outputs reach valid Eurorack logic levels.

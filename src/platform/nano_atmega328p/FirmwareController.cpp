@@ -20,13 +20,13 @@
 #include "fmq/application/ControlInputProcessor.h"
 #include "fmq/ui/LedFrameEncoder.h"
 #include "fmq/persistence/LiveStateStore.h"
-#include "fmq/persistence/CalibrationStore.h"
+#include "fmq/persistence/CalibrationReader.h"
+#include "fmq/persistence/EepromPartition.h"
 #include "fmq/domain/CalibrationProfile.h"
 #include "fmq/ui/Menu.h"
 #include "fmq/domain/PitchConversion.h"
 #include "fmq/domain/Quantizer.h"
 #include "fmq/persistence/SaveSlotStore.h"
-#include "fmq/persistence/StartupSequenceStore.h"
 #include "fmq/application/StartupAnimation.h"
 #include "fmq/application/ArpeggiatorBank.h"
 #include "fmq/application/UiLayerGesture.h"
@@ -34,7 +34,6 @@
 #include "platform/nano_atmega328p/AvrDigitalInput.h"
 #include "platform/nano_atmega328p/AvrTriggerInputs.h"
 #include "platform/nano_atmega328p/RuntimeDiagnostics.h"
-#include "platform/nano_atmega328p/CalibrationConsole.h"
 #include "platform/nano_atmega328p/AvrDigitalOutput.h"
 #include "platform/nano_atmega328p/AvrEeprom.h"
 #include "platform/nano_atmega328p/AvrSpiBus.h"
@@ -47,7 +46,6 @@ using namespace fmq;
 using namespace fmq::hwconfig;
 using fmq::platform::nano::FirmwareController;
 using fmq::platform::nano::RuntimeDiagnostics;
-using fmq::platform::nano::CalibrationConsole;
 
 // --- 1 kHz sample tick ------------------------------------------------------
 namespace {
@@ -134,8 +132,9 @@ static QuantizerState g_quantizer;
 static AsyncEepromWriter g_eepromWriter(g_eeprom);
 static SaveSlotStore g_slotStore(g_eeprom, g_eepromWriter);
 static LiveStateStore g_liveStore(g_eeprom, g_eepromWriter);
-static CalibrationStore g_calibrationStore(g_eeprom, g_eepromWriter);
-static StartupSequenceStore g_startupSequenceStore(g_eeprom, g_eepromWriter);
+static EepromPartition g_calibrationEeprom(
+    g_eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+static CalibrationReader g_calibrationReader(g_calibrationEeprom);
 static Menu g_menu;
 static ArpeggiatorBank g_arpeggiators;
 
@@ -217,55 +216,43 @@ static void renderNoteLeds(const LedFrame &frame, bool force) {
   g_lastFrame = frame;
 }
 
-/// Play the selected note-ring sequence followed by the four discrete LEDs.
+/// Play the fixed note-ring fade and restore the current UI frame.
 static void playStartupAnimation() {
   if (config::kStartupAnimationEnabled) {
-    const uint8_t sequenceIndex = config::kRotateStartupSequences
-                                      ? g_startupSequenceStore.loadSequenceToPlay(
-                                            StartupAnimation::kSequenceCount)
-                                      : 0u;
-    const StartupSequence sequence =
-        static_cast<StartupSequence>(sequenceIndex);
-    StartupAnimation animation(sequence);
+    StartupAnimation animation;
     const BrightnessCalibration &brightness = g_menu.activeBrightness();
     const uint32_t animationStartMs = g_clock.millis();
+    LedFrame uniformAmber;
+    for (uint8_t i = 0u; i < kNoteCount; ++i) {
+      uniformAmber[i] = LedColor::Amber;
+    }
 
     while (true) {
       const uint32_t elapsedMs = g_clock.millis() - animationStartMs;
-      if (animation.isDone(elapsedMs)) {
-        break;
-      }
+      if (animation.isDone(elapsedMs)) break;
 
       const StartupAnimationSample sample = animation.sampleAt(elapsedMs);
+      const uint16_t red = static_cast<uint16_t>(
+          (static_cast<uint32_t>(brightness.redLevel()) * sample.redQ12 +
+           config::kLedPwmMaximum / 2u) / config::kLedPwmMaximum);
+      const uint16_t green = static_cast<uint16_t>(
+          (static_cast<uint32_t>(brightness.greenLevel()) * sample.greenQ12 +
+           config::kLedPwmMaximum / 2u) / config::kLedPwmMaximum);
       uint8_t bytes[kTlc5947FrameBytes];
-      encodeLedFrameScaled(sample.frame, brightness.redLevel(),
-                           brightness.greenLevel(), sample.intensityQ12, bytes);
+      encodeLedFrame(uniformAmber, red, green, bytes);
       g_ledDriver.writeFrame(bytes);
       delay(1);
     }
-
-    renderNoteLeds(LedFrame(), /*force=*/true);
-
-    if (config::kRotateStartupSequences) {
-      const uint8_t nextSequence = static_cast<uint8_t>(
-          (sequenceIndex + 1u) % StartupAnimation::kSequenceCount);
-      // This queues one EEPROM byte. The shared writer flushes it without
-      // blocking once the real-time loop starts.
-      (void)g_startupSequenceStore.storeNextSequence(nextSequence);
-    }
   }
 
-  if (config::kStartupStatusLedTestEnabled) {
-    AvrDigitalOutput *statusLeds[] = {
-        &g_inputLedA, &g_outputLedA, &g_inputLedB, &g_outputLedB};
-
-    for (AvrDigitalOutput *statusLed : statusLeds) {
-      statusLed->set(kStatusLedsActiveHigh);
-      delay(config::kStatusLedOnMs);
-      statusLed->set(!kStatusLedsActiveHigh);
-      delay(config::kStatusLedOffMs);
-    }
-  }
+  // The animation owns the ring only temporarily. Restore the persisted/main
+  // UI frame immediately rather than leaving the ring blank until the first
+  // scheduled control-loop render.
+  const MenuInput idleInput{};
+  const QuantizationResult idleResult = QuantizationResult::makeZero();
+  g_lastMenuOutput = g_menu.update(g_quantizer, g_arpeggiators, idleInput,
+                                   idleResult, g_clock.millis(), g_slotStore);
+  renderNoteLeds(g_lastMenuOutput.frame, /*force=*/true);
 }
 
 void FirmwareController::begin() {
@@ -297,21 +284,8 @@ void FirmwareController::begin() {
   // reflects that effective behaviour.
   analogReference(kUseExternalAref ? EXTERNAL : DEFAULT);
 
-#if !defined(FMQ_TIMING_PROBE)
-  if (config::kDiagnosticsEnabled) Serial.begin(config::kCalibrationBaud);
-#endif
   g_spi.begin();
   g_ledDriver.begin();  // clear LEDs and enable the driver outputs
-
-  // Hardware-specific ADC/DAC correction is loaded before either the normal
-  // signal path or the maintenance console can use pitch conversion. Invalid
-  // or absent records fall back to the compile-time factory profile.
-  CalibrationProfile storedCalibration;
-  if (g_calibrationStore.load(storedCalibration)) {
-    (void)setActiveCalibrationProfile(storedCalibration);
-  } else {
-    resetActiveCalibrationProfile();
-  }
 
   // Restore the last complete musical configuration and the front-panel layer
   // when a valid live-state record exists. Runtime phase remains transient.
@@ -329,35 +303,35 @@ void FirmwareController::begin() {
   // Upgrading from <=0.2.1 may have restored the newest state from the former
   // twelfth live slot. That record overlaps the new calibration region, so
   // LiveStateStore queues an atomic copy into the current eleven-slot ring.
-  // Finish that one-time migration before startup animation or the calibration
-  // console can enqueue another EEPROM transaction. The control timer and ADC
-  // are not running yet, so this cannot steal time from the 1 kHz path.
+  // Finish that one-time migration before the calibration tail is interpreted.
+  // The control timer and ADC are not running yet, so this cannot steal time
+  // from the 1 kHz path.
   while (g_eepromWriter.busy()) {
     g_eepromWriter.service();
   }
   g_liveStore.observeWriter();
 
+  // Read hardware calibration only after any <=0.2.1 legacy live-state copy
+  // has completed. Production has a read-only calibration interface and the
+  // EEPROM view itself is bounded to bytes 967..1022.
+  CalibrationProfile storedCalibration;
+  if (g_calibrationReader.load(storedCalibration)) {
+    (void)setActiveCalibrationProfile(storedCalibration);
+  } else {
+    resetActiveCalibrationProfile();
+  }
+
   g_menu.begin(g_slotStore);
 
   playStartupAnimation();
 
-  // Start the interrupt-driven ADC after the blocking LED self-test.
+  // Start the interrupt-driven ADC after the blocking startup fade.
   g_analog.begin(kUseExternalAref);
 
-  // Holding SHIFT during power-on enters a deliberately explicit calibration
-  // console. It exposes raw ADC readings and raw DAC codes; it never guesses
-  // electrical calibration values.
+  // Give the analogue front end a short settling interval before ladder-rest
+  // calibration. Hardware ADC/DAC maintenance lives in the separate
+  // `nanoatmega328new_calibration` firmware image.
   delay(config::kStartupInputSettleMs);
-  const bool shiftPressedAtBoot = kButtonsActiveLow ? !g_shift.isHigh() : g_shift.isHigh();
-#if !defined(FMQ_TIMING_PROBE)
-  if (config::kCalibrationConsoleEnabled && shiftPressedAtBoot) {
-    CalibrationConsole console(g_analog, g_dac, g_calibrationStore,
-                               g_eepromWriter);
-    console.run();
-  }
-#else
-  (void)shiftPressedAtBoot;
-#endif
 
   // Measure a series of fresh, unpressed ladder snapshots. A timeout or an
   // implausible/stable-high-button value is made visible instead of silently
@@ -412,7 +386,6 @@ void FirmwareController::run() {
   if (pending == 0) {
     g_eepromWriter.service();
     g_liveStore.observeWriter();
-    g_calibrationStore.observeWriter();
     return;
   }
   // In the dedicated timing build D1/TX was raised by the 1 kHz Timer2 ISR.
@@ -555,7 +528,6 @@ void FirmwareController::run() {
   // advances at most one byte, so no control deadline is monopolised.
   g_eepromWriter.service();
   g_liveStore.observeWriter();
-  g_calibrationStore.observeWriter();
   if (config::kAutosaveLiveState && g_liveDirty && !g_eepromWriter.busy() &&
       now - g_lastChangeMs >= config::kLiveAutosaveQuiescenceMs) {
     const StoredConfiguration stored =

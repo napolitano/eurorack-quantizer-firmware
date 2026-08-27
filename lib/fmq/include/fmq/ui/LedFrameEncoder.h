@@ -27,7 +27,7 @@ void encodeLedFrame(const LedFrame &frame, uint16_t redLevel,
 /**
  * Encode a logical frame with an additional per-LED 0..4095 intensity.
  *
- * This is used by startup effects such as Glowworm and Sparkles. Normal UI
+ * This helper remains useful for intensity-scaled frame effects and tests. Normal UI
  * rendering continues to use @ref encodeLedFrame so it pays no extra cost.
  */
 void encodeLedFrameScaled(

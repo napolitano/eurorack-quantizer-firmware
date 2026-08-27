@@ -1,6 +1,6 @@
 /**
  * @file RuntimeConfig.h
- * Central scheduler, diagnostics and calibration-console configuration.
+ * Central scheduler, diagnostics and maintenance-tool timing configuration.
  *
  * @author Axel Napolitano
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
@@ -23,23 +23,12 @@ constexpr bool kDiagnosticsEnabled = false;
 constexpr uint32_t kDiagnosticsPeriodMs = 1000;
 constexpr uint32_t kStartupInputSettleMs = 5;
 constexpr uint32_t kLadderCalibrationTimeoutMs = 1000;
-constexpr uint16_t kCalibrationConsoleStartupDelayMs = 50;
-constexpr uint16_t kCalibrationStreamPeriodMs = 100;
-constexpr uint8_t kCalibrationCommandBufferBytes = 48;
-constexpr uint16_t kCalibrationPersistenceTimeoutMs = 1500;
-constexpr uint16_t kSelfCalibrationSettleMs = 8;
-constexpr uint8_t kSelfCalibrationAverageSamples = 12;
-constexpr uint16_t kSelfCalibrationSampleTimeoutMs = 150;
-constexpr uint16_t kSelfCalibrationMaxFitResidualDacCodes = 20;
-constexpr uint16_t kSelfCalibrationMaxVerifyResidualDacCodes = 16;
-constexpr bool kCalibrationConsoleEnabled = true;
 // Product behaviour: restore and asynchronously autosave the complete musical
 // working state (Quantizer + per-channel Arpeggiator + selected channel).
 // Hardware calibration and the active UI layer are stored alongside it so a
 // reboot restores the same front-panel function map without replaying feedback.
 constexpr bool kRestoreLiveStateOnBoot = true;
 constexpr bool kAutosaveLiveState = true;
-constexpr uint32_t kCalibrationBaud = 115200;
 constexpr uint8_t kDiagnosticsLineBufferBytes = 64;
 static_assert(kUiDivider >= 1 && kLedDivider >= 1, "invalid task divider");
 }

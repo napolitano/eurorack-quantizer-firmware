@@ -398,7 +398,7 @@ static void test_v5_live_state_migrates_enabled_arp_to_arpeggiator_layer(void) {
   const uint16_t crc = crc16Ccitt(record, kOffCrc);
   record[kOffCrc] = static_cast<uint8_t>(crc >> 8u);
   record[kOffCrc + 1u] = static_cast<uint8_t>(crc);
-  // Place the legacy record in the former twelfth live slot. 0.2.2 must
+  // Place the legacy record in the former twelfth live slot. The new layout must
   // inspect that slot once and migrate it into the new eleven-slot ring before
   // the overlapping tail bytes are reused for calibration persistence.
   for (uint16_t i = 0u; i < kLiveSlotSize; ++i) {

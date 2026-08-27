@@ -5,7 +5,7 @@
 
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current default suite contains **34 independently runnable PlatformIO test suites and 281 default test cases**. Several of those test cases execute exhaustive or matrix checks internally, so the number of assertions is substantially higher than the test-case count.
+The current development tree contains **34 independently runnable PlatformIO test suites / 281 top-level test cases**. CI remains authoritative for the exact executed total rather than treating that number as a compatibility contract; several cases execute exhaustive or matrix checks internally, so assertion coverage is substantially larger than the top-level case count.
 
 Examples of exhaustive work performed by the suite include:
 
@@ -63,7 +63,7 @@ Unit tests verify deterministic components in isolation and intentionally push t
 | `unit/test_arpeggiator_matrix` | all factory scales, all roots, rates, patterns, shapes, lengths/ranges and clock ratios |
 | `unit/test_ui_layer_gesture` | debounced SHIFT double-click Quantizer/Arpeggiator layer switch, single-click timeout, long-press rejection, shortcut cancellation, bounce rejection and wraparound |
 | `unit/test_arpeggiator_channels` | independent A/B enable state plus deterministic linked-mode toggling |
-| `unit/test_startup_sequence_store` | startup-sequence persistence |
+| `unit/test_eeprom_partition` | calibration EEPROM base/size mapping plus out-of-range read/write rejection |
 
 ### Integration tests
 
@@ -78,7 +78,7 @@ Integration tests verify collaborating production components rather than reimple
 | `integration/test_menu_shortcuts` | one dedicated test for every SHIFT + note command |
 | `integration/test_persistence` | save/load, CRC, full-config/live UI-layer round-trips including ARP-off layer state, wear levelling, v5→v6 live-state migration and <=0.2.1 former-twelfth-slot migration |
 | `integration/test_persistence_faults` | per-byte corruption, incomplete records, busy writer and validation |
-| `integration/test_startup` | all startup-animation sequences and timing |
+| `integration/test_startup` | fixed off→green→amber→red→off startup fade, phase boundaries and <=750 ms duration |
 
 
 LED calibration regression coverage also verifies that active calibration exposes green, red and amber simultaneously, that a selected step gets a temporary position marker without changing the stored value, and that the A/B editor indication follows green/red selection.
@@ -130,7 +130,7 @@ The native build is compiled with:
 -Wpedantic
 ```
 
-A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR builds for both Nano bootloader variants remain separate CI jobs. After each AVR build, `scripts/check_avr_resource_budget.py` enforces the current engineering headroom targets: no more than 95% of the 30,720-byte application-flash budget (29,184 bytes) and no more than 70% of the ATmega328P's 2 KB static SRAM.
+A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR CI builds both **production** and **calibration/maintenance** images for both Nano bootloader generations. `scripts/check_avr_resource_budget.py` applies the same engineering limits to every AVR image: no more than 95% of the 30,720-byte application-flash budget (29,184 bytes) and no more than 70% of the ATmega328P's 2 KB static SRAM. Keeping maintenance code out of the production link is a deliberate part of meeting that production budget, not a waiver of the budget for the maintenance image.
 
 ## Running tests locally
 
@@ -183,7 +183,7 @@ The complete acceptance-criterion mapping is maintained in [docs/testing/require
 
 ## Coverage regression policy
 
-Source coverage is now guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. Firmware 0.2.2 expands the suite to 34 suites / 281 tests; GitHub Actions/gcovr is authoritative for the exact measured percentages and the release must satisfy the unchanged floors.
+Source coverage is guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The `Unreleased` development tree currently has 34 suites / 281 top-level cases; GitHub Actions/gcovr is authoritative for the exact executed/coverage result and the next release must satisfy the unchanged floors.
 
 The floor is deliberately below the reference so minor compiler/gcovr accounting differences do not create noise, but it is high enough to catch a material loss of exercised production paths. Lowering the floor just to make a change pass is not an accepted fix. See [docs/testing/coverage.md](docs/testing/coverage.md).
 

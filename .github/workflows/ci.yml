@@ -86,7 +86,7 @@ jobs:
           - unit/test_ui_layer_gesture
           - unit/test_arpeggiator_matrix
           - unit/test_scale
-          - unit/test_startup_sequence_store
+          - unit/test_eeprom_partition
           - unit/test_transposition_matrix
           - property/test_invariants
     steps:
@@ -230,6 +230,8 @@ jobs:
         environment:
           - nanoatmega328new
           - nanoatmega328
+          - nanoatmega328new_calibration
+          - nanoatmega328_calibration
 
     steps:
       - name: Check out repository

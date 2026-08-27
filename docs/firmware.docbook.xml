@@ -80,8 +80,10 @@
       <varlistentry>
         <term><filename>src/main.cpp</filename> — composition and real-time loop</term>
         <listitem>
-          <para>Instantiates the objects, restores state, plays the startup
-          animation and runs the 1&#160;kHz processing loop.</para>
+          <para>Selects either the normal production controller or, when
+          <literal>FMQ_CALIBRATION_FIRMWARE</literal> is defined, the dedicated
+          calibration/maintenance controller. The production controller restores
+          state, plays the fixed startup fade and runs the 1&#160;kHz processing loop.</para>
         </listitem>
       </varlistentry>
     </variablelist>
@@ -124,8 +126,14 @@
             <entry>Red/green brightness steps (1&#8211;12) and their mapping to
             12-bit PWM levels.</entry></row>
           <row><entry><classname>StartupAnimation</classname></entry>
-            <entry>Pure time&#8594;frame function for the power-on ring
-            animation.</entry></row>
+            <entry>Pure time&#8594;red/green-level function for the fixed
+            off&#8594;green&#8594;amber&#8594;red&#8594;off power-on fade.</entry></row>
+          <row><entry><classname>CalibrationReader</classname> / <classname>CalibrationStore</classname></entry>
+            <entry>Read-only production access to the analogue calibration journal
+            and maintenance-only atomic journal writes respectively.</entry></row>
+          <row><entry><classname>EepromPartition</classname></entry>
+            <entry>Relative-address EEPROM view that structurally confines the
+            maintenance calibration writer to bytes 967&#8230;1022.</entry></row>
           <row><entry><classname>Crc16</classname></entry>
             <entry>CRC-16/CCITT-FALSE used to protect every persisted
             record.</entry></row>
@@ -184,12 +192,19 @@
         <seg>Live "last state" ring</seg>
         <seg>11 slots of 42 bytes: marker, 32-bit sequence number, version,
         32-byte full configuration, 2-byte brightness calibration, CRC-16.
-        The former twelfth slot is still inspected during <=0.2.1 migration.</seg>
+        The former twelfth slot is still inspected during &lt;=0.2.1 migration.</seg>
       </seglistitem>
       <seglistitem>
         <seg>Analogue calibration journal</seg>
-        <seg>2 redundant records of 28 bytes: marker, version/generation metadata,
-        24-byte ADC/DAC affine profile and CRC-16.</seg>
+        <seg>2 redundant records of 28 bytes at physical bytes 967&#8230;1022:
+        marker, version/generation metadata, 24-byte ADC/DAC affine profile and
+        CRC-16. Production reads this region; the maintenance writer reaches it
+        only through a 56-byte <classname>EepromPartition</classname>.</seg>
+      </seglistitem>
+      <seglistitem>
+        <seg>Reserved tail</seg>
+        <seg>Byte 1023 is deliberately unwritten. Earlier development startup
+        metadata may remain there but is ignored.</seg>
       </seglistitem>
     </segmentedlist>
 
@@ -214,9 +229,11 @@
 
     <section xml:id="startup">
       <title>Power-on behaviour</title>
-      <para>At power-on a single amber dot travels once around the twelve LEDs as
-      a self-test, then the last saved channel A/B configuration and LED
-      calibration are restored.</para>
+      <para>At power-on all twelve note LEDs use one fixed 700&#160;ms fade:
+      off &#8594; green &#8594; amber &#8594; red &#8594; off. A compile-time bound keeps
+      the complete effect at or below 750&#160;ms. The current/persisted UI frame is
+      rendered immediately afterwards. The former rotating animation selector and
+      discrete status-LED startup chase are removed.</para>
     </section>
 
     <section xml:id="calibration">
@@ -236,6 +253,21 @@
         resumes.</para></listitem>
       </orderedlist>
     </section>
+
+    <section xml:id="analogue-maintenance">
+      <title>Analogue calibration/maintenance image (Unreleased)</title>
+      <para>The development tree after 0.2.1 moves serial ADC/DAC calibration and
+      loopback self-calibration out of the production image. The maintenance image
+      boots directly to a 115200-baud serial console, can create and verify the
+      persistent affine profile, and exposes diagnostic ADC/noise/sweep commands.
+      Normal production firmware contains no calibration command parser and has no
+      calibration write API.</para>
+      <para>Normal bootloader image swaps preserve EEPROM. The maintenance writer
+      is confined to physical EEPROM bytes 967&#8230;1022, while bytes 0&#8230;965
+      remain owned by musical presets/live state and byte 1023 is reserved. A
+      legacy &lt;=0.2.1 twelfth live-state slot is migrated before that overlapping
+      tail can be used for calibration.</para>
+    </section>
   </section>
 
   <section xml:id="changes">
@@ -250,26 +282,28 @@
       instead of truncating.</para></listitem>
       <listitem><para>Corrected the 1&#160;kHz timer reload for an exact sample
       rate.</para></listitem>
-      <listitem><para>Added the startup ring animation, automatic state restore,
-      CRC-protected and wear-levelled storage, and the brightness-calibration
-      mode.</para></listitem>
+      <listitem><para>Added automatic state restore, CRC-protected and
+      wear-levelled storage, persistent analogue calibration and a compact fixed
+      startup fade; maintenance-only calibration tooling is built as a separate
+      image to protect production flash headroom.</para></listitem>
     </itemizedlist>
   </section>
 
   <section xml:id="build-test">
     <title>Building and testing</title>
-    <para>The project uses PlatformIO. Three environments are defined:
-    <literal>nanoatmega328new</literal> (default) and
-    <literal>nanoatmega328</literal> for the two Nano bootloader variants, and
-    <literal>native</literal> for the host unit tests.</para>
-    <programlisting language="bash">pio run -e nanoatmega328new            # build firmware
-pio run -e nanoatmega328new -t upload  # flash
-pio test -e native                     # run unit tests</programlisting>
+    <para>The project uses PlatformIO. Production and calibration/maintenance
+    images are built independently for both Nano bootloader generations; host
+    environments provide native, coverage and sanitizer verification.</para>
+    <programlisting language="bash">pio run -e nanoatmega328new                       # build production
+pio run -e nanoatmega328new -t upload             # flash production
+pio run -e nanoatmega328new_calibration            # build maintenance
+pio run -e nanoatmega328new_calibration -t upload  # flash maintenance
+pio test -e native                                  # run native tests</programlisting>
     <para>The host test suite exercises the whole core: pitch and scale math, the
     quantizer, CRC, persistence (including wear-levelling and corruption
     detection), the debouncer and long-press logic, the full menu state machine
-    including the calibration flow, and the startup animation. The thin AVR glue in
-    <filename>src/</filename> is compiled by the firmware build and verified on
-    hardware.</para>
+    including LED-brightness calibration, calibration-journal isolation and the
+    fixed startup fade. The AVR glue and the dedicated maintenance console are
+    compiled by their target builds and verified on hardware.</para>
   </section>
 </article>

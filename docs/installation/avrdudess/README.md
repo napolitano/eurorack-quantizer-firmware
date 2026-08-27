@@ -71,17 +71,27 @@ The screenshot below shows **AVRDUDESS 2.20 / AVRDUDE 8.1**. It is used only to 
 
 ## Select the correct firmware file
 
-Tagged releases provide two Nano firmware images:
+The latest declared release (0.2.1) provides the two normal production images. The current `Unreleased` development tree additionally prepares one calibration/maintenance image per bootloader; those files are not release assets until the next version is explicitly tagged.
 
-| Nano bootloader | Firmware asset | Baud rate |
-|---|---|---:|
-| New bootloader / Optiboot | `fm-quantizer-nano-new-bootloader.hex` | `115200` |
-| Old Nano bootloader | `fm-quantizer-nano-old-bootloader.hex` | `57600` |
+| Nano bootloader | Production asset | Calibration/maintenance asset (`Unreleased`) | Baud rate |
+|---|---|---|---:|
+| New bootloader / Optiboot | `fm-quantizer-nano-new-bootloader.hex` | `fm-quantizer-calibration-nano-new-bootloader.hex` | `115200` |
+| Old Nano bootloader | `fm-quantizer-nano-old-bootloader.hex` | `fm-quantizer-calibration-nano-old-bootloader.hex` | `57600` |
 
 Both targets use the same ATmega328P/16 MHz hardware. The difference is the bootloader/upload protocol timing.
 
 > [!NOTE]
 > If you do not know which bootloader is installed, start with the new-bootloader image at `115200`. If AVRDUDESS cannot establish communication, retry with the old-bootloader image at `57600`.
+
+## Switching to and from the calibration image
+
+The calibration/maintenance image is **not part of a routine update**. Use it only for an uncalibrated module, after calibration data have been erased or lost, after relevant analog-path hardware changes, or when measured pitch / 1 V/oct performance indicates a calibration problem.
+
+For the complete maintenance session, keep the Eurorack power ribbon disconnected and power the module from the Nano's **USB connection only**. The `Unreleased` maintenance workflow uses the same AVRDUDESS flash controls as a normal update. Select the maintenance HEX instead of the production HEX, while keeping **Erase flash and EEPROM (`-e`) OFF** and **Disable flash erase (`-D`) ON**. After calibration is saved, repeat the same flash-only procedure with the matching production HEX.
+
+Do not load an EEPROM file in AVRDUDESS during either swap. Calibration persistence relies on leaving EEPROM untouched by the flash operation.
+
+The maintenance firmware is intentionally not a playable Quantizer image. It boots directly to the serial console; use [the calibration guide](../../../README_CALIBRATION.md) for the command workflow.
 
 ## Configure AVRDUDESS
 
@@ -115,7 +125,7 @@ Before clicking **Program!**, also verify:
 | Additional command-line arguments | Leave empty |
 
 > [!CAUTION]
-> **DO NOT ENABLE `Erase flash and EEPROM (-e)` FOR A NORMAL UPDATE.** The Quantizer stores user scales/configurations, live state, startup metadata, and LED calibration in EEPROM. Erasing EEPROM removes those saved values.
+> **DO NOT ENABLE `Erase flash and EEPROM (-e)` FOR A NORMAL UPDATE.** The Quantizer stores user scales/configurations, live state, LED brightness calibration and the persistent ADC/DAC calibration journal in EEPROM. Erasing EEPROM removes those saved values.
 
 > [!CAUTION]
 > **DO NOT CHANGE FUSES OR LOCK BITS.** They are not part of a normal firmware update and incorrect values can make the Nano stop booting normally.
@@ -144,9 +154,9 @@ After programming, the Nano resets and starts the newly installed firmware.
 > [!CAUTION]
 > **DO NOT UNPLUG THE USB CABLE YET.** The update is not considered complete until AVRDUDE has finished **and the Quantizer has completed its startup LED sequence**.
 
-Wait until the complete startup sequence has run. Only then disconnect the USB cable.
+For the normal production image, wait until the fixed startup fade has completed and the normal UI state is visible. For the calibration/maintenance image, wait until the serial maintenance console is available at 115200 baud. Only then consider the newly written image booted successfully.
 
-This final boot check confirms that the newly written firmware actually starts before the module is returned to the rack.
+This final boot check confirms that the newly written firmware actually starts before the next service step or before the module is returned to the rack.
 
 ## Reinstall the module
 

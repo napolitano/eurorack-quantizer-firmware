@@ -1,6 +1,6 @@
 /**
  * @file PersistenceLayout.h
- * EEPROM address map for presets, live restore and startup metadata.
+ * EEPROM address map for presets, live restore and hardware calibration.
  *
  * @author Axel Napolitano
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
@@ -48,7 +48,7 @@ constexpr uint16_t kLiveSlotSize =
     1 + 4 + 1 + kStoredConfigurationBytes + kBrightnessBytes + 2;
 constexpr uint16_t kLiveRingBase = kConfigRegionBase + kConfigRegionSize;
 
-// Firmware <=0.2.1 used twelve 42-byte live-state slots. Firmware 0.2.2
+// Firmware <=0.2.1 used twelve 42-byte live-state slots. The current Unreleased development layout
 // reserves the tail of EEPROM for two redundant analogue-calibration records,
 // reducing the active wear-levelled live ring to eleven slots. The former
 // twelfth slot starts at byte 966 and is still inspected once during migration.
@@ -68,7 +68,10 @@ constexpr uint16_t kCalibrationRegionBase = kLegacyExtraLiveSlotAddress + 1u;
 constexpr uint16_t kCalibrationRegionSize =
     kCalibrationRecordCount * kCalibrationRecordSize;
 
-constexpr uint16_t kStartupSequenceAddress = kEepromSize - 1u;
+// Byte 1023 is intentionally reserved. Earlier 0.2.x development builds used
+// it for rotating startup-sequence metadata; the fixed startup fade no longer
+// writes EEPROM. Keeping the byte reserved avoids another layout migration.
+constexpr uint16_t kReservedEepromTailAddress = kEepromSize - 1u;
 
 static_assert(kStateBytes == 17, "quantizer state layout changed unexpectedly");
 static_assert(kStoredConfigurationBytes == 32,
@@ -81,12 +84,12 @@ static_assert(kLiveRingBase + kLiveSlotCount * kLiveSlotSize ==
 static_assert(kPreviousLiveSlotCount == kLiveSlotCount + 1u,
               "legacy live-ring migration assumes one removed slot");
 static_assert(kCalibrationRegionBase + kCalibrationRegionSize ==
-                  kStartupSequenceAddress,
-              "calibration region must end immediately before startup metadata");
+                  kReservedEepromTailAddress,
+              "calibration region must end immediately before reserved tail byte");
 static_assert(kCalibrationPayloadBytes + 4u == kCalibrationRecordSize,
               "calibration record framing mismatch");
-static_assert(kStartupSequenceAddress < kEepromSize,
-              "startup metadata address is outside EEPROM");
+static_assert(kReservedEepromTailAddress < kEepromSize,
+              "reserved EEPROM tail address is outside EEPROM");
 
 }  // namespace fmq
 

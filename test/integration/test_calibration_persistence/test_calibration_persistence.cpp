@@ -9,6 +9,7 @@
 #include "fmq/domain/CalibrationProfile.h"
 #include "fmq/persistence/AsyncEepromWriter.h"
 #include "fmq/persistence/CalibrationStore.h"
+#include "fmq/persistence/EepromPartition.h"
 #include "fmq/persistence/PersistenceLayout.h"
 #include "FakeEeprom.h"
 
@@ -47,21 +48,23 @@ static void assertProfileEqual(const CalibrationProfile &expected,
 
 static void test_blank_eeprom_has_no_calibration_record(void) {
   FakeEeprom eeprom;
-  AsyncEepromWriter writer(eeprom);
-  CalibrationStore store(eeprom, writer);
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
   CalibrationProfile loaded;
   TEST_ASSERT_FALSE(store.load(loaded));
 }
 
 static void test_profile_roundtrips_through_redundant_store(void) {
   FakeEeprom eeprom;
-  AsyncEepromWriter writer(eeprom);
-  CalibrationStore store(eeprom, writer);
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
   const CalibrationProfile expected = makeProfile(7);
   TEST_ASSERT_TRUE(store.save(expected));
   store.flush();
 
-  CalibrationStore rebooted(eeprom, writer);
+  CalibrationStore rebooted(partition, writer);
   CalibrationProfile loaded;
   TEST_ASSERT_TRUE(rebooted.load(loaded));
   assertProfileEqual(expected, loaded);
@@ -69,8 +72,9 @@ static void test_profile_roundtrips_through_redundant_store(void) {
 
 static void test_newest_valid_record_wins(void) {
   FakeEeprom eeprom;
-  AsyncEepromWriter writer(eeprom);
-  CalibrationStore store(eeprom, writer);
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
   const CalibrationProfile first = makeProfile(3);
   const CalibrationProfile second = makeProfile(11);
   TEST_ASSERT_TRUE(store.save(first));
@@ -78,7 +82,7 @@ static void test_newest_valid_record_wins(void) {
   TEST_ASSERT_TRUE(store.save(second));
   store.flush();
 
-  CalibrationStore rebooted(eeprom, writer);
+  CalibrationStore rebooted(partition, writer);
   CalibrationProfile loaded;
   TEST_ASSERT_TRUE(rebooted.load(loaded));
   assertProfileEqual(second, loaded);
@@ -86,8 +90,9 @@ static void test_newest_valid_record_wins(void) {
 
 static void test_corrupt_newest_record_falls_back_to_previous(void) {
   FakeEeprom eeprom;
-  AsyncEepromWriter writer(eeprom);
-  CalibrationStore store(eeprom, writer);
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
   const CalibrationProfile first = makeProfile(4);
   const CalibrationProfile second = makeProfile(12);
   TEST_ASSERT_TRUE(store.save(first));
@@ -101,7 +106,7 @@ static void test_corrupt_newest_record_falls_back_to_previous(void) {
   eeprom.corruptByte(corruptAddress,
                      static_cast<uint8_t>(eeprom.readByte(corruptAddress) ^ 0x01u));
 
-  CalibrationStore rebooted(eeprom, writer);
+  CalibrationStore rebooted(partition, writer);
   CalibrationProfile loaded;
   TEST_ASSERT_TRUE(rebooted.load(loaded));
   assertProfileEqual(first, loaded);
@@ -109,8 +114,9 @@ static void test_corrupt_newest_record_falls_back_to_previous(void) {
 
 static void test_interrupted_replacement_keeps_previous_record_valid(void) {
   FakeEeprom eeprom;
-  AsyncEepromWriter writer(eeprom);
-  CalibrationStore store(eeprom, writer);
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
   const CalibrationProfile first = makeProfile(5);
   const CalibrationProfile second = makeProfile(13);
   TEST_ASSERT_TRUE(store.save(first));
@@ -121,10 +127,25 @@ static void test_interrupted_replacement_keeps_previous_record_valid(void) {
   // invalidated first and cannot become valid until the final queued write.
   for (uint8_t i = 0u; i < 10u; ++i) writer.service();
 
-  CalibrationStore rebooted(eeprom, writer);
+  CalibrationStore rebooted(partition, writer);
   CalibrationProfile loaded;
   TEST_ASSERT_TRUE(rebooted.load(loaded));
   assertProfileEqual(first, loaded);
+}
+
+static void test_journal_status_reports_both_records_and_newest_active(void) {
+  FakeEeprom eeprom;
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
+  TEST_ASSERT_TRUE(store.save(makeProfile(1)));
+  store.flush();
+  TEST_ASSERT_TRUE(store.save(makeProfile(2)));
+  store.flush();
+  const CalibrationJournalStatus status = store.inspect();
+  TEST_ASSERT_TRUE(status.records[0].valid);
+  TEST_ASSERT_TRUE(status.records[1].valid);
+  TEST_ASSERT_EQUAL_INT8(1, status.activeIndex);
 }
 
 int main(void) {
@@ -134,5 +155,6 @@ int main(void) {
   RUN_TEST(test_newest_valid_record_wins);
   RUN_TEST(test_corrupt_newest_record_falls_back_to_previous);
   RUN_TEST(test_interrupted_replacement_keeps_previous_record_valid);
+  RUN_TEST(test_journal_status_reports_both_records_and_newest_active);
   return UNITY_END();
 }

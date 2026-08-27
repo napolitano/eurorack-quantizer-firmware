@@ -28,7 +28,7 @@ pio run -e nanoatmega328new_timing -t upload
 This environment defines `FMQ_TIMING_PROBE=1`. It is deliberately excluded from release packaging.
 
 > [!WARNING]
-> The timing build repurposes Arduino Nano **D1/TX (PD1)** as an oscilloscope probe output. Serial diagnostics and the boot-time calibration console are disabled in this build. Do not use this image as normal user firmware.
+> The timing build repurposes Arduino Nano **D1/TX (PD1)** as an oscilloscope probe output. Serial diagnostics are disabled in this build; the dedicated calibration/maintenance image is a separate target and is not part of timing qualification. Do not use this image as normal user firmware.
 
 ## Probe signal
 

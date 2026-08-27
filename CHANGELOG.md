@@ -5,51 +5,43 @@ This file records public repository releases plus release-relevant changes queue
 Version numbers follow semantic-versioning conventions where practical:
 
 - patch (`0.1.x`) — compatible fixes and small refinements;
-- minor (`0.x.0`) — new features or meaningful behavioural additions;
+- minor (`0.x.0`) — new features or meaningful behavioral additions;
 - major (`x.0.0`) — intentionally incompatible or substantially redefined releases.
 
 A new section should be added when a release version is explicitly declared. Each release section must start with a `### Release summary` paragraph. Keep that summary to roughly 5–7 source lines of continuous prose; the release workflow uses it verbatim as the opening of the GitHub Release notes, followed by the detailed changelog excerpt and a compare link.
 
 ## Unreleased
 
-## 0.2.2 — 2026-08-26
-
-### Release summary
-
-Version 0.2.2 makes the per-channel analogue calibration introduced in the 0.2.x line persistent and usable without recompiling firmware while preserving the existing Quantizer/Arpeggiator workflow and original Nano R3 hardware.
-A redundant CRC16-protected EEPROM journal now stores ADC A/B and DAC A/B affine calibration, with `AnalogConfig.h` retained only as the factory/fallback profile when no valid persisted record exists.
-The boot-time console can edit, save, reload and restore calibration defaults and adds verified `CV OUT → CV IN` loopback self-calibration for each DAC output using the already calibrated ADC channel as its measurement reference.
-Self-calibration characterizes raw output at multiple points, rejects missing, non-monotonic or implausible loops, fits only the DAC affine correction in RAM, verifies independent points, and persists the result only after verification succeeds.
-The EEPROM live-state ring is reduced from twelve to eleven records to reserve the calibration journal; a newest legacy twelfth-slot live record from firmware <=0.2.1 is detected and migrated safely.
-Verification expands to **34 independently runnable native suites / 281 tests**, with dedicated calibration-persistence and self-calibration solver coverage and updated EEPROM-wear documentation.
-A new 0.2.2 user manual documents persistent CV calibration, loopback self-calibration, EEPROM semantics and the update/erase implications.
-
 ### Added
 
-- Added a single runtime `CalibrationProfile` containing affine ADC A/B and DAC A/B correction. Normal pitch conversion and calibration diagnostics consume the same active profile.
-- Added two redundant 28-byte calibration records at the end of EEPROM. Each record carries the four 6-byte affine calibrations, generation/version metadata and CRC16; replacement records invalidate the destination first and commit the marker last so the previously valid profile survives interrupted writes.
-- Added boot-console commands `:adc`, `:dac`, `:save`, `:load`, `:defaults`, `:show`, `:self a` and `:self b` while retaining all existing RAW/CAL diagnostic commands.
-- Added loopback DAC self-calibration using multiple raw-DAC support points, monotonicity/span/gain plausibility checks, an integer-only affine solver, independent verification points and automatic persistence only after a PASS result.
-- Added `integration/test_calibration_persistence` and `unit/test_self_calibration`, bringing the default native suite to **34 suites / 281 tests**.
-- Added a versioned 0.2.2 user manual with a dedicated CV calibration and loopback self-calibration section.
+- Added persistent per-module ADC A/B and DAC A/B affine calibration using two redundant 28-byte CRC16-protected EEPROM records. `AnalogConfig.h` remains the factory/fallback profile when no valid journal record exists.
+- Added a dedicated Nano **calibration/maintenance firmware image** (`nanoatmega328new_calibration` / `nanoatmega328_calibration`) instead of carrying the serial calibration shell in production firmware. Normal bootloader uploads of either image preserve EEPROM.
+- Added a production-only read path (`CalibrationReader`) and a maintenance-only write path (`CalibrationStore`). The maintenance writer operates on a 56-byte `EepromPartition` mapped only to EEPROM bytes 967…1022, so it cannot address musical presets or live-state records.
+- Added guided two-point ADC calibration, manual affine editing, persistent save/load/defaults, verified `CV OUT -> CV IN` DAC self-calibration, independent DAC verification, ADC stability/noise measurements, raw DAC loopback CSV sweeps, calibration-journal status and read-only full-EEPROM backup to the maintenance console.
+- Added calibration-partition isolation regression coverage. The native suite remains 34 independently runnable suites; test-case counts are derived by CI rather than treated as a release contract.
+- Added versioned 0.2.2 user-manual content for the planned next release, including the separate maintenance-image workflow and EEPROM-preserving update procedure.
 
 ### Changed
 
-- `AnalogConfig.h` calibration constants are now factory/fallback values rather than the only runtime source. A valid EEPROM calibration profile takes precedence at boot.
-- Reduced the wear-levelled live-state ring from 12 to 11 × 42-byte records to make room for the 56-byte redundant calibration journal while retaining the startup-sequence byte at address 1023.
-- Updated EEPROM-wear, configuration, calibration, testing, technical-reference and hardware-qualification documentation for the new layout and maintenance workflow.
+- Removed the boot-time calibration console and self-calibration workflow from the normal production image. Production firmware only migrates legacy live state when required, reads the calibration journal, and applies the active profile in the real-time conversion path.
+- Reduced the wear-levelled live-state ring from twelve to eleven 42-byte records to reserve the calibration journal. A newest legacy twelfth-slot record from <=0.2.1 is migrated atomically before the overlapping EEPROM tail is interpreted or written.
+- Replaced the four rotating startup animations and their EEPROM selector with one fixed <=750 ms ring fade: **off -> green -> amber -> red -> off**, followed immediately by restoration of the persisted/main UI frame. The four-discrete-LED startup chase was removed.
+- EEPROM byte 1023 is now reserved and deliberately left untouched. Development builds that previously stored rotating-startup metadata there remain harmless; no new layout migration is required.
+- CI now builds and resource-checks both production and calibration images for new- and old-bootloader Nano targets. Tagged releases will package both image types.
+- Updated calibration, configuration, testing, EEPROM-wear, installation, technical-reference and hardware-qualification documentation for the split-image architecture. The user documentation now states explicitly that analog calibration is required only for uncalibrated hardware, lost/erased calibration data, relevant analog-path changes, or verified pitch/1 V/oct problems; routine EEPROM-preserving firmware updates do not require recalibration. Firmware update and maintenance procedures use USB-only module power with the Eurorack ribbon disconnected.
 
 ### Fixed
 
-- Added upgrade migration for the former twelfth live-state slot used by firmware <=0.2.1. If that slot contains the newest valid live record, 0.2.2 restores it and commits an equivalent record into the new eleven-slot ring before the overlapping EEPROM tail is relied upon for persistent calibration.
-- Failed loopback calibration no longer risks replacing a known-good profile: missing/wrong patching, ADC timeout, non-monotonic response, implausible gain, excessive fit residual, failed verification or persistence failure all leave/restore the previous active calibration.
+- Prevented maintenance calibration writes from colliding with user presets/live state by enforcing partition-relative EEPROM addressing in the writer itself rather than relying only on address conventions.
+- Preserved the newest <=0.2.1 live state before the former twelfth slot can be overwritten by calibration data, including when a user flashes the calibration image directly from 0.2.1.
+- Failed loopback calibration continues to restore the prior active profile and leaves the previous persistent calibration record valid.
 
 ## 0.2.1 — 2026-08-17
 
 ### Release summary
 
 Version 0.2.1 is a maintenance and calibration-verification patch for the 0.2.x firmware line, with no hardware changes and no intentional change to the musical Quantizer/Arpeggiator workflow.
-The boot-time calibration console now distinguishes RAW hardware measurements from CAL runtime-corrected values, exposes the active analogue correction constants and can verify calibrated DAC test points through the same production helpers used during normal operation.
+The boot-time calibration console now distinguishes RAW hardware measurements from CAL runtime-corrected values, exposes the active analog correction constants and can verify calibrated DAC test points through the same production helpers used during normal operation.
 Verification has been expanded to 32 independently runnable native suites / 271 test cases, including deterministic property checks, sanitizer execution, machine-checked requirement traceability, frozen EEPROM compatibility fixtures and explicit EEPROM-wear tests.
 Release engineering now includes pinned build inputs, recorded build provenance, a dedicated real-hardware timing-qualification image/protocol and a 95% AVR application-flash engineering ceiling while retaining the 70% static-SRAM ceiling.
 The persistence-fixture checkout regression is fixed so the binary golden images required by CI are intentionally tracked despite the repository-wide build-artifact ignore rule.
@@ -57,7 +49,7 @@ The existing 0.2.0 user manual remains compatible and is reused automatically by
 
 ### Fixed
 
-- Made the boot-time analogue calibration console explicitly distinguish RAW hardware measurements from CAL runtime-corrected values. ADC reads now show both views, active ADC/DAC correction constants can be inspected in-console, and calibrated DAC min/mid/max verification reuses the exact production correction helpers while the existing raw diagnostic commands remain available. Regression coverage fixes the ADC offset-before-gain and DAC gain-before-offset order, non-unity gain rounding, clipping, and the shared runtime calibration wrappers. Calibration documentation also makes explicit that Quinn Freedman's original firmware has no equivalent per-channel software ADC/DAC gain/offset layer or calibration console; these are documented extensions of this implementation.
+- Made the boot-time analog calibration console explicitly distinguish RAW hardware measurements from CAL runtime-corrected values. ADC reads now show both views, active ADC/DAC correction constants can be inspected in-console, and calibrated DAC min/mid/max verification reuses the exact production correction helpers while the existing raw diagnostic commands remain available. Regression coverage fixes the ADC offset-before-gain and DAC gain-before-offset order, non-unity gain rounding, clipping, and the shared runtime calibration wrappers. Calibration documentation also makes explicit that Quinn Freedman's original firmware has no equivalent per-channel software ADC/DAC gain/offset layer or calibration console; these are documented extensions of this implementation.
 - Fixed CI checkout validation for frozen EEPROM golden fixtures by explicitly tracking `test/fixtures/persistence/*.bin` despite the repository-wide `*.bin` build-artifact ignore rule.
 
 ### Added
@@ -67,13 +59,13 @@ The existing 0.2.0 user manual remains compatible and is reused automatically by
 - Added frozen current/legacy EEPROM golden fixtures so supported persistent formats are loaded and migrated against known byte-for-byte images rather than only records produced by the current implementation.
 - Added a documented EEPROM-wear audit and explicit write-distribution/same-value-suppression tests for the versioned asynchronous persistence paths.
 - Added a dedicated non-release `nanoatmega328new_timing` image and oscilloscope qualification procedure. D1/TX measures scheduler-to-control-cycle completion so real ATmega328P deadline margin can be verified without adding instrumentation to normal release firmware.
-- Added a versioned hardware-release qualification protocol covering functional behaviour, timing/clock capture, analogue tracking, channel isolation, trigger levels, persistence/update retention and both Nano bootloader variants.
+- Added a versioned hardware-release qualification protocol covering functional behavior, timing/clock capture, analog tracking, channel isolation, trigger levels, persistence/update retention and both Nano bootloader variants.
 - Added pinned CI/build inputs, release `BUILD-INFO.txt` provenance metadata and reproducible-build documentation; Dependabot now keeps the pinned GitHub Actions and Python CI dependencies reviewable.
 
 ### Changed
 
 - Raised the ATmega328P application-flash engineering ceiling from **92.5% to 95%** of the 30,720-byte Nano application space, i.e. from 28,416 to **29,184 bytes**. The hard application limit remains 30,720 bytes and the static-SRAM engineering ceiling remains **70% of 2,048 bytes**.
-- Tightened first-party native compilation with `-Werror -Wconversion -Wsign-conversion -Wshadow -Wpedantic` in addition to the existing warning set; warnings uncovered during hardening were corrected without intentional runtime behaviour changes.
+- Tightened first-party native compilation with `-Werror -Wconversion -Wsign-conversion -Wshadow -Wpedantic` in addition to the existing warning set; warnings uncovered during hardening were corrected without intentional runtime behavior changes.
 
 ## 0.2.0 — 2026-08-09
 
@@ -82,7 +74,7 @@ The existing 0.2.0 user manual remains compatible and is reused automatically by
 Version 0.2.0 turns the alternative firmware into a broader performance-oriented release while preserving the original hardware and core quantizer workflow.
 It introduces a complete second Arpeggiator layer with scale-aware patterns, internal and external clocking, swing, octave/length controls and optional step triggers.
 SHIFT double-click provides symmetrical enter/exit, while persistence now restores both live state and full configurations including Arpeggiator state, selected channel and active UI layer.
-Clock capture, button-ladder validation, initial hysteresis and several UI edge cases were tightened, and LED calibration/startup behaviour gained clearer feedback.
+Clock capture, button-ladder validation, initial hysteresis and several UI edge cases were tightened, and LED calibration/startup behavior gained clearer feedback.
 The repository now includes stronger AVR resource-budget CI, 29 native test suites / 237 tests, changelog-driven release notes, checksums and the initial end-user manual for firmware 0.2.0.
 No PCB, component or wiring changes are required; 0.2.0 targets the existing Arduino Nano / ATmega328P hardware.
 
@@ -96,11 +88,11 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 
 - Added project community-health infrastructure for external contributions: contribution guidelines, a code of conduct, structured bug and feature issue forms, and a pull-request template.
 
-- Expanded the native test net with fine-grained two-channel isolation checks: in Absolute mode Channel B is verified at quantized-pitch and final DAC-code level while Channel A sweeps the complete 10-bit ADC range; the complementary Relative-mode behaviour is verified explicitly.
+- Expanded the native test net with fine-grained two-channel isolation checks: in Absolute mode Channel B is verified at quantized-pitch and final DAC-code level while Channel A sweeps the complete 10-bit ADC range; the complementary Relative-mode behavior is verified explicitly.
 - Added Sample-and-Hold and reverse-direction A/B independence regression coverage so activity on either CV input cannot silently leak into the other channel's digital signal path.
 - Expanded Arpeggiator documentation to describe its intended fast, scale-aware 8-bit-computer-style arpeggio character.
 - Added a complete second Arpeggiator UI layer with dedicated controls for enable, rate/clock ratio, pattern, scale-degree shape, length, octave range, step trigger, FREE/RESET/CLOCK sync and swing while retaining Link/A/B navigation.
-- Expanded the Arpeggiator engine from the fixed 24 ms root/third/fifth behaviour to twelve internal rates, clock division/multiplication, eight patterns, eight scale-aware shapes, 1–12 step length and 1–4 octave range; the former 24 ms 1-3-5 behaviour remains the default.
+- Expanded the Arpeggiator engine from the fixed 24 ms root/third/fifth behavior to twelve internal rates, clock division/multiplication, eight patterns, eight scale-aware shapes, 1–12 step length and 1–4 octave range; the former 24 ms 1-3-5 behavior remains the default.
 - Added external Sample/Gate clock integration per channel, including reset-only operation, phase re-anchoring on real clock edges, generated subdivisions and independent physical clock inputs for A/B.
 - Added optional 5 ms output triggers for Arpeggiator steps while retaining pitch-only operation as the default.
 - Added complete Arpeggiator-layer, clock/sync and persistence regression coverage, including full-config Arpeggiator restoration, stable/deterministic Random stepping and exact swing-pair timing; the regular native suite now contains 29 independently runnable suites and 237 test cases.
@@ -109,8 +101,8 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 - Applied the same AVR flash/SRAM resource-budget gate to tagged release builds so published Nano artifacts cannot bypass the engineering limits enforced by CI.
 - Raised the ATmega328P application-flash engineering budget from 85% to 92.5% of the 30,720-byte Nano application space (28,416 bytes); the static-SRAM budget remains unchanged at 70% of 2 KB.
 - Added dedicated per-channel Arpeggiator state and regression coverage for A-only, B-only and linked operation.
-- Added live green/red/amber comparison feedback to LED brightness calibration so colour balance and the resulting amber mix can be judged while either emitter is adjusted.
-- Added regression coverage for the calibration comparison view, calibration colour selection and the 1500 ms startup note-ring duration ceiling.
+- Added live green/red/amber comparison feedback to LED brightness calibration so color balance and the resulting amber mix can be judged while either emitter is adjusted.
+- Added regression coverage for the calibration comparison view, calibration color selection and the 1500 ms startup note-ring duration ceiling.
 - Extended full-configuration and live-state persistence to include both complete per-channel Arpeggiator configurations and the selected channel; automatic live restore/autosave is enabled with versioned CRC-protected wear-levelled records.
 - Added changelog-driven GitHub Release notes generation: each declared release provides a short prose summary, the detailed version excerpt and a compare link instead of relying on generic generated notes.
 - Added `SHA256SUMS.txt` and `MD5SUMS.txt` generation to tagged releases and documented their purpose in the generated Release notes.
@@ -125,7 +117,7 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 - Removed the fresh-channel C bias from Hysteresis by tracking whether a previous output actually exists; the first exact 0.5-semitone tie now rounds upward as specified.
 - Added a ±10-count plausibility window to the original resistor-ladder decoder. Nominal values remain unchanged, while implausible gap readings and high/open readings fail safe as no button.
 - Replaced millisecond-assigned external-clock edges with ISR-captured microsecond timestamps and per-tick edge counts. CLOCK period measurement is no longer quantized to the 1 kHz control loop, multiple physical edges are not collapsed into one boolean event, and multiplied-step phase no longer accumulates control-loop observation error.
-- Reworked the Arpeggiator as a true second control layer: a debounced SHIFT double-click now replaces the former 3-second hold, making layer changes immediate while preserving isolated `SHIFT + note` modifier behaviour. Entering enables the selected Arpeggiator; returning to the Quantizer layer disables Arpeggiator playback on both channels.
+- Reworked the Arpeggiator as a true second control layer: a debounced SHIFT double-click now replaces the former 3-second hold, making layer changes immediate while preserving isolated `SHIFT + note` modifier behavior. Entering enables the selected Arpeggiator; returning to the Quantizer layer disables Arpeggiator playback on both channels.
 - Restored one consistent front-panel grammar across both UI layers: unmodified note buttons continue to edit and display the selected scale, while `SHIFT + note` selects Quantizer or Arpeggiator menu functions according to the active layer; scalar parameters then use the note buttons as value selectors.
 - Fixed live restore of the active UI layer: reboot now returns to the same Quantizer/Arpeggiator front-panel layer that was active before power-off, so the first SHIFT double-click after an Arpeggiator-layer reboot correctly performs OFF/exit instead of re-entering the layer. Live-state v6 stores the layer explicitly while retaining in-place v5 migration compatibility.
 - Removed the separate steady Arpeggiator dashboard so the normal scale/quantized-note display remains visible in both UI layers; temporary parameter and activation feedback is retained.
@@ -145,12 +137,12 @@ No PCB, component or wiring changes are required; 0.2.0 targets the existing Ard
 
 ### Release summary
 
-Patch release correcting and restoring the native CI test suite. Intended quantizer runtime behaviour is unchanged from 0.1.0.
+Patch release correcting and restoring the native CI test suite. Intended quantizer runtime behavior is unchanged from 0.1.0.
 
 ### Fixed
 
 - Renamed PlatformIO test-suite directories to the required `test_*` convention so `pio test -e native` discovers and builds the native unit, integration and regression tests correctly.
-- Aligned stale native tests with the firmware's established hardware behaviour: original absolute resistor-ladder values, 64 ms ladder debounce, normalized-HIGH Track-and-Hold semantics, full-range ADC pitch conversion, last-note protection, and asynchronous EEPROM writes.
+- Aligned stale native tests with the firmware's established hardware behavior: original absolute resistor-ladder values, 64 ms ladder debounce, normalized-HIGH Track-and-Hold semantics, full-range ADC pitch conversion, last-note protection, and asynchronous EEPROM writes.
 - Corrected the startup-sequence-store test include path.
 - Added safe defaults to `MenuInput` so a value-initialized input represents no key, no SAVE/LOAD press, and SHIFT released.
 - Restored GitHub Actions native-test execution.
@@ -202,7 +194,7 @@ Initial public release of the PlatformIO/C++ firmware reimplementation.
 - Arpeggiator intervals derived from each channel's active scale.
 - Boot-time serial hardware calibration console.
 - Optional runtime diagnostics.
-- Central configuration split by product, UI, analogue, LED, runtime, persistence and board concerns.
+- Central configuration split by product, UI, analog, LED, runtime, persistence and board concerns.
 - Native unit, integration and regression tests.
 - GitHub Actions for native tests, AVR builds and tagged releases.
 - Consistent source headers with purpose, authorship, original-project reference and SPDX licence identifier.
@@ -213,43 +205,43 @@ Initial public release of the PlatformIO/C++ firmware reimplementation.
 - Separated portable domain/application/UI/persistence code from AVR board support.
 - Reduced `main.cpp` to Arduino entry-point delegation through `FirmwareController`.
 - Centralised hardware pin mapping and electrical assumptions in a board profile.
-- Matched the effective original ADC reference behaviour: AVCC.
-- Matched the original resistor-ladder values and 64 ms debounce behaviour on the original PCB profile.
+- Matched the effective original ADC reference behavior: AVCC.
+- Matched the original resistor-ladder values and 64 ms debounce behavior on the original PCB profile.
 - Matched the original ADC filter semantics with median-of-three sampling.
 - Converted ADC acquisition to an interrupt-driven scanner with deterministic MUX settling.
 - Captured short trigger edges through external-interrupt latches.
-- Restored the original default Track-and-Hold mode and standard SHIFT+4 Track/Sample toggle behaviour.
-- Preserved the original hardware behaviour where an unpatched trigger/sample input is normalised HIGH, making Track-and-Hold operate continuously.
+- Restored the original default Track-and-Hold mode and standard SHIFT+4 Track/Sample toggle behavior.
+- Preserved the original hardware behavior where an unpatched trigger/sample input is normalised HIGH, making Track-and-Hold operate continuously.
 - Made SHIFT an immediate modifier so simultaneous SHIFT+note gestures behave like the original firmware.
 - Prevented the final active scale note from being disabled accidentally.
 - Made the factory scale chromatic so a freshly flashed module is immediately usable.
-- Normalised A/B selection behaviour when channels are linked.
+- Normalised A/B selection behavior when channels are linked.
 - Made menu/configuration edits preserve runtime trigger state instead of generating artificial activity indications.
 - Rebalanced normal red/green LED defaults based on real hardware testing while keeping the values explicitly configurable.
 - Made startup effects use the calibrated normal red/green levels as their full-scale reference.
-- Reworked startup behaviour to use full-ring colour fades and additional animation variants rather than the earlier travelling test sequence.
+- Reworked startup behavior to use full-ring color fades and additional animation variants rather than the earlier travelling test sequence.
 - Reworked LED calibration so Channel A consistently represents green and Channel B red.
 - Changed calibration from a single-position marker to a filled clockwise bar.
-- Disabled automatic live-state restore/autosave by default to keep deterministic startup behaviour aligned with the original interaction model.
+- Disabled automatic live-state restore/autosave by default to keep deterministic startup behavior aligned with the original interaction model.
 - Added SPI transactions and final-DAC-code caching to reduce unnecessary transfers.
 - Replaced queued tick replay with missed-deadline accounting instead of reprocessing current input values as historical samples.
 - Improved naming, comments, configuration ownership and removal of implementation magic numbers.
 
 ### Fixed
 
-- Track-and-Hold plus trigger-delay behaviour that could prevent updates while a gate remained HIGH.
-- Input-trigger LED behaviour in Track-and-Hold: HIGH now continuously refreshes the activity indication as on the original hardware.
+- Track-and-Hold plus trigger-delay behavior that could prevent updates while a gate remained HIGH.
+- Input-trigger LED behavior in Track-and-Hold: HIGH now continuously refreshes the activity indication as on the original hardware.
 - Separation of trigger-delay timing from input-activity LED timing.
-- SHIFT modifier ordering that previously caused note events to arrive before SHIFT was recognised.
+- SHIFT modifier ordering that previously caused note events to arrive before SHIFT was recognized.
 - A/B channel-selection and SHIFT-menu interaction failures caused by the modifier timing issue.
 - ADC reference mismatch introduced during early reimplementation work.
 - Resistor-ladder decoding incompatibilities caused by assumptions that did not match the original PCB.
 - False A/B activity flashes caused by resetting channel runtime state during front-panel scale edits.
 - Track/Sample feedback timing and documentation ambiguity.
-- LED calibration A/B colour mapping.
+- LED calibration A/B color mapping.
 - LED calibration range so the final step now represents the actual TLC5947 maximum of 4095.
 - Loading of empty or invalid scales.
-- Scale-shift behaviour at pitch-range boundaries.
+- Scale-shift behavior at pitch-range boundaries.
 - EEPROM validation of persisted enum/range values.
 - EEPROM slot versioning and invalid-record handling.
 - Competing EEPROM writers and blocking runtime EEPROM waits.
@@ -266,7 +258,7 @@ Initial public release of the PlatformIO/C++ firmware reimplementation.
 
 ### Documentation
 
-- Added a repository-focused `README.md` covering features, hardware assumptions, build/flash, complete menu logic, Track/Sample behaviour, discrete LED semantics, factory presets, startup sequences, Arpeggiator and licensing/credits.
+- Added a repository-focused `README.md` covering features, hardware assumptions, build/flash, complete menu logic, Track/Sample behavior, discrete LED semantics, factory presets, startup sequences, Arpeggiator and licensing/credits.
 - Added `README_CONFIGURATION.md` as the firmware configuration reference.
 - Added `README_CALIBRATION.md` with step-by-step LED, ladder, CV-input and DAC-output calibration procedures.
 - Added this release-oriented `CHANGELOG.md` in place of internal fix notes.

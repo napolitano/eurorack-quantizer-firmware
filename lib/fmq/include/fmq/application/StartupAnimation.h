@@ -1,69 +1,47 @@
 /**
  * @file StartupAnimation.h
- * Declares the rotating set of configurable note-ring power-on animations.
+ * Declares the compact fixed note-ring power-on fade.
  *
  * @author Axel Napolitano
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
  * @copyright Copyright (C) 2026 Axel Napolitano
  * @license GPL-3.0-or-later
- *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-#ifndef FM_QUANTIZER_CORE_STARTUP_ANIMATION_H
-#define FM_QUANTIZER_CORE_STARTUP_ANIMATION_H
+#ifndef FMQ_APPLICATION_STARTUP_ANIMATION_H
+#define FMQ_APPLICATION_STARTUP_ANIMATION_H
 
 #include <stdint.h>
 
-#include "fmq/config/LedConfig.h"
-#include "fmq/domain/LedColor.h"
-
 namespace fmq {
 
-/** Available startup animations. Stored values are deliberately stable. */
-enum class StartupSequence : uint8_t {
-  ColorFade = 0,  ///< Full ring fades green, red, then amber.
-  Glowworm = 1,  ///< Moving head with a dimming tail, once per colour.
-  Cog = 2,       ///< Repeating colour pairs rotate like a cog wheel.
-  Sparkles = 3,  ///< Deterministic multi-colour twinkles.
-};
-
-/** One instant of a startup animation.
- *
- * Each LED has a logical colour and an independent normalized 0..4095
- * intensity. The board controller combines this with the empirically calibrated
- * red/green PWM levels, so every animation respects the user's LED balance.
- */
+/** Normalized red/green intensity for the whole twelve-LED note ring. */
 struct StartupAnimationSample {
-  LedFrame frame;
-  uint16_t intensityQ12[kNoteCount];
-
-  StartupAnimationSample() : frame(), intensityQ12{} {}
+  uint16_t redQ12 = 0u;
+  uint16_t greenQ12 = 0u;
 };
 
-/** Generates one of the selectable startup animations. */
+/**
+ * Fixed startup fade: off -> green -> amber -> red -> off.
+ *
+ * The animation is intentionally uniform across the complete ring and contains
+ * no selectable/random sequence state. This minimizes flash and EEPROM usage.
+ */
 class StartupAnimation {
  public:
-  static constexpr uint8_t kSequenceCount = 4;
+  static constexpr uint16_t kGreenFadeInMs = 150u;
+  static constexpr uint16_t kGreenToAmberMs = 200u;
+  static constexpr uint16_t kAmberToRedMs = 200u;
+  static constexpr uint16_t kRedFadeOutMs = 150u;
+  static constexpr uint16_t kDurationMs =
+      kGreenFadeInMs + kGreenToAmberMs + kAmberToRedMs + kRedFadeOutMs;
 
-  explicit StartupAnimation(StartupSequence sequence) : sequence_(sequence) {}
-
-  StartupSequence sequence() const { return sequence_; }
-  uint32_t durationMs() const;
-  bool isDone(uint32_t elapsedMs) const { return elapsedMs >= durationMs(); }
+  bool isDone(uint32_t elapsedMs) const { return elapsedMs >= kDurationMs; }
   StartupAnimationSample sampleAt(uint32_t elapsedMs) const;
-
- private:
-  StartupSequence sequence_;
-
-  static uint16_t fadeIntensityAt(uint32_t phaseElapsedMs);
-  static LedColor fadeColorForPhase(uint8_t phase);
-  static LedColor cogColorForIndex(uint8_t index);
-
-  StartupAnimationSample sampleColorFade(uint32_t elapsedMs) const;
-  StartupAnimationSample sampleGlowworm(uint32_t elapsedMs) const;
-  StartupAnimationSample sampleCog(uint32_t elapsedMs) const;
-  StartupAnimationSample sampleSparkles(uint32_t elapsedMs) const;
 };
+
+static_assert(StartupAnimation::kDurationMs <= 750u,
+              "startup animation must finish within 750 ms");
 
 }  // namespace fmq
 

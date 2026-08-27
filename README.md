@@ -11,10 +11,10 @@
 
 An independent alternative firmware for the **Free Modular Quantizer** Eurorack module, written in modern C++17 for **PlatformIO** and the original **Arduino Nano / ATmega328P at 16 MHz** hardware.
 
-It keeps the module recognisably the same instrument: the original pin mapping, panel controls and core quantizer workflow remain intact. The implementation focuses on easier builds, stronger testability and persistence, hardware calibration, well-defined edge-case behaviour and an additional performance-oriented Arpeggiator layer.
+It keeps the module recognizably the same instrument: the original pin mapping, panel controls and core quantizer workflow remain intact. The implementation focuses on easier builds, stronger testability and persistence, hardware calibration, well-defined edge-case behavior and an additional performance-oriented Arpeggiator layer.
 
 > [!NOTE]
-> **Status:** Active, hardware-tested firmware. The portable core is covered by host-side tests; analog calibration and final LED brightness values remain specific to the actual module and fitted components; 0.2.2 can persist the measured analogue profile and self-calibrate each DAC output by loopback.
+> **Status:** The latest declared release is **0.2.1**. Changes described under `Unreleased` are development work intended for the next release; they are not a published 0.2.2 release yet. The current development tree separates normal production firmware from a dedicated calibration/maintenance image while sharing the same persistent analog profile.
 
 ## Acknowledgement — Quinn Freedman
 
@@ -51,7 +51,7 @@ This repository is an independent reimplementation and is **not an official Free
   - [Save/load and factory presets](#saveload-and-factory-presets)
   - [Arpeggiator layer](#arpeggiator-layer)
   - [LED brightness calibration](#led-brightness-calibration)
-  - [Startup sequences](#startup-sequences)
+  - [Startup fade](#startup-fade)
   - [Version history](#version-history)
 - [Technical reference](#technical-reference)
   - [Contributing and project policies](#contributing-and-project-policies)
@@ -77,13 +77,13 @@ This project therefore takes a different engineering route while retaining the o
 - native AVR builds and resource-budget checks in GitHub Actions;
 - clear separation between quantizer logic, application/UI code, persistence and board support;
 - easier serial diagnostics and instrumentation during development and calibration;
-- centralised configuration of timing, analogue assumptions, LED behaviour and calibration;
+- centralised configuration of timing, analog assumptions, LED behavior and calibration;
 - a lower maintenance barrier for contributors already familiar with Arduino and PlatformIO;
 - robust, validated persistence instead of treating arbitrary or interrupted EEPROM data as valid state;
 - explicit fixes for a small number of edge cases verified in the original implementation;
 - room for additional features that fit the existing front panel without requiring hardware changes.
 
-The original firmware remains the behavioural and hardware reference wherever that behaviour is intentional and useful. This is deliberately **not a line-by-line translation**: compatible behaviour is preserved where appropriate, known defects are not intentionally reproduced, and extensions are documented explicitly.
+The original firmware remains the behavioral and hardware reference wherever that behavior is intentional and useful. This is deliberately **not a line-by-line translation**: compatible behavior is preserved where appropriate, known defects are not intentionally reproduced, and extensions are documented explicitly.
 
 ## What this firmware adds
 
@@ -96,9 +96,13 @@ This alternative firmware adds or deliberately changes the following:
 - **Built-in factory preset bank:** empty full-configuration slots expose twelve useful factory scales; saving a user configuration to a slot transparently overrides its factory fallback.
 - **Live-state restore:** the working state can be restored after power cycling, including both channel configurations, Arpeggiator settings, selected channel and active UI layer.
 - **More robust EEPROM persistence:** records are versioned, CRC-checked and range-validated, and writes are handled asynchronously rather than accepting a slot solely because a sentinel byte is present.
-- **Persistent per-channel analogue calibration:** independent ADC and DAC offset/gain correction for Channels A/B is loaded from a redundant CRC16 EEPROM journal, with `AnalogConfig.h` as factory fallback. The boot-time RAW/CAL console can edit/save/load the profile and run verified `CV OUT → CV IN` DAC self-calibration. The original Rust firmware has no equivalent software calibration layer.
-- **On-device LED colour calibration:** red and green brightness can be adjusted independently over the TLC5947 range while green, red and amber are shown together for direct visual balancing.
-- **Improved power-on behaviour:** the default scale is chromatic, the final enabled scale note is protected against accidental removal, four short startup animations rotate between boots, and the four discrete status LEDs receive a separate self-test.
+- **Persistent per-channel analog calibration:** independent ADC and DAC offset/gain correction for Channels A/B is loaded from a redundant CRC16 EEPROM journal, with `AnalogConfig.h` as factory fallback. Calibration and diagnostics live in a separate maintenance firmware image that can edit/save/load the profile and run verified `CV OUT → CV IN` DAC self-calibration without consuming production-image flash. The production firmware only reads and applies the stored profile. The original Rust firmware has no equivalent software calibration layer.
+
+> [!NOTE]
+> Analog calibration is **not a routine step after every firmware update**. Use the maintenance image only for a device that has not yet been individually calibrated, after calibration data have been erased or lost, after relevant analog-path hardware changes, or when measured pitch / 1 V/oct performance indicates a calibration problem. A normal EEPROM-preserving firmware update does not require recalibration. During firmware updates and calibration, power the module from **USB only** and keep the Eurorack power ribbon disconnected.
+
+- **On-device LED color calibration:** red and green brightness can be adjusted independently over the TLC5947 range while green, red and amber are shown together for direct visual balancing.
+- **Improved power-on behavior:** the default scale is chromatic, the final enabled scale note is protected against accidental removal, and the `Unreleased` development tree uses one compact <=750 ms green→amber→red startup fade before restoring the actual UI frame.
 - **Corrected edge cases from the reference implementation:** verified issues such as Track-and-Hold with delay, negative scale shifts, full-scale ADC mapping and interrupted/invalid persistence are handled explicitly; the detailed comparison is documented below.
 
 The implementation itself also differs substantially: it uses a conventional **C++17/PlatformIO AVR toolchain**, portable host-side tests, AVR CI builds and explicit flash/SRAM resource gates. These engineering changes are primarily about maintainability and reproducibility rather than changing the front-panel instrument.
@@ -251,7 +255,7 @@ Glide and Trigger Delay use an unsigned 0–11 representation.
 
 Pre-shift, Scale-shift and Post-shift use a signed representation:
 
-- centre/reference position: amber
+- center/reference position: amber
 - positive values: green clockwise
 - negative values: red from the upper end of the ring
 
@@ -343,7 +347,7 @@ Red and green brightness must be calibrated independently. Correct values depend
 
 Enter calibration by holding **SHIFT + LOAD + SAVE for 5 seconds**.
 
-Calibration behaviour:
+Calibration behavior:
 
 - Channel A / green is selected initially;
 - `SHIFT+A` selects green;
@@ -355,21 +359,20 @@ Calibration behaviour:
 - active calibration shows a repeating green / red / amber comparison pattern so both emitter levels and the resulting amber balance remain visible together;
 - a newly selected step is marked briefly by a dark gap at that ring position;
 - the Channel A status-LED pair identifies green editing and the Channel B pair identifies red editing;
-- entering the mode or switching colour maps the current PWM value to the nearest of the twelve available steps;
+- entering the mode or switching color maps the current PWM value to the nearest of the twelve available steps;
 - hold SHIFT alone for 5 seconds to save and leave calibration.
 
 See [README_CALIBRATION.md](README_CALIBRATION.md) for the detailed procedure.
 
-## Startup sequences
+## Startup fade
 
-Startup animation can be disabled in configuration. When sequence rotation is enabled, the firmware cycles through four animations on successive power-ups and stores the **next sequence index** in a dedicated EEPROM byte.
+The development tree uses one fixed, deliberately small startup effect instead of rotating boot animations. All twelve note LEDs share the same color level and crossfade through:
 
-1. **Color Fade** — all twelve LEDs fade in/out together: green, red, then amber.
-2. **Glowworm** — clockwise green, red and amber revolutions with a dimming tail.
-3. **Cog** — repeating pairs of red, green and amber rotate for three revolutions.
-4. **Sparkles** — pseudo-random multi-colour twinkles.
+```text
+off -> green -> amber -> red -> off
+```
 
-The twelve-note ring portion of **every** sequence is capped at **1500 ms**; current timings are 840 ms for Color Fade, 1440 ms for Glowworm, 1440 ms for Cog and 1450 ms for Sparkles. The separate four-status-LED self-test follows afterwards and is not part of this ring-animation limit. After the ring animation, the four discrete status LEDs flash once each in physical order before normal operation begins. After sequence 4 the selector wraps back to sequence 1; invalid or erased sequence-state data also falls back to sequence 1.
+The complete ring effect is **700 ms** and is compile-time constrained to remain at or below **750 ms**. After the final fade the current/persisted UI frame is rendered immediately. The former Glowworm, Cog and Sparkles algorithms, rotating-sequence EEPROM selector, and discrete four-status-LED startup chase are no longer part of the production image.
 
 ## Version history
 
@@ -378,8 +381,8 @@ This firmware uses semantic versioning to distinguish compatibility fixes from l
 - **0.1.0 — August 7, 2026:** Initial public release of the PlatformIO/C++ reimplementation for the original Arduino Nano / ATmega328P hardware. It established the complete dual-channel quantizer workflow, factory preset bank, calibrated LED handling, startup sequences, robust persistence, native tests and CI, and the first scale-aware Arpeggiator performance mode.
 - **0.1.1 — August 7, 2026:** Patch release limited to correcting and restoring native test-suite and CI execution. Intended quantizer runtime behavior remained unchanged from 0.1.0.
 - **0.2.0 — August 9, 2026:** First substantial feature expansion of the alternative firmware. It adds the full second Arpeggiator control layer, symmetric SHIFT double-click entry and exit, expanded scale-aware patterns and clocking, more complete live/full-configuration restore, tighter external-clock capture, corrected initial hysteresis and resistor-ladder validation, broader regression coverage, and the extended release/manual infrastructure.
-- **0.2.1 — August 17, 2026:** Maintenance and calibration-verification patch. It makes RAW versus runtime-calibrated ADC/DAC behaviour explicit in the boot-time console, expands the native verification net to 32 suites / 271 tests with sanitizers, requirement traceability and frozen EEPROM fixtures, strengthens release reproducibility and hardware-qualification tooling, and raises the AVR flash engineering ceiling to 95% while retaining the existing hardware and user workflow.
-- **0.2.2 — August 26, 2026:** Persistent analogue-calibration patch. ADC/DAC A/B affine correction now lives in a redundant CRC16 EEPROM journal, the boot console can edit/save/load/default the profile and perform verified per-channel DAC loopback self-calibration, the live-state ring migrates safely from the former 12th slot to an 11-slot layout, and native verification expands to 34 suites / 281 tests.
+- **0.2.1 — August 17, 2026:** Maintenance and calibration-verification patch. It makes RAW versus runtime-calibrated ADC/DAC behavior explicit in the boot-time console, expands the native verification net to 32 suites / 271 tests with sanitizers, requirement traceability and frozen EEPROM fixtures, strengthens release reproducibility and hardware-qualification tooling, and raises the AVR flash engineering ceiling to 95% while retaining the existing hardware and user workflow.
+- **Unreleased (planned next release):** persistent ADC/DAC calibration journal, separate calibration/maintenance firmware, hard EEPROM partitioning, legacy live-state migration, and the simplified <=750 ms startup fade. See [CHANGELOG.md](CHANGELOG.md) for the authoritative unreleased change list.
 
 # Technical reference
 
@@ -411,7 +414,7 @@ The original `fm-lib` configures the ADC to use **AVCC** as its effective refere
 
 ### Trigger-input normalisation
 
-On the original hardware the trigger/sample inputs are normalised to **HIGH** when no cable is inserted. This is fundamental to the normal Track-and-Hold behaviour:
+On the original hardware the trigger/sample inputs are normalised to **HIGH** when no cable is inserted. This is fundamental to the normal Track-and-Hold behavior:
 
 - no cable → trigger input HIGH → CV is followed and quantized continuously;
 - cable inserted, gate HIGH → CV is tracked continuously;
@@ -419,23 +422,23 @@ On the original hardware the trigger/sample inputs are normalised to **HIGH** wh
 
 This hardware normalisation is why a separate Continuous mode is not required for normal operation. A Continuous mode exists internally as an optional extension but is excluded from the standard UI by default.
 
-## Why behaviour differs from the original firmware in a few places
+## Why behavior differs from the original firmware in a few places
 
-The original Rust firmware remains the behavioural reference, and its compact design is one of the reasons the module is so attractive for DIY. During the reimplementation, however, a small number of concrete limitations and defects could be verified directly in the original source. The items below are deliberately limited to those cases. They do **not** include bugs introduced and fixed during development of this C++ implementation.
+The original Rust firmware remains the behavioral reference, and its compact design is one of the reasons the module is so attractive for DIY. During the reimplementation, however, a small number of concrete limitations and defects could be verified directly in the original source. The items below are deliberately limited to those cases. They do **not** include bugs introduced and fixed during development of this C++ implementation.
 
-| Area | Original firmware behaviour | This implementation |
+| Area | Original firmware behavior | This implementation |
 |---|---|---|
 | Negative scale-degree shift | `step_in_scale()` correctly selects a downward direction for negative values, but then iterates over `0..num_steps`. For a negative `num_steps` that range is empty, so negative scale shifts perform no steps at all. | The magnitude and direction are handled separately. Negative values now step downward through the enabled notes exactly as the UI indicates. |
 | Trigger delay in Track-and-Hold | In Track-and-Hold, a HIGH trigger resets `input_trigger_timer` to zero on every processing step. With a non-zero trigger delay, the timer therefore cannot reach the configured delay while the gate remains HIGH; the delayed update can occur only after the input goes LOW and the timer starts advancing. | Trigger detection, delay timing and UI indication use separate state. A HIGH gate starts one delay interval; once it expires, Track-and-Hold follows the CV continuously for as long as the gate remains HIGH. |
 | Empty power-on scale | `QuantizerChannel::new()` initialises all twelve scale notes to `false`. With no saved scale loaded, the quantizer therefore starts with no enabled pitch classes and the quantization fallback is 0 semitones until the user creates or loads a scale. | The factory state is a chromatic scale, so a freshly flashed or erased module is immediately usable. The UI also prevents the final enabled note from being disabled accidentally. |
 | ADC full-scale conversion | The original `adc_to_semitones()` converts a 10-bit reading by shifting it into an `I1F15` value and interpolating as though the input could reach `0x7FFF`. The source itself notes that the actual maximum after the shift is `0x7FE0`. Consequently a raw ADC value of 1023 does not map exactly to the configured 120-semitone endpoint. | ADC conversion is performed directly from the real 10-bit range `0…1023`, with rounded integer arithmetic, so 0 maps exactly to 0 semitones and 1023 maps exactly to 120 semitones. Per-channel gain and offset calibration are available on top of that mapping. |
-| Software analogue calibration | The original Quantizer applies no per-channel software ADC/DAC offset or gain correction: ADC readings are mapped directly into pitch, `semitones_to_dac()` produces the nominal 12-bit code, and `fm-lib` writes that code directly to the MCP4922. There is no equivalent boot-time calibration console. | `AnalogConfig.h` provides independent ADC and DAC affine correction for A/B, and the calibration console exposes both RAW hardware values and CAL runtime-corrected values so the configured correction can be verified on the assembled module. |
+| Software analog calibration | The original Quantizer applies no per-channel software ADC/DAC offset or gain correction: ADC readings are mapped directly into pitch, `semitones_to_dac()` produces the nominal 12-bit code, and `fm-lib` writes that code directly to the MCP4922. There is no equivalent dedicated calibration/maintenance console. | `AnalogConfig.h` provides independent ADC and DAC affine correction for A/B. A separate maintenance firmware image exposes RAW hardware values and CAL runtime-corrected values, guided ADC calibration, DAC loopback self-calibration and verification; the production image only reads and applies the persistent EEPROM calibration profile. |
 | EEPROM record integrity | A saved scale or configuration is considered valid solely when a one-byte sentinel is present. The sentinel is written **before** the payload, and there is no checksum, format version or payload validation. A reset or interrupted write can therefore leave a slot marked as occupied even when its payload is incomplete or stale; arbitrary EEPROM contents can also be accepted as configuration values. | Persistent records are versioned and CRC-checked and their decoded values are validated before use. Invalid, incomplete or erased records are rejected. Full-configuration slots without valid user data expose known factory presets instead. |
 | EEPROM writes in the UI path | Save and erase operations are issued synchronously from the menu/persistence path. This keeps the implementation simple, but EEPROM programming latency is part of the foreground interaction path. | A single shared asynchronous EEPROM writer queues writes and lets normal processing continue. Persistence operations report whether a write was accepted instead of assuming immediate completion. |
-| LED colour balance | Red and green brightness are fixed at compile time (`0xFFF` red and `0x04F` green). There is no user-accessible calibration mechanism, so balancing depends entirely on those constants matching the particular LEDs and resistor population of the built module. | Red and green levels are independently configurable and can be calibrated on the finished hardware over the complete TLC5947 `0…4095` range. Calibration keeps green, red and amber visible together for direct visual balancing, and the same calibrated levels are used by normal rendering and startup effects. |
-| Toolchain fragility | The firmware depends on an AVR Rust nightly toolchain and several unstable language/compiler features. In the scalar submenu code the original source also contains an inline-assembly workaround because, without it, an optimisation issue could cause `button_idx` to become zero; the accompanying comment explicitly describes this as either a compiler bug or possible memory corruption/optimisation behaviour. | The reimplementation uses a conventional PlatformIO/C++17 AVR toolchain and expresses the menu calculation directly without the compiler-specific assembly workaround. Native tests and AVR builds are part of CI. |
+| LED color balance | Red and green brightness are fixed at compile time (`0xFFF` red and `0x04F` green). There is no user-accessible calibration mechanism, so balancing depends entirely on those constants matching the particular LEDs and resistor population of the built module. | Red and green levels are independently configurable and can be calibrated on the finished hardware over the complete TLC5947 `0…4095` range. Calibration keeps green, red and amber visible together for direct visual balancing, and the same calibrated levels are used by normal rendering and startup effects. |
+| Toolchain fragility | The firmware depends on an AVR Rust nightly toolchain and several unstable language/compiler features. In the scalar submenu code the original source also contains an inline-assembly workaround because, without it, an optimisation issue could cause `button_idx` to become zero; the accompanying comment explicitly describes this as either a compiler bug or possible memory corruption/optimisation behavior. | The reimplementation uses a conventional PlatformIO/C++17 AVR toolchain and expresses the menu calculation directly without the compiler-specific assembly workaround. Native tests and AVR builds are part of CI. |
 
-These differences are not intended as criticism of the original project. Quinn Freedman's implementation is deliberately compact and pragmatic, and that simplicity is a major strength of the design. This section exists to make the behavioural differences explicit and to document why the replacement firmware intentionally diverges at these specific points.
+These differences are not intended as criticism of the original project. Quinn Freedman's implementation is deliberately compact and pragmatic, and that simplicity is a major strength of the design. This section exists to make the behavioral differences explicit and to document why the replacement firmware intentionally diverges at these specific points.
 
 ## Persistence
 
@@ -455,10 +458,10 @@ Important files:
 
 - `ProductConfig.h` — factory mode, scale, quantizer limits and Arpeggiator limits/defaults
 - `AnalogConfig.h` — ADC, DAC and resistor-ladder assumptions/calibration
-- `LedConfig.h` — LED brightness and startup animations
+- `LedConfig.h` — LED brightness and the fixed startup fade
 - `UiConfig.h` — debounce, menu timings, Quantizer/Arpeggiator mappings and layer-switch gesture
 - `RuntimeConfig.h` — scheduler, diagnostics and serial settings
-- `PersistenceConfig.h` — persistence behaviour
+- `PersistenceConfig.h` — persistence behavior
 - `FactoryPresets.h` — built-in full-config fallback scales
 
 See [README_CONFIGURATION.md](README_CONFIGURATION.md).
@@ -519,7 +522,7 @@ test/
   support/
 ```
 
-The native suite currently contains **32 independently runnable suites and 271 default test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behaviour including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy, [the requirements traceability matrix](docs/testing/requirements-traceability.md), and [the native coverage policy](docs/testing/coverage.md). AVR-specific behaviour is additionally compiled in CI for both supported Nano bootloader variants; analogue behaviour still requires real-hardware validation.
+The current development tree contains **34 independently runnable suites and 281 top-level test cases**, including exhaustive/matrix checks for ADC/DAC conversion, all scale masks, Track/Sample delays, Glide values, transposition ranges, EEPROM corruption, the complete Arpeggiator UI layer, external-clock behavior including ISR-captured microsecond edge timing, and per-channel Arpeggiator isolation. System tests drive simulated CV/gate inputs through the production quantizer path and verify DAC codes, triggers and status LEDs at 1 ms resolution. See [README_TESTING.md](README_TESTING.md) for the test strategy, [the requirements traceability matrix](docs/testing/requirements-traceability.md), and [the native coverage policy](docs/testing/coverage.md). AVR-specific behavior is additionally compiled in CI for both supported Nano bootloader variants and for both production and calibration/maintenance images; analog behavior still requires real-hardware validation.
 
 The AVR CI also enforces an engineering resource budget. The application-flash limit is **95% of the 30,720-byte Nano application space (29,184 bytes)** and the static-SRAM limit is **70% of 2 KB**.
 
@@ -534,11 +537,11 @@ Two workflows are included under `.github/workflows/`.
 Runs on pushes, pull requests and manual dispatches. It:
 
 1. installs PlatformIO Core;
-2. runs all 32 native test suites as independent matrix jobs (`fail-fast: false`);
+2. runs all 34 native test suites as independent matrix jobs (`fail-fast: false`);
 3. runs a separate aggregate coverage job, enforces the native line/branch coverage floors, and uploads HTML/XML/JSON/text reports;
-4. builds both Nano environments;
+4. builds production and calibration/maintenance images for both Nano bootloader variants;
 5. checks the AVR flash/SRAM engineering budget;
-6. uploads the resulting `.hex` and `.elf` files as workflow artifacts.
+6. uploads the resulting production and maintenance `.hex`/`.elf` files as workflow artifacts.
 
 ### `release.yml`
 
@@ -546,7 +549,7 @@ Runs for version tags matching `v*` and can also be started manually. It:
 
 1. resolves the firmware version and selects the newest compatible `docs/manual/quantizer-user-manual.X.Y.Z.odt` whose manual version is not newer than the firmware;
 2. runs the native tests;
-3. builds both Nano bootloader variants and enforces the AVR flash/SRAM resource budgets;
+3. builds production and calibration/maintenance images for both Nano bootloader variants and enforces the AVR flash/SRAM resource budgets;
 4. collects the firmware, README and licence;
 5. publishes the selected ODT unchanged and, when a compatible manual exists, attempts a headless LibreOffice PDF export using the required Ubuntu fonts;
 6. creates `SHA256SUMS.txt` and `MD5SUMS.txt` over every generated release artifact, including manual files when present;

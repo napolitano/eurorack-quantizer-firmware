@@ -11,7 +11,7 @@ These frozen 1024-byte EEPROM images protect the binary persistence contract ind
 
 ## Current format fixture
 
-`current-v5-save-v6-live.bin` contains representative user data using save-record format v5 and live-state format v6: a scale slot, a full-configuration slot, live state including the UI layer and LED calibration, plus startup-sequence metadata.
+`current-v5-save-v6-live.bin` contains representative user data using save-record format v5 and live-state format v6: a scale slot, a full-configuration slot, live state including the UI layer and LED calibration, plus a historical value in now-reserved EEPROM byte 1023. The current development firmware must preserve/ignore that byte rather than interpret it as a startup selector.
 
 ## Supported legacy fixture
 
