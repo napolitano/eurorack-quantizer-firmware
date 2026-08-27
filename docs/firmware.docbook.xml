@@ -262,6 +262,13 @@
       persistent affine profile, and exposes diagnostic ADC/noise/sweep commands.
       Normal production firmware contains no calibration command parser and has no
       calibration write API.</para>
+      <para>The maintenance-only <literal>cal report</literal> command requires a
+      valid stored profile, refuses unsaved RAM-only coefficients, re-verifies
+      both DAC loopbacks without writing EEPROM, reports the active journal
+      generation and coefficients, and emits compact module-label text only after
+      both channels pass. Because loopback uses the stored ADC calibration as its
+      reference, the label identifies the ADC profile as stored rather than
+      claiming a new independent absolute ADC verification.</para>
       <para>Normal bootloader image swaps preserve EEPROM. The maintenance writer
       is confined to physical EEPROM bytes 967&#8230;1022, while bytes 0&#8230;965
       remain owned by musical presets/live state and byte 1023 is reserved. A

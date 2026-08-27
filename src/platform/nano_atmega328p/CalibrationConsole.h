@@ -50,6 +50,7 @@ class CalibrationConsole {
   void printBanner() const;
   void printHelp() const;
   void printCalibration() const;
+  void printCalibrationReport();
   void printCalibrationLine(const __FlashStringHelper *label,
                             const LinearCalibration &calibration) const;
   void printEepromStatus() const;

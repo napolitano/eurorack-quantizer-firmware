@@ -178,6 +178,7 @@ Main commands:
 | `cal adc a|b` | Guided two-point ADC calibration |
 | `cal self a|b` | Fit, verify and persist DAC loopback calibration |
 | `cal verify a|b` | Verify the active DAC correction through loopback |
+| `cal report` | Re-verify both DAC loopbacks and print an archival calibration report plus compact label text |
 | `measure adc a|b` | Show RAW and calibrated ADC statistics |
 | `diag noise a|b` | Capture ADC stability/noise statistics |
 | `diag sweep a|b` | Emit a raw DAC-loopback CSV sweep |
@@ -203,10 +204,55 @@ Power the module from **USB only**, with the Eurorack ribbon cable disconnected.
 9. Persist the verified ADC profile with `cal save`.
 10. Patch `CV OUT A -> CV IN A`; run `cal self a`, then `cal verify a`.
 11. Patch `CV OUT B -> CV IN B`; run `cal self b`, then `cal verify b`.
-12. Use `diag sweep a|b` when characterizing residual output non-linearity is useful.
-13. Flash the matching production firmware without erasing EEPROM, while the module remains USB-powered and the Eurorack ribbon remains disconnected.
-14. After the production image has booted successfully, disconnect USB. With the case still off, reconnect the Eurorack ribbon and reinstall the module.
-15. Power the case on and perform a musical 1 V/oct verification on the normal production image.
+12. For a final manufacturing/service record, patch **both** `CV OUT A -> CV IN A` and `CV OUT B -> CV IN B`, then run `cal report`. Save the complete terminal output. The command re-verifies both DAC loops and emits compact label text only when both channels pass.
+13. Use `diag sweep a|b` when characterizing residual output non-linearity is useful.
+14. Flash the matching production firmware without erasing EEPROM, while the module remains USB-powered and the Eurorack ribbon remains disconnected.
+15. After the production image has booted successfully, disconnect USB. With the case still off, reconnect the Eurorack ribbon and reinstall the module.
+16. Power the case on and perform a musical 1 V/oct verification on the normal production image.
+
+## Calibration report and module label
+
+`cal report` is a **read-only verification/reporting operation with respect to EEPROM**. It does not alter the active calibration, journal generation, presets, live state, or any other persistent data. During the measurement it drives the two DAC outputs through the existing independent verification points and then returns both outputs to zero.
+
+The command requires:
+
+```text
+CV OUT A -> CV IN A
+CV OUT B -> CV IN B
+```
+
+and a valid stored calibration journal record. A factory fallback profile is deliberately **not** eligible for a calibration label. The active in-RAM profile must also match the newest stored record; if there are unsaved manual changes, `cal report` aborts and asks the operator to use `cal save` or `cal load` first. This prevents a label from certifying coefficients that would disappear on the next reboot.
+
+The full report includes:
+
+- development target and calibration-format version;
+- active calibration journal record and generation;
+- the stored ADC/DAC affine coefficients for both channels;
+- fresh DAC-A and DAC-B loopback verification rows;
+- maximum residual for each DAC channel;
+- an overall `PASS` or `FAIL`;
+- on full PASS only, a compact `LABEL` block suitable for copying into a label-generation workflow.
+
+The label block intentionally says `ADC A/B: STORED PROFILE` rather than claiming a new absolute ADC verification. Loopback can verify the combined input/output path against the already established ADC calibration, but it cannot independently prove the ADC voltage scale. Absolute ADC calibration still requires the external reference procedure described above.
+
+
+A successful report ends with a block in this form:
+
+```text
+----- LABEL -----
+CALIBRATION VERIFIED
+ADC A/B: STORED PROFILE
+DAC A: PASS / max 2 codes
+DAC B: PASS / max 1 codes
+CAL fmt 1 / gen 7
+-----------------
+```
+
+The numeric residuals above are DAC-code residuals from the fresh loopback verification. They are intentionally kept as raw verification units rather than presented as an invented absolute-voltage accuracy claim.
+
+The Nano has no real-time clock, so the firmware does **not** invent a calibration date. Add date/time, serial number, builder/tester identity, or other manufacturing metadata on the host side when the captured report is archived or converted into a physical label.
+
+If either DAC verification fails, `cal report` prints `OVERALL: FAIL` and explicitly instructs the operator not to apply a calibration label.
 
 ## ADC calibration
 

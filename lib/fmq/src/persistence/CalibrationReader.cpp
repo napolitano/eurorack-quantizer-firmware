@@ -18,7 +18,6 @@ namespace fmq {
 namespace {
 
 constexpr uint8_t kCalibrationMarker = 0xC5u;
-constexpr uint8_t kCalibrationFormatVersion = 1u;
 constexpr uint8_t kVersionShift = 4u;
 constexpr uint8_t kGenerationMask = 0x0Fu;
 constexpr uint16_t kOffMarker = 0u;

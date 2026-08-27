@@ -61,6 +61,7 @@ constexpr uint16_t kLegacyExtraLiveSlotAddress =
 // record stores four affine calibrations (ADC A/B, DAC A/B), six bytes each.
 // Byte 966 is intentionally left outside the new region because it is the old
 // twelfth live-record marker used to detect/migrate a <=0.2.1 image.
+constexpr uint8_t kCalibrationFormatVersion = 1u;
 constexpr uint8_t kCalibrationRecordCount = 2u;
 constexpr uint16_t kCalibrationPayloadBytes = 24u;
 constexpr uint16_t kCalibrationRecordSize = 28u;

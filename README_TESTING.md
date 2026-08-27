@@ -217,7 +217,7 @@ Coverage is a secondary metric. A high line percentage is not considered suffici
 
 ## What native tests cannot prove
 
-Native tests cannot validate analogue or physical effects such as:
+Native tests cannot validate analog or physical effects such as:
 
 - CV-input resistor and op-amp tolerances;
 - real AVCC/reference voltage;
@@ -227,7 +227,9 @@ Native tests cannot validate analogue or physical effects such as:
 - gate-edge shape and protection circuitry;
 - physical SPI signal integrity;
 - actual LED brightness and colour balance;
-- power-supply behaviour.
+- power-supply behavior.
+
+The final `cal report` certificate/label path is therefore part of **real-hardware qualification**, not a substitute for it. The hardware qualification checklist verifies that the command reports both loopbacks, emits a label block only after full PASS, and leaves EEPROM unchanged.
 
 Those require calibrated hardware-in-the-loop measurements. The native suite exists to make the digital behaviour deterministic before hardware uncertainty is introduced.
 

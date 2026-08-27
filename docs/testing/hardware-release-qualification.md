@@ -93,6 +93,8 @@ The detailed oscilloscope procedure is in [`timing-qualification.md`](timing-qua
 - [ ] DAC/output B reaches the expected calibrated range monotonically.
 - [ ] In the maintenance image, `cal self a` passes with OUT A patched to IN A and persists the verified DAC-A correction.
 - [ ] In the maintenance image, `cal self b` passes with OUT B patched to IN B and persists the verified DAC-B correction.
+- [ ] With both OUT->IN loopbacks patched, `cal report` re-verifies A and B, reports the active journal generation and coefficients, produces a compact label block only on full PASS, and performs no EEPROM write.
+- [ ] A failed `cal report` produces no PASS label block and leaves the stored calibration and all preset/live-state EEPROM bytes unchanged.
 - [ ] Selfcal with the loop absent or deliberately mispatched fails without changing the previously stored calibration.
 - [ ] Maintenance calibration writes are observed only in EEPROM bytes 967…1022; scale/config/live-state regions and byte 1023 remain unchanged.
 - [ ] A sweep on CV A does not create measurable digital-path movement on B in Absolute mode beyond analog noise/crosstalk expectations.

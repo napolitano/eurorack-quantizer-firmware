@@ -46,6 +46,23 @@ uint16_t absoluteDifference(uint16_t a, uint16_t b) {
                 : static_cast<uint16_t>(b - a);
 }
 
+bool linearCalibrationEqual(const LinearCalibration &a,
+                            const LinearCalibration &b) {
+  return a.offset == b.offset && a.gainNumerator == b.gainNumerator &&
+         a.gainDenominator == b.gainDenominator;
+}
+
+bool calibrationProfileEqual(const CalibrationProfile &a,
+                             const CalibrationProfile &b) {
+  for (uint8_t channel = 0u; channel < 2u; ++channel) {
+    if (!linearCalibrationEqual(a.adc[channel], b.adc[channel]) ||
+        !linearCalibrationEqual(a.dac[channel], b.dac[channel])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 uint8_t countMarkers(const IEeprom &eeprom, uint16_t base, uint16_t size,
                      uint8_t count) {
   uint8_t found = 0u;
@@ -96,6 +113,7 @@ void CalibrationConsole::printHelp() const {
   Serial.println(F("Commands:"));
   Serial.println(F("  version | help"));
   Serial.println(F("  cal show | cal load | cal save | cal defaults"));
+  Serial.println(F("  cal report            verify both DAC loops + print certificate"));
   Serial.println(F("  cal set adc|dac a|b OFFSET NUM DEN"));
   Serial.println(F("  cal adc a|b          guided 0V/10V ADC calibration"));
   Serial.println(F("  cal self a|b         verified OUT->IN DAC selfcal"));
@@ -175,6 +193,14 @@ void CalibrationConsole::handleLine(char *line) {
     }
     if (strcmp(action, "show") == 0) {
       printCalibration();
+      return;
+    }
+    if (strcmp(action, "report") == 0) {
+      if (strtok(nullptr, " \t") != nullptr) {
+        Serial.println(F("Usage: cal report"));
+        return;
+      }
+      printCalibrationReport();
       return;
     }
     if (strcmp(action, "load") == 0) {
@@ -315,6 +341,100 @@ void CalibrationConsole::printCalibration() const {
   Serial.print(F(" active="));
   if (status.activeIndex < 0) Serial.println(F("factory fallback"));
   else Serial.println(static_cast<int>(status.activeIndex));
+}
+
+void CalibrationConsole::printCalibrationReport() {
+  if (!waitForPersistence()) {
+    Serial.println(F("FAIL: calibration EEPROM busy timeout."));
+    return;
+  }
+
+  CalibrationProfile storedProfile;
+  if (!calibrationStore_.load(storedProfile)) {
+    Serial.println(F("CAL REPORT FAIL: no valid stored calibration record."));
+    Serial.println(F("Factory fallback profiles are not eligible for a calibration label."));
+    return;
+  }
+  if (!calibrationProfileEqual(storedProfile, activeCalibrationProfile())) {
+    Serial.println(F("CAL REPORT FAIL: active RAM profile differs from stored calibration."));
+    Serial.println(F("Use 'cal save' to persist verified changes or 'cal load' to discard them."));
+    return;
+  }
+
+  const CalibrationJournalStatus status = calibrationStore_.inspect();
+  if (status.activeIndex < 0) {
+    Serial.println(F("CAL REPORT FAIL: calibration journal status is inconsistent."));
+    return;
+  }
+  const uint8_t activeIndex = static_cast<uint8_t>(status.activeIndex);
+  const uint8_t generation = status.records[activeIndex].generation;
+
+  zeroSelectedOutput(0u);
+  zeroSelectedOutput(1u);
+
+  Serial.println();
+  Serial.println(F("BEGIN FMQ CALIBRATION REPORT"));
+  Serial.println(F("Target firmware: 0.2.2 (Unreleased)"));
+  Serial.print(F("Calibration format: "));
+  Serial.println(kCalibrationFormatVersion);
+  Serial.print(F("Journal: active record="));
+  Serial.print(activeIndex);
+  Serial.print(F(" generation="));
+  Serial.println(generation);
+  Serial.println(F("Power: USB only; Eurorack power ribbon disconnected"));
+  Serial.println(F("ADC profile: STORED (absolute ADC accuracy is not re-verified by loopback)"));
+  Serial.println(F("Coefficients:"));
+  const CalibrationProfile &profile = activeCalibrationProfile();
+  printCalibrationLine(F("  ADC A"), profile.adc[0]);
+  printCalibrationLine(F("  ADC B"), profile.adc[1]);
+  printCalibrationLine(F("  DAC A"), profile.dac[0]);
+  printCalibrationLine(F("  DAC B"), profile.dac[1]);
+
+  Serial.println(F("Required patches: CV OUT A -> CV IN A and CV OUT B -> CV IN B"));
+  Serial.println(F("VERIFY DAC A: nominal,measured,residual"));
+  uint16_t residualA = 0u;
+  const bool passA = verifyDacCalibration(0u, residualA);
+  Serial.print(F("DAC A: "));
+  Serial.print(passA ? F("PASS max residual=") : F("FAIL max residual="));
+  Serial.print(residualA);
+  Serial.println(F(" DAC codes"));
+
+  Serial.println(F("VERIFY DAC B: nominal,measured,residual"));
+  uint16_t residualB = 0u;
+  const bool passB = verifyDacCalibration(1u, residualB);
+  Serial.print(F("DAC B: "));
+  Serial.print(passB ? F("PASS max residual=") : F("FAIL max residual="));
+  Serial.print(residualB);
+  Serial.println(F(" DAC codes"));
+
+  zeroSelectedOutput(0u);
+  zeroSelectedOutput(1u);
+
+  const bool overallPass = passA && passB;
+  Serial.print(F("OVERALL: "));
+  Serial.println(overallPass ? F("PASS") : F("FAIL"));
+
+  if (overallPass) {
+    Serial.println(F("----- LABEL -----"));
+    Serial.println(F("CALIBRATION VERIFIED"));
+    Serial.println(F("ADC A/B: STORED PROFILE"));
+    Serial.print(F("DAC A: PASS / max "));
+    Serial.print(residualA);
+    Serial.println(F(" codes"));
+    Serial.print(F("DAC B: PASS / max "));
+    Serial.print(residualB);
+    Serial.println(F(" codes"));
+    Serial.print(F("CAL fmt "));
+    Serial.print(kCalibrationFormatVersion);
+    Serial.print(F(" / gen "));
+    Serial.println(generation);
+    Serial.println(F("-----------------"));
+  } else {
+    Serial.println(F("DO NOT APPLY A CALIBRATION LABEL: verification failed."));
+  }
+  Serial.println(F("Date/time are intentionally host-side; the Nano has no RTC."));
+  Serial.println(F("END FMQ CALIBRATION REPORT"));
+  Serial.println();
 }
 
 void CalibrationConsole::servicePersistence() {
