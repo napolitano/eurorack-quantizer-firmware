@@ -69,10 +69,14 @@ constexpr uint16_t kCalibrationRegionBase = kLegacyExtraLiveSlotAddress + 1u;
 constexpr uint16_t kCalibrationRegionSize =
     kCalibrationRecordCount * kCalibrationRecordSize;
 
-// Byte 1023 is intentionally reserved. Earlier 0.2.x development builds used
-// it for rotating startup-sequence metadata; the fixed startup fade no longer
-// writes EEPROM. Keeping the byte reserved avoids another layout migration.
-constexpr uint16_t kReservedEepromTailAddress = kEepromSize - 1u;
+// Compact maintenance qualification metadata lives outside the calibration
+// journal so the journal format remains unchanged. Byte 966 is the former
+// <=0.2.1 twelfth live-record marker; after migration it can safely carry a
+// non-live-state qualification marker. Byte 1023 stores two 4-bit verification
+// residuals. The marker value deliberately differs from kRecordMarker.
+constexpr uint16_t kQualificationMarkerAddress = kLegacyExtraLiveSlotAddress;
+constexpr uint16_t kQualificationResidualAddress = kEepromSize - 1u;
+constexpr uint16_t kReservedEepromTailAddress = kQualificationResidualAddress;
 
 static_assert(kStateBytes == 17, "quantizer state layout changed unexpectedly");
 static_assert(kStoredConfigurationBytes == 32,

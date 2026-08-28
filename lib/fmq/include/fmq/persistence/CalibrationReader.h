@@ -47,6 +47,9 @@ class CalibrationReader {
   /** Inspect both records without changing the active runtime profile. */
   CalibrationJournalStatus inspect() const;
 
+  /** Generation of the record selected by the most recent successful load/save. */
+  uint8_t activeGeneration() const { return generation_; }
+
   /** Validate whether a profile can be encoded by journal format v1. */
   static bool profileFitsPersistentFormat(const CalibrationProfile &profile);
 

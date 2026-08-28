@@ -1,6 +1,6 @@
 /**
  * @file MaintenanceFeedback.h
- * Declares visual status feedback for the calibration/maintenance firmware.
+ * Visual status language for panel-driven calibration/maintenance firmware.
  *
  * @author Axel Napolitano
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
@@ -18,57 +18,59 @@
 
 namespace fmq::platform::nano {
 
-/**
- * @brief Drives the maintenance image's deliberately simple visual UI.
- *
- * The note ring remains dim amber while the console is idle. During analog
- * measurements the ring is switched fully off to avoid unnecessary PWM load;
- * one discrete channel indicator identifies the channel under test. Commands
- * finish with green/red confirmation flashes and then return to dim amber.
- */
+/** Drives all visual guidance used by the panel calibration state machine. */
 class MaintenanceFeedback {
  public:
-  MaintenanceFeedback(Tlc5947LedDriver &ring, IDigitalOutput &channelLedA,
-                      IDigitalOutput &channelLedB, bool statusLedsActiveHigh)
-      : ring_(ring), channelLedA_(channelLedA), channelLedB_(channelLedB),
+  MaintenanceFeedback(Tlc5947LedDriver &ring, IDigitalOutput &inputLedA,
+                      IDigitalOutput &outputLedA, IDigitalOutput &inputLedB,
+                      IDigitalOutput &outputLedB, bool statusLedsActiveHigh)
+      : ring_(ring), inputLedA_(inputLedA), outputLedA_(outputLedA),
+        inputLedB_(inputLedB), outputLedB_(outputLedB),
         statusLedsActiveHigh_(statusLedsActiveHigh) {}
 
-  /** Initialize the ring and discrete channel indicators in a known state. */
   void begin();
-
-  /** Three amber flashes followed by the steady dim-amber idle indication. */
   void playBootIndication();
-
-  /** Restore the steady dim-amber maintenance idle indication. */
   void showIdle();
 
-  /** Turn the ring off and identify channel A or B during a measurement. */
-  void beginChannelMeasurement(uint8_t channel);
+  /** Show C (0 V) or A (9 V) as a pulsing green calibration target. */
+  void showVoltagePrompt(uint8_t channel, uint8_t noteIndex, bool lit);
 
-  /** Turn the ring off and identify both channels during a dual-channel test. */
-  void beginDualChannelMeasurement();
+  /** Blink the matching IN/OUT pair to request one loopback patch. */
+  void showLoopPrompt(uint8_t channel, bool lit);
 
-  /** Two green flashes, then return to the dim-amber idle state. */
+  /** Blink both IN/OUT pairs to request both loopbacks for final verification. */
+  void showDualLoopPrompt(bool lit);
+
+  /** Ring off during ADC capture; selected input LED remains on. */
+  void beginAdcMeasurement(uint8_t channel);
+
+  /** Ring off during loopback capture; matching IN/OUT LEDs remain on. */
+  void beginLoopMeasurement(uint8_t channel);
+
+  /** Ring off during dual-channel final verification. */
+  void beginDualLoopMeasurement();
+
   void showPass();
-
-  /** Two red flashes, then return to the dim-amber idle state. */
   void showFail();
+  void showQualificationPass();
+  void showQualificationFail();
 
-  /** Three green flashes for a complete passing calibration report. */
-  void showReportPass();
-
-  /** Three red flashes for a failed calibration report. */
-  void showReportFail();
+  /** Show two red FAIL flashes followed by @p code red note LEDs. */
+  void showErrorCode(uint8_t code);
 
  private:
-  void setChannelIndicators(bool channelA, bool channelB);
+  void setStatus(bool inputA, bool outputA, bool inputB, bool outputB);
   void writeUniform(uint16_t redLevel, uint16_t greenLevel);
+  void writeSingle(uint8_t noteIndex, uint16_t redLevel, uint16_t greenLevel);
+  void writeErrorCode(uint8_t code);
   void showRingOff();
   void blink(uint16_t redLevel, uint16_t greenLevel, uint8_t count);
 
   Tlc5947LedDriver &ring_;
-  IDigitalOutput &channelLedA_;
-  IDigitalOutput &channelLedB_;
+  IDigitalOutput &inputLedA_;
+  IDigitalOutput &outputLedA_;
+  IDigitalOutput &inputLedB_;
+  IDigitalOutput &outputLedB_;
   bool statusLedsActiveHigh_;
 };
 

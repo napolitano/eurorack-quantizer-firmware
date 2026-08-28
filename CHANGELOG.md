@@ -14,30 +14,31 @@ A new section should be added when a release version is explicitly declared. Eac
 
 ### Added
 
-- Added maintenance-console `cal report`: it requires a valid stored calibration record, re-verifies both DAC loopbacks without writing EEPROM, prints coefficients/journal generation and emits compact module-label text only after a full PASS.
-- Added dedicated maintenance-mode visual feedback: three amber boot flashes, steady dim-amber idle indication, ring-off analog measurement phases with channel Input-LED identification, two green/red flashes for normal PASS/FAIL, and three green/red flashes for `cal report` PASS/FAIL.
-
 - Added persistent per-module ADC A/B and DAC A/B affine calibration using two redundant 28-byte CRC16-protected EEPROM records. `AnalogConfig.h` remains the factory/fallback profile when no valid journal record exists.
-- Added a dedicated Nano **calibration/maintenance firmware image** (`nanoatmega328new_calibration` / `nanoatmega328_calibration`) instead of carrying the serial calibration shell in production firmware. Normal bootloader uploads of either image preserve EEPROM.
-- Added a production-only read path (`CalibrationReader`) and a maintenance-only write path (`CalibrationStore`). The maintenance writer operates on a 56-byte `EepromPartition` mapped only to EEPROM bytes 967…1022, so it cannot address musical presets or live-state records.
-- Added guided two-point ADC calibration, manual affine editing, persistent save/load/defaults, verified `CV OUT -> CV IN` DAC self-calibration, independent DAC verification, ADC stability/noise measurements, raw DAC loopback CSV sweeps, calibration-journal status and read-only full-EEPROM backup to the maintenance console.
-- Added calibration-partition isolation regression coverage. The native suite remains 34 independently runnable suites; test-case counts are derived by CI rather than treated as a release contract.
-- Added versioned 0.2.2 user-manual content for the planned next release, including the separate maintenance-image workflow and EEPROM-preserving update procedure.
+- Added a dedicated Nano **calibration/maintenance firmware image** (`nanoatmega328new_calibration` / `nanoatmega328_calibration`). Production firmware contains only the read path and real-time correction; maintenance-only fitting/persistence code no longer consumes production-image flash.
+- Added a fully **front-panel-driven calibration state machine**. `SAVE` starts the complete ADC+DAC wizard, `LOAD` verifies the current stored calibration, `SHIFT + SAVE` runs ADC-only calibration, and `SHIFT + LOAD` runs DAC/self-calibration only. Inside a wizard, SAVE confirms the current step and LOAD cancels safely.
+- Added guided ADC calibration at **0.000 V and 9.000 V**. C in the note ring identifies the 0 V step and A identifies 9 V; using 9 V instead of the 10 V full-scale endpoint preserves ADC headroom against saturation during gain fitting.
+- Added panel-guided `CV OUT -> CV IN` DAC self-calibration and independent final two-channel verification. Matching channel IN/OUT status LEDs identify loopback steps; the note ring is disabled during analog acquisition.
+- Added maintenance-mode visual feedback: three amber boot flashes, steady dim-amber idle, two green/red ordinary PASS/FAIL flashes, one-to-six red note LEDs for explicit error codes, and three green/red flashes for final qualification PASS/FAIL.
+- Added compact generation-bound calibration qualification metadata. The former <=0.2.1 live-slot marker byte 966 is reused only after migration as the qualification commit marker; byte 1023 stores packed A/B verification residuals. Interrupted updates cannot certify a partial or mismatched calibration generation.
+- Added automatic **read-only stored calibration report** output at 115200 baud when the maintenance image boots over USB. The report includes calibration coefficients, journal generation, stored verification residuals and a compact module-label block only when the qualification generation matches the newest valid calibration record. No serial command input is accepted.
+- Added native coverage for the 0 V/9 V ADC solver and the qualification metadata store, including generation matching and commit-marker-last behavior.
+- Added versioned 0.2.2 user-manual content for the planned next release, including the illustrated front-panel calibration workflow, safe power sequencing, stored-report procedure and maintenance error-code reference.
 
 ### Changed
 
-- Removed the boot-time calibration console and self-calibration workflow from the normal production image. Production firmware only migrates legacy live state when required, reads the calibration journal, and applies the active profile in the real-time conversion path.
-- Reduced the wear-levelled live-state ring from twelve to eleven 42-byte records to reserve the calibration journal. A newest legacy twelfth-slot record from <=0.2.1 is migrated atomically before the overlapping EEPROM tail is interpreted or written.
-- Replaced the four rotating startup animations and their EEPROM selector with one fixed <=750 ms ring fade: **off -> green -> amber -> red -> off**, followed immediately by restoration of the persisted/main UI frame. The four-discrete-LED startup chase was removed.
-- EEPROM byte 1023 is now reserved and deliberately left untouched. Development builds that previously stored rotating-startup metadata there remain harmless; no new layout migration is required.
-- CI now builds and resource-checks both production and calibration images for new- and old-bootloader Nano targets. Tagged releases will package both image types.
-- Updated calibration, configuration, testing, EEPROM-wear, installation, technical-reference and hardware-qualification documentation for the split-image architecture. The user documentation now states explicitly that analog calibration is required only for uncalibrated hardware, lost/erased calibration data, relevant analog-path changes, or verified pitch/1 V/oct problems; routine EEPROM-preserving firmware updates do not require recalibration. Firmware update and maintenance procedures use USB-only module power with the Eurorack ribbon disconnected.
+- Removed the resident calibration command console from the `Unreleased` maintenance architecture. Calibration no longer depends on visible terminal echo, text parsing, a USB data session, or simultaneous USB and Eurorack power.
+- Changed the safe calibration workflow to three explicit phases: **USB-only maintenance flash -> USB disconnected / normal Eurorack power for analog calibration -> Eurorack disconnected / USB-only report or production flash**. Normal Eurorack bus power and Nano USB must never be connected simultaneously.
+- Reduced the wear-leveled live-state ring from twelve to eleven 42-byte records to reserve the calibration journal. A newest legacy twelfth-slot record from <=0.2.1 is migrated atomically before the overlapping EEPROM tail is interpreted or written.
+- Replaced the four rotating production startup animations and their EEPROM selector with one fixed <=750 ms ring fade: **off -> green -> amber -> red -> off**, followed immediately by restoration of the persisted/main UI frame. The four-discrete-LED startup chase was removed.
+- CI/release configuration builds production and calibration images separately for new- and old-bootloader Nano targets so production flash usage can be budgeted independently from maintenance features.
+- Updated calibration, configuration, testing, EEPROM-wear, installation, technical-reference and hardware-qualification documentation for the panel-driven maintenance architecture. Analog calibration is explicitly documented as a one-time/problem-driven service operation rather than routine firmware-update work.
 
 ### Fixed
 
-- Prevented maintenance calibration writes from colliding with user presets/live state by enforcing partition-relative EEPROM addressing in the writer itself rather than relying only on address conventions.
-- Preserved the newest <=0.2.1 live state before the former twelfth slot can be overwritten by calibration data, including when a user flashes the calibration image directly from 0.2.1.
-- Failed loopback calibration continues to restore the prior active profile and leaves the previous persistent calibration record valid.
+- Prevented maintenance calibration writes from colliding with user presets/live state by enforcing partition-relative calibration addressing and fixed-address qualification metadata rather than exposing a generic EEPROM writer.
+- Preserved the newest <=0.2.1 live state before the former twelfth slot can be reused by calibration/qualification data, including direct upgrades from 0.2.1 to the maintenance image.
+- Failed, canceled or unverified calibration workflows restore the prior active profile and do not commit the in-progress RAM coefficients. Qualification metadata is generation-bound so stale PASS data cannot certify a newly changed calibration profile.
 
 ## 0.2.1 — 2026-08-17
 

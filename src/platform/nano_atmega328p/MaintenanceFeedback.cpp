@@ -1,6 +1,6 @@
 /**
  * @file MaintenanceFeedback.cpp
- * Implements visual status feedback for the calibration/maintenance firmware.
+ * Implements panel-driven calibration status feedback.
  *
  * @author Axel Napolitano
  * @note Original FM Quantizer concept and Rust firmware by Quinn Freedman.
@@ -29,14 +29,13 @@ uint16_t percentOf(uint16_t level, uint8_t percent) {
 }  // namespace
 
 void MaintenanceFeedback::begin() {
-  channelLedA_.set(statusLedsActiveHigh_ ? false : true);
-  channelLedB_.set(statusLedsActiveHigh_ ? false : true);
+  setStatus(false, false, false, false);
   ring_.begin();
   showRingOff();
 }
 
 void MaintenanceFeedback::playBootIndication() {
-  setChannelIndicators(false, false);
+  setStatus(false, false, false, false);
   blink(BrightnessCalibration::kLegacyRedLevel,
         BrightnessCalibration::kLegacyGreenLevel,
         config::kMaintenanceBootBlinkCount);
@@ -44,54 +43,93 @@ void MaintenanceFeedback::playBootIndication() {
 }
 
 void MaintenanceFeedback::showIdle() {
-  setChannelIndicators(false, false);
+  setStatus(false, false, false, false);
   writeUniform(percentOf(BrightnessCalibration::kLegacyRedLevel,
                          config::kMaintenanceIdleBrightnessPercent),
                percentOf(BrightnessCalibration::kLegacyGreenLevel,
                          config::kMaintenanceIdleBrightnessPercent));
 }
 
-void MaintenanceFeedback::beginChannelMeasurement(uint8_t channel) {
-  showRingOff();
-  setChannelIndicators(channel == 0u, channel == 1u);
+void MaintenanceFeedback::showVoltagePrompt(uint8_t channel,
+                                            uint8_t noteIndex, bool lit) {
+  setStatus(channel == 0u, false, channel == 1u, false);
+  if (lit) {
+    writeSingle(noteIndex, 0u, BrightnessCalibration::kLegacyGreenLevel);
+  } else {
+    showRingOff();
+  }
 }
 
-void MaintenanceFeedback::beginDualChannelMeasurement() {
+void MaintenanceFeedback::showLoopPrompt(uint8_t channel, bool lit) {
   showRingOff();
-  setChannelIndicators(true, true);
+  setStatus(lit && channel == 0u, lit && channel == 0u,
+            lit && channel == 1u, lit && channel == 1u);
+}
+
+void MaintenanceFeedback::showDualLoopPrompt(bool lit) {
+  showRingOff();
+  setStatus(lit, lit, lit, lit);
+}
+
+void MaintenanceFeedback::beginAdcMeasurement(uint8_t channel) {
+  showRingOff();
+  setStatus(channel == 0u, false, channel == 1u, false);
+}
+
+void MaintenanceFeedback::beginLoopMeasurement(uint8_t channel) {
+  showRingOff();
+  setStatus(channel == 0u, channel == 0u, channel == 1u, channel == 1u);
+}
+
+void MaintenanceFeedback::beginDualLoopMeasurement() {
+  showRingOff();
+  setStatus(true, true, true, true);
 }
 
 void MaintenanceFeedback::showPass() {
-  setChannelIndicators(false, false);
+  setStatus(false, false, false, false);
   blink(0u, BrightnessCalibration::kLegacyGreenLevel,
         config::kMaintenanceResultBlinkCount);
   showIdle();
 }
 
 void MaintenanceFeedback::showFail() {
-  setChannelIndicators(false, false);
+  setStatus(false, false, false, false);
   blink(BrightnessCalibration::kLegacyRedLevel, 0u,
         config::kMaintenanceResultBlinkCount);
   showIdle();
 }
 
-void MaintenanceFeedback::showReportPass() {
-  setChannelIndicators(false, false);
+void MaintenanceFeedback::showQualificationPass() {
+  setStatus(false, false, false, false);
   blink(0u, BrightnessCalibration::kLegacyGreenLevel,
         config::kMaintenanceReportBlinkCount);
   showIdle();
 }
 
-void MaintenanceFeedback::showReportFail() {
-  setChannelIndicators(false, false);
+void MaintenanceFeedback::showQualificationFail() {
+  setStatus(false, false, false, false);
   blink(BrightnessCalibration::kLegacyRedLevel, 0u,
         config::kMaintenanceReportBlinkCount);
   showIdle();
 }
 
-void MaintenanceFeedback::setChannelIndicators(bool channelA, bool channelB) {
-  channelLedA_.set(statusLedsActiveHigh_ ? channelA : !channelA);
-  channelLedB_.set(statusLedsActiveHigh_ ? channelB : !channelB);
+void MaintenanceFeedback::showErrorCode(uint8_t code) {
+  setStatus(false, false, false, false);
+  blink(BrightnessCalibration::kLegacyRedLevel, 0u,
+        config::kMaintenanceResultBlinkCount);
+  writeErrorCode(code);
+}
+
+void MaintenanceFeedback::setStatus(bool inputA, bool outputA, bool inputB,
+                                    bool outputB) {
+  const auto level = [this](bool on) {
+    return statusLedsActiveHigh_ ? on : !on;
+  };
+  inputLedA_.set(level(inputA));
+  outputLedA_.set(level(outputA));
+  inputLedB_.set(level(inputB));
+  outputLedB_.set(level(outputB));
 }
 
 void MaintenanceFeedback::writeUniform(uint16_t redLevel,
@@ -101,6 +139,26 @@ void MaintenanceFeedback::writeUniform(uint16_t redLevel,
 
   uint8_t bytes[kTlc5947FrameBytes];
   encodeLedFrame(frame, redLevel, greenLevel, bytes);
+  ring_.writeFrame(bytes);
+}
+
+void MaintenanceFeedback::writeSingle(uint8_t noteIndex, uint16_t redLevel,
+                                      uint16_t greenLevel) {
+  LedFrame frame;
+  for (uint8_t i = 0u; i < kNoteCount; ++i) frame[i] = LedColor::Off;
+  if (noteIndex < kNoteCount) frame[noteIndex] = LedColor::Green;
+  uint8_t bytes[kTlc5947FrameBytes];
+  encodeLedFrame(frame, redLevel, greenLevel, bytes);
+  ring_.writeFrame(bytes);
+}
+
+void MaintenanceFeedback::writeErrorCode(uint8_t code) {
+  LedFrame frame;
+  for (uint8_t i = 0u; i < kNoteCount; ++i) {
+    frame[i] = i < code ? LedColor::Red : LedColor::Off;
+  }
+  uint8_t bytes[kTlc5947FrameBytes];
+  encodeLedFrame(frame, BrightnessCalibration::kLegacyRedLevel, 0u, bytes);
   ring_.writeFrame(bytes);
 }
 

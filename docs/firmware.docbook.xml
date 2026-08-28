@@ -256,25 +256,43 @@
 
     <section xml:id="analogue-maintenance">
       <title>Analog calibration/maintenance image (Unreleased)</title>
-      <para>The development tree after 0.2.1 moves serial ADC/DAC calibration and
-      loopback self-calibration out of the production image. The maintenance image
-      boots directly to a 115200-baud serial console, can create and verify the
-      persistent affine profile, and exposes diagnostic ADC/noise/sweep commands.
-      Normal production firmware contains no calibration command parser and has no
-      calibration write API.</para>
-      <para>The maintenance image has a hardware-visible state indication independent of the serial terminal. A successful boot flashes the complete note ring amber three times and then holds a dim amber idle indication. During analog measurements the note ring is fully off and the selected channel input-status LED identifies A or B; dual-channel report verification enables both input-status LEDs. Normal PASS/FAIL results use two green/red ring flashes, while <literal>cal report</literal> uses three green/red flashes. Every result returns to dim amber idle. Keeping the TLC5947 ring dark during acquisition avoids changing PWM load during analog measurement windows.</para>
-      <para>The maintenance-only <literal>cal report</literal> command requires a
-      valid stored profile, refuses unsaved RAM-only coefficients, re-verifies
-      both DAC loopbacks without writing EEPROM, reports the active journal
-      generation and coefficients, and emits compact module-label text only after
-      both channels pass. Because loopback uses the stored ADC calibration as its
-      reference, the label identifies the ADC profile as stored rather than
-      claiming a new independent absolute ADC verification.</para>
-      <para>Normal bootloader image swaps preserve EEPROM. The maintenance writer
-      is confined to physical EEPROM bytes 967&#8230;1022, while bytes 0&#8230;965
-      remain owned by musical presets/live state and byte 1023 is reserved. A
-      legacy &lt;=0.2.1 twelfth live-state slot is migrated before that overlapping
-      tail can be used for calibration.</para>
+      <para>The development tree after 0.2.1 moves ADC/DAC calibration and
+      loopback self-calibration out of the production image. The maintenance
+      image is front-panel driven and accepts no serial commands. SAVE starts a
+      complete calibration, LOAD verifies the stored profile, Shift+SAVE runs
+      ADC-only calibration and Shift+LOAD runs DAC/self-calibration only. Inside
+      a wizard SAVE confirms the current step and LOAD cancels without committing
+      the in-progress RAM profile.</para>
+      <para>ADC calibration uses two external reference points: 0.000 V and
+      9.000 V. C in the note ring identifies the 0 V step; A identifies 9 V.
+      Nine volts deliberately leaves ADC headroom below the 10 V nominal input
+      full scale. Channel input-status LEDs identify A/B. DAC self-calibration
+      uses CV OUT to CV IN loopback; matching IN/OUT indicators blink to request
+      each patch, and both pairs blink before final dual-channel verification.</para>
+      <para>A successful maintenance boot flashes the complete note ring amber
+      three times and then holds a dim amber idle indication. The note ring is
+      fully off during analog acquisition. Ordinary PASS uses two green flashes;
+      a failure uses two red flashes followed by one through six red note LEDs as
+      an error code. Complete qualification uses three green flashes.</para>
+      <para>Power handling is deliberately separated. Flash the maintenance
+      image with the Eurorack ribbon disconnected and USB attached. Then
+      disconnect USB completely, reconnect normal Eurorack +12 V/-12 V/+5 V and
+      perform the analog calibration from the panel. Afterwards power the case
+      off and disconnect the ribbon before reconnecting USB for stored-report
+      readback or the production-image flash. Normal Eurorack bus power and USB
+      must never be connected simultaneously.</para>
+      <para>The maintenance calibration writer is confined to physical EEPROM
+      bytes 967&#8230;1022. A compact qualification record uses only byte 966 as
+      a generation-bound commit marker and byte 1023 for packed A/B residuals.
+      A legacy &lt;=0.2.1 twelfth live-state slot is migrated before byte 966 can
+      be reused. Qualification data are accepted only when their generation
+      matches the newest valid calibration journal record.</para>
+      <para>When the maintenance image later boots USB-only it prints a read-only
+      stored calibration report at 115200 baud. The report performs no fresh
+      analog measurement because the +/-12 V stages are not powered; it reports
+      the coefficients and residuals recorded by the last successful panel
+      verification and emits compact label text only for a matching verified
+      generation.</para>
     </section>
   </section>
 
@@ -311,7 +329,7 @@ pio test -e native                                  # run native tests</programl
     quantizer, CRC, persistence (including wear-levelling and corruption
     detection), the debouncer and long-press logic, the full menu state machine
     including LED-brightness calibration, calibration-journal isolation and the
-    fixed startup fade. The AVR glue and the dedicated maintenance console are
-    compiled by their target builds and verified on hardware.</para>
+    fixed startup fade. The AVR glue and the dedicated panel-driven maintenance
+    state machine are compiled by their target builds and verified on hardware.</para>
   </section>
 </article>

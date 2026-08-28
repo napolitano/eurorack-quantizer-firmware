@@ -62,15 +62,21 @@ Arduino documents the newer ATmega328P Nano bootloader as the normal choice for 
 
 The dedicated calibration image is a service tool, not normal musical firmware. **It is not required for routine firmware updates.** Use it only for a module that has not yet been individually calibrated, after calibration data have been lost/erased, after relevant analog-path hardware changes, or when measured pitch / 1 V/oct performance indicates a calibration problem.
 
-For a calibration session, the module remains powered from the Nano's **USB connection only**. Keep the Eurorack ribbon cable disconnected for the entire production → maintenance → production workflow. The intended sequence is:
+The maintenance image is front-panel driven and accepts no serial commands. Power handling is deliberately split into three safe phases:
 
 ```text
-production -> calibration/maintenance -> production
+USB only:       flash maintenance image
+                ↓ disconnect USB completely
+Eurorack only:  perform panel-guided analog calibration
+                ↓ case OFF, disconnect ribbon
+USB only:       read stored report and/or flash production image
 ```
 
-Both image swaps must preserve EEPROM. The maintenance image writes analog calibration only through the physical EEPROM partition `967..1022`; presets and normal live-state records are outside its writer address space. See [README_CALIBRATION.md](../../README_CALIBRATION.md) for the complete console and calibration procedure.
+**Never leave normal Eurorack bus power and USB connected at the same time.** The analog calibration itself must run under normal Eurorack `+12 V / -12 V / +5 V` power so the DAC reference and analog stages see their normal rails; USB must be physically disconnected during those measurements.
 
-A successfully booted maintenance image identifies itself visually with **three amber full-ring flashes**, then holds a **steady dim-amber ring** while the console is idle. This is intentionally different from the production startup fade.
+Both image swaps must preserve EEPROM. The maintenance calibration writer is restricted to `967..1022`; generation-bound qualification metadata uses only bytes `966` and `1023`. Presets and normal live-state records remain outside those maintenance write locations. See [README_CALIBRATION.md](../../README_CALIBRATION.md) for the complete illustrated panel procedure.
+
+A successfully booted maintenance image identifies itself visually with **three amber full-ring flashes**, then holds a **steady dim-amber ring** while idle. This is intentionally different from the production startup fade.
 
 ## Remove the module from the rack
 

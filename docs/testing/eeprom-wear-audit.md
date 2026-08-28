@@ -75,17 +75,17 @@ For perspective only:
 
 These are not wear-levelled because SAVE is an explicit user action. The marker receives two physical transitions when overwriting a previously valid record; payload bytes are skipped when unchanged.
 
-### Reserved byte 1023
+### Qualification metadata bytes 966 and 1023
 
-The former rotating-startup selector has been removed. EEPROM byte 1023 is intentionally reserved and no production or maintenance path writes it. A stale value left by an earlier development build is ignored.
+The former rotating-startup selector at byte 1023 and the former <=0.2.1 twelfth live-slot marker at byte 966 are reused only by the maintenance qualification store. They are not periodic runtime/autosave locations. Byte 966 carries a generation-bound commit marker whose value cannot be mistaken for the normal live-state marker; byte 1023 packs the two verified DAC residuals. The marker is invalidated first and committed last.
 
 ### LED calibration
 
 LED brightness calibration is carried inside the wear-levelled live state rather than assigned a repeatedly rewritten fixed byte.
 
-### Analogue ADC/DAC calibration
+### Analog ADC/DAC calibration
 
-The hardware-specific affine profile is stored only by the dedicated maintenance image, on an explicit `cal save` or after a successful verified loopback self-calibration. It uses two alternating 28-byte records. The destination marker is invalidated first and committed last, so the previous valid record remains the fallback until the replacement is complete. These writes are maintenance operations rather than periodic autosaves.
+The hardware-specific affine profile is stored only by the dedicated panel-driven maintenance image, after the selected calibration workflow has passed its required verification. It uses two alternating 28-byte records. The destination marker is invalidated first and committed last, so the previous valid record remains the fallback until the replacement is complete. Qualification metadata is written for the intended journal generation before the calibration commit; until that matching calibration generation becomes valid, the qualification record is ignored. These writes are service operations rather than periodic autosaves.
 
 ## Verification
 
@@ -96,7 +96,7 @@ The hardware-specific affine profile is stored only by the dedicated maintenance
 - non-marker live bytes receive no more than two writes;
 - no unrelated EEPROM region is touched;
 - rewriting an unchanged byte is suppressed;
-- calibration writes remain inside physical bytes 967…1022 and do not touch byte 1023, presets, or the live-state ring.
+- calibration-journal writes remain inside physical bytes 967…1022; qualification writes are restricted to bytes 966 and 1023; no maintenance path touches preset bytes 0…503 or current live-state bytes 504…965.
 
 This makes the arithmetic above a checked property of the current implementation rather than documentation that can silently drift.
 

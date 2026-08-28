@@ -5,7 +5,7 @@
 
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current development tree contains **34 independently runnable PlatformIO test suites / 281 top-level test cases**. CI remains authoritative for the exact executed total rather than treating that number as a compatibility contract; several cases execute exhaustive or matrix checks internally, so assertion coverage is substantially larger than the top-level case count.
+The current development tree contains **36 independently runnable PlatformIO test suites / 290 top-level test cases**. CI remains authoritative for the exact executed total rather than treating that number as a compatibility contract; several cases execute exhaustive or matrix checks internally, so assertion coverage is substantially larger than the top-level case count.
 
 Examples of exhaustive work performed by the suite include:
 
@@ -183,7 +183,7 @@ The complete acceptance-criterion mapping is maintained in [docs/testing/require
 
 ## Coverage regression policy
 
-Source coverage is guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The `Unreleased` development tree currently has 34 suites / 281 top-level cases; GitHub Actions/gcovr is authoritative for the exact executed/coverage result and the next release must satisfy the unchanged floors.
+Source coverage is guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The `Unreleased` development tree currently has 36 suites / 290 top-level cases; GitHub Actions/gcovr is authoritative for the exact executed/coverage result and the next release must satisfy the unchanged floors.
 
 The floor is deliberately below the reference so minor compiler/gcovr accounting differences do not create noise, but it is high enough to catch a material loss of exercised production paths. Lowering the floor just to make a change pass is not an accepted fix. See [docs/testing/coverage.md](docs/testing/coverage.md).
 
@@ -229,9 +229,9 @@ Native tests cannot validate analog or physical effects such as:
 - actual LED brightness and colour balance;
 - power-supply behavior.
 
-The final `cal report` certificate/label path is therefore part of **real-hardware qualification**, not a substitute for it. The hardware qualification checklist verifies that the command reports both loopbacks, emits a label block only after full PASS, and leaves EEPROM unchanged.
+The stored calibration certificate/label path is therefore part of **real-hardware qualification**, not a substitute for it. Hardware qualification verifies the complete front-panel ADC/DAC wizard under normal Eurorack power, the final two-channel loopback verification, the generation-bound residual metadata, and the later USB-only readback of the stored report. The USB report itself performs no fresh analog measurement.
 
-The maintenance-image visual state machine is also hardware-qualified rather than inferred from native tests: three amber boot flashes followed by steady dim amber, ring-off measurement phases with the correct channel Input LED, two green/red flashes for normal PASS/FAIL, and three green/red flashes for `cal report` PASS/FAIL. The ring-off requirement is specifically checked during analog capture so maintenance feedback does not add changing TLC5947 PWM load to the measurement interval.
+The maintenance-image visual state machine is also hardware-qualified rather than inferred from native tests: three amber boot flashes followed by steady dim amber; C/A green voltage prompts for 0 V/9 V; channel IN/OUT loopback prompts; ring-off measurement phases; two green/red flashes for ordinary PASS/FAIL; one-to-six red note LEDs for explicit error codes; and three green/red flashes for final qualification PASS/FAIL. The ring-off requirement is specifically checked during analog capture so maintenance feedback does not add changing TLC5947 PWM load to the measurement interval.
 
 Those require calibrated hardware-in-the-loop measurements. The native suite exists to make the digital behaviour deterministic before hardware uncertainty is introduced.
 

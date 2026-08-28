@@ -92,17 +92,23 @@ The detailed oscilloscope procedure is in [`timing-qualification.md`](timing-qua
 - [ ] DAC/output A reaches the expected calibrated range monotonically.
 - [ ] DAC/output B reaches the expected calibrated range monotonically.
 - [ ] The maintenance image boots with exactly three amber full-ring flashes and then holds a steady dim-amber idle ring.
-- [ ] During Channel A analog measurement/calibration the note ring is completely off and Input LED A is on; Channel B behaves equivalently with Input LED B.
-- [ ] During dual-channel `cal report` verification the note ring is completely off and both channel Input LEDs are on.
-- [ ] A normal maintenance PASS produces exactly two green full-ring flashes; a normal FAIL produces exactly two red full-ring flashes; both return to steady dim amber.
-- [ ] `cal report` PASS produces exactly three green full-ring flashes and FAIL produces exactly three red full-ring flashes; both return to steady dim amber.
+- [ ] `SAVE`, `LOAD`, `SHIFT + SAVE`, and `SHIFT + LOAD` select the documented full-calibration, verify-only, ADC-only, and DAC-only workflows without any serial input.
+- [ ] Channel A/B ADC prompts identify C as 0.000 V and A as 9.000 V; the correct channel Input LED is on.
+- [ ] During ADC acquisition the note ring is completely off; Channel A/B behavior is symmetrical.
+- [ ] Matching channel Input + Output LEDs blink to request a single-channel OUT->IN loopback; both pairs blink for final dual-channel verification.
+- [ ] During loopback acquisition the note ring is completely off and only the documented status LEDs remain active.
+- [ ] A normal maintenance PASS produces exactly two green full-ring flashes; a failure produces two red flashes followed by the documented 1..6 red-note error code.
+- [ ] Complete qualification PASS produces exactly three green full-ring flashes; qualification FAIL produces three red flashes where applicable.
 - [ ] No changing TLC5947 ring PWM activity occurs during ADC/DAC measurement windows.
-- [ ] In the maintenance image, `cal self a` passes with OUT A patched to IN A and persists the verified DAC-A correction.
-- [ ] In the maintenance image, `cal self b` passes with OUT B patched to IN B and persists the verified DAC-B correction.
-- [ ] With both OUT->IN loopbacks patched, `cal report` re-verifies A and B, reports the active journal generation and coefficients, produces a compact label block only on full PASS, and performs no EEPROM write.
-- [ ] A failed `cal report` produces no PASS label block and leaves the stored calibration and all preset/live-state EEPROM bytes unchanged.
-- [ ] Selfcal with the loop absent or deliberately mispatched fails without changing the previously stored calibration.
-- [ ] Maintenance calibration writes are observed only in EEPROM bytes 967…1022; scale/config/live-state regions and byte 1023 remain unchanged.
+- [ ] Full calibration fits ADC A/B from 0.000 V and 9.000 V, then self-calibrates DAC A/B and persists only after final two-channel verification.
+- [ ] ADC-only calibration changes the calibration generation and thereby invalidates any older qualification metadata.
+- [ ] DAC-only calibration refuses to run without a valid stored calibration profile.
+- [ ] Self-calibration with the loop absent or deliberately mispatched fails with the documented code and does not commit the in-progress RAM profile.
+- [ ] LOAD during any wizard prompt cancels safely and restores the previously active profile.
+- [ ] Final verification stores qualification residuals bound to the active/new calibration generation.
+- [ ] With Eurorack power disconnected and USB connected, the maintenance image prints the stored calibration report at 115200 baud without accepting command input or performing analog verification.
+- [ ] The stored report emits a compact label block only when qualification metadata matches the newest valid calibration generation.
+- [ ] Calibration-journal writes are confined to bytes 967…1022; qualification writes are confined to bytes 966 and 1023; preset/current-live-state regions remain unchanged.
 - [ ] A sweep on CV A does not create measurable digital-path movement on B in Absolute mode beyond analog noise/crosstalk expectations.
 - [ ] A sweep on CV B does not create movement on A beyond analog noise/crosstalk expectations.
 - [ ] Trigger outputs reach valid Eurorack logic levels.

@@ -87,11 +87,11 @@ Both targets use the same ATmega328P/16 MHz hardware. The difference is the boot
 
 The calibration/maintenance image is **not part of a routine update**. Use it only for an uncalibrated module, after calibration data have been erased or lost, after relevant analog-path hardware changes, or when measured pitch / 1 V/oct performance indicates a calibration problem.
 
-For the complete maintenance session, keep the Eurorack power ribbon disconnected and power the module from the Nano's **USB connection only**. The `Unreleased` maintenance workflow uses the same AVRDUDESS flash controls as a normal update. Select the maintenance HEX instead of the production HEX, while keeping **Erase flash and EEPROM (`-e`) OFF** and **Disable flash erase (`-D`) ON**. After calibration is saved, repeat the same flash-only procedure with the matching production HEX.
+For the firmware flash itself, keep the Eurorack ribbon disconnected and use **USB only**. For the actual analog calibration, disconnect USB completely and power the module normally from the Eurorack bus. After calibration, switch the case off and remove the ribbon before reconnecting USB for stored-report readback or the production-image flash. The `Unreleased` maintenance workflow uses the same AVRDUDESS flash controls as a normal update. Select the maintenance HEX instead of the production HEX, while keeping **Erase flash and EEPROM (`-e`) OFF** and **Disable flash erase (`-D`) ON**. After calibration is saved, repeat the same flash-only procedure with the matching production HEX.
 
 Do not load an EEPROM file in AVRDUDESS during either swap. Calibration persistence relies on leaving EEPROM untouched by the flash operation.
 
-The maintenance firmware is intentionally not a playable Quantizer image. It boots directly to the serial console; use [the calibration guide](../../../README_CALIBRATION.md) for the command workflow.
+The maintenance firmware is intentionally not a playable Quantizer image. It boots into a front-panel calibration state machine; there is no typed serial command console. Use [the calibration guide](../../../README_CALIBRATION.md) for the illustrated SAVE/LOAD/SHIFT workflow and the required USB-off / Eurorack-on calibration power sequence.
 
 ## Configure AVRDUDESS
 
@@ -154,7 +154,7 @@ After programming, the Nano resets and starts the newly installed firmware.
 > [!CAUTION]
 > **DO NOT UNPLUG THE USB CABLE YET.** The update is not considered complete until AVRDUDE has finished **and the Quantizer has completed its startup LED sequence**.
 
-For the normal production image, wait until the fixed startup fade has completed and the normal UI state is visible. For the calibration/maintenance image, confirm **three amber full-ring flashes followed by a steady dim-amber ring**, then verify that the serial maintenance console is available at 115200 baud. Only then consider the newly written image booted successfully.
+For the normal production image, wait until the fixed startup fade has completed and the normal UI state is visible. For the calibration/maintenance image, confirm **three amber full-ring flashes followed by a steady dim-amber ring**. No serial command prompt is expected. After this USB-only boot check, disconnect USB completely before reconnecting the Eurorack ribbon for the actual panel-guided calibration.
 
 This final boot check confirms that the newly written firmware actually starts before the next service step or before the module is returned to the rack.
 

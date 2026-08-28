@@ -16,8 +16,13 @@
 namespace fmq::config {
 
 constexpr uint32_t kMaintenanceBaud = 115200u;
-constexpr uint16_t kMaintenanceConsoleStartupDelayMs = 50u;
+constexpr uint16_t kMaintenanceReportStartupDelayMs = 250u;
 constexpr uint16_t kMaintenancePersistenceTimeoutMs = 1500u;
+constexpr uint16_t kMaintenanceUiPollMs = 2u;
+constexpr uint16_t kMaintenancePromptPulseMs = 350u;
+constexpr uint16_t kMaintenancePromptGapMs = 250u;
+constexpr uint16_t kMaintenanceAdcCaptureSamples = 128u;
+constexpr uint16_t kMaintenanceAdcMaximumCaptureSpan = 8u;
 
 // Visual maintenance-mode feedback. The ring is deliberately static and dim
 // while idle, and completely off during analog measurements.
@@ -36,7 +41,7 @@ constexpr uint16_t kSelfCalibrationSettleMs = 8u;
 constexpr uint8_t kSelfCalibrationAverageSamples = 12u;
 constexpr uint16_t kSelfCalibrationSampleTimeoutMs = 150u;
 constexpr uint16_t kSelfCalibrationMaxFitResidualDacCodes = 20u;
-constexpr uint16_t kSelfCalibrationMaxVerifyResidualDacCodes = 16u;
+constexpr uint16_t kSelfCalibrationMaxVerifyResidualDacCodes = 15u;
 
 }  // namespace fmq::config
 

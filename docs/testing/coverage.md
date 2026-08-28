@@ -20,7 +20,7 @@ The last independently recorded GCC/gcov reference was measured for the released
 | Branch coverage | **81.13%** |
 
 > [!NOTE]
-> The current `Unreleased` tree contains 34 suites / 281 top-level tests. That expanded tree has not been assigned a new committed coverage reference in this workspace; CI/gcovr remains authoritative. The reference above was measured independently with GCC 14.2/gcov; the branch figure uses raw gcov branch-outcome accounting. GitHub Actions/gcovr is authoritative for enforcement and may report a slightly different branch percentage because coverage tools can account for generated branch records differently. The committed values are a reference point, not a claim that every future toolchain will print byte-for-byte identical percentages.
+> The current `Unreleased` tree contains 36 suites / 290 top-level tests. That expanded tree has not been assigned a new committed coverage reference in this workspace; CI/gcovr remains authoritative. The reference above was measured independently with GCC 14.2/gcov; the branch figure uses raw gcov branch-outcome accounting. GitHub Actions/gcovr is authoritative for enforcement and may report a slightly different branch percentage because coverage tools can account for generated branch records differently. The committed values are a reference point, not a claim that every future toolchain will print byte-for-byte identical percentages.
 
 ## Hard CI floors
 
