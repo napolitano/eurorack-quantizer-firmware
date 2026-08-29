@@ -32,7 +32,7 @@ class MaintenanceFeedback {
   void playBootIndication();
   void showIdle();
 
-  /** Show C (0 V) or A (9 V) as a pulsing green calibration target. */
+  /** Show C#/A fit points or C/F verification points as pulsing green targets. */
   void showVoltagePrompt(uint8_t channel, uint8_t noteIndex, bool lit);
 
   /** Blink the matching IN/OUT pair to request one loopback patch. */

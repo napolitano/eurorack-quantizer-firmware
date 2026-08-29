@@ -26,10 +26,12 @@ The maintenance image reuses the existing controls only:
 | **SAVE inside a wizard** | Confirm the displayed wiring/voltage step and continue |
 | **LOAD inside a wizard** | Cancel safely and return to maintenance idle |
 
-The twelve note LEDs are used as instructions. In particular:
+The twelve note LEDs are used as voltage instructions. The maintenance wizard deliberately distinguishes **fit points** from **verification points**:
 
-- **C** (12 o'clock) means **0.000 V**;
-- **A** means **9.000 V**.
+- **C#** means **1.000 V** - lower affine fit point;
+- **A** means **9.000 V** - upper affine fit point;
+- **C** (12 o'clock) means **0.000 V** - independent zero sanity check;
+- **F** means **5.000 V** - independent mid-scale verification point.
 
 The small Channel A/B status LEDs identify which CV path is being measured. When a loopback is requested, the matching **IN and OUT status LEDs blink together**.
 
@@ -97,9 +99,11 @@ A successful maintenance boot is intentionally unmistakable:
 
 The ring is deliberately dark while analog samples are captured so changing TLC5947 PWM load does not add avoidable switching activity during the measurement window.
 
-## Preparing the two ADC reference voltages
+## Preparing the ADC reference voltages
 
 ### 0.000 V
+
+Zero volts is used only as an **independent sanity check**, not as an affine fit point. That distinction matters: a small negative analogue offset can already be clipped to ADC code 0, so fitting against the lower rail can falsely appear to have zero offset.
 
 The best 0 V reference is the module's **own local ground**. Do not rely on a bench supply set to `0.000 V` when a direct ground reference is available.
 
@@ -111,25 +115,32 @@ TIP ----+
 SLEEVE -+
 ```
 
-In practice, a 3.5 mm TS breakout with screw terminals is useful: short TIP to SLEEVE for the 0 V step, then use the same adapter for the 9 V reference.
+A 3.5 mm TS breakout with screw terminals is useful: short TIP to SLEEVE for the 0 V verification step, and use the same adapter for the positive reference voltages.
 
-### 9.000 V
+### 1.000 V, 5.000 V and 9.000 V
 
-The second calibration point is deliberately **9.000 V rather than 10.000 V**. The CV input is specified for a nominal 0-10 V range, so 10 V is a valid external CV at the module jack, but using full scale as the gain-calibration point risks hiding an over-range condition once the ADC has saturated at code 1023. Nine volts still uses about 90% of the converter range while preserving useful headroom.
+The affine ADC correction is fitted from **1.000 V and 9.000 V**. Both points are intentionally inside the converter's linear range:
 
-A laboratory supply is suitable as the 9 V source when used carefully:
+- using **1.000 V instead of 0 V** exposes input-path offset that could otherwise be hidden by clipping at ADC code 0;
+- using **9.000 V instead of 10.000 V** preserves useful headroom below full scale and avoids hiding an over-range condition once the ADC has saturated at code 1023.
+
+After the fit, **0.000 V** is checked as a lower-rail sanity point and **5.000 V** is measured as an independent mid-scale verification point. The 5 V measurement is not used to compute the fit, so it can reveal non-linearity or a poor two-point solution.
+
+At runtime, raw ADC code `0` is explicitly anchored to calibrated code `0`. This boundary rule is intentional: if a small negative analog offset is clipped by the converter, the 1 V / 9 V fit can correctly infer a positive inverse offset, but applying that offset blindly at raw code 0 would create a false positive CV floor.
+
+A laboratory supply is suitable for the 1 V, 5 V and 9 V references when used carefully:
 
 1. Use one normal positive output channel, not a series/tracking dual-rail configuration.
-2. Set the output to **9.000 V** with the output disabled.
+2. Set the required voltage with the output disabled.
 3. Set a conservative current limit, for example **5-10 mA**.
 4. Connect supply **COM / -** to the adapter SLEEVE (module ground).
 5. Connect supply **+** to the adapter TIP (CV).
 6. Verify polarity before enabling the output.
-7. Measure the actual voltage at the adapter with a trustworthy DMM and trim the supply to 9.000 V based on the **DMM**, not merely the supply display.
-8. Only then press SAVE to capture the point.
+7. Measure the actual voltage at the adapter with a trustworthy DMM and trim the supply to **1.000 V, 5.000 V or 9.000 V based on the DMM**, not merely the supply display.
+8. Only then press SAVE to capture the displayed point.
 
 > [!WARNING]
-> Apply the reference voltage only to the module's **CV input jack**. Never apply 9 V or 10 V directly to Arduino A6/A7 or another logic/MCU pin. The module input jack is followed by the intended protection/scaling hardware; the MCU pin is not a 10 V input.
+> Apply the reference voltage only to the module's **CV input jack**. Never apply these voltages directly to Arduino A6/A7 or another logic/MCU pin. The module input jack is followed by the intended protection/scaling hardware; the MCU pin is not a 10 V input.
 
 A breakout adapter is strongly recommended because it gives a mechanically secure place for the bench-supply and DMM leads while retaining a normal Eurorack patch cable to the module.
 
@@ -137,31 +148,47 @@ A breakout adapter is strongly recommended because it gives a mechanically secur
 
 Press **SAVE** from dim-amber maintenance idle to start the complete wizard. Release SAVE after the wizard begins; SAVE is then used to confirm each displayed step. LOAD cancels without committing the in-progress RAM profile.
 
-### 1. ADC / CV IN A at 0 V
+### 1. ADC / CV IN A fit at 1 V
 
 - Channel A **Input LED** is on.
-- **C** pulses green.
-- Connect CV IN A to local 0 V.
+- **C#** pulses green.
+- Apply exactly **1.000 V** to CV IN A.
 - Press **SAVE**.
 
 The ring turns off while the firmware captures repeated ADC samples. An unstable input is rejected.
 
-### 2. ADC / CV IN A at 9 V
+### 2. ADC / CV IN A fit at 9 V
 
 - Channel A **Input LED** remains the channel indicator.
 - **A** pulses green.
-- Apply exactly 9.000 V to CV IN A.
+- Apply exactly **9.000 V** to CV IN A.
 - Press **SAVE**.
 
-The firmware computes the Channel A affine ADC correction from the 0 V and 9 V means.
+The firmware computes the Channel A affine ADC correction from the 1 V and 9 V means.
 
-### 3-4. Repeat for CV IN B
+### 3. ADC / CV IN A zero sanity check
 
-The same C/0 V and A/9 V sequence is repeated with the Channel B Input LED.
+- **C** pulses green.
+- Short CV IN A to local 0 V.
+- Press **SAVE**.
 
-After the second 9 V measurement, disable and disconnect the external voltage source before moving to loopback calibration.
+This point is **not used for fitting**. The firmware checks that the raw ADC reading is still plausibly at the lower rail. This prevents a gross positive input offset from being silently accepted while avoiding the original mistake of deriving offset from a potentially clipped zero measurement.
 
-### 5. DAC / CV OUT A self-calibration
+### 4. ADC / CV IN A independent 5 V verification
+
+- **F** pulses green.
+- Apply exactly **5.000 V** to CV IN A.
+- Press **SAVE**.
+
+The firmware applies the newly fitted ADC correction and verifies the independent mid-scale point against the expected code. A failure here indicates that the two-point affine fit does not adequately describe the measured input path.
+
+### 5-8. Repeat the four ADC steps for CV IN B
+
+The same **C# / 1 V -> A / 9 V -> C / 0 V -> F / 5 V** sequence is repeated with the Channel B Input LED.
+
+After the B-channel 5 V verification, disable and disconnect the external voltage source before moving to loopback calibration.
+
+### 9. DAC / CV OUT A self-calibration
 
 The Channel A **Input and Output status LEDs blink together**.
 
@@ -173,7 +200,7 @@ CV OUT A -> CV IN A
 
 Press **SAVE**. The firmware drives several DAC values, measures them through the already calibrated Channel A ADC path, fits the inverse output correction, and independently verifies the result. The ADC calibration remains the measurement reference; loopback self-calibration does not create an independent laboratory voltage standard.
 
-### 6. DAC / CV OUT B self-calibration
+### 10. DAC / CV OUT B self-calibration
 
 Move or add the loopback so that:
 
@@ -183,7 +210,7 @@ CV OUT B -> CV IN B
 
 Press **SAVE** when the B IN/OUT indicators blink.
 
-### 7. Final dual-channel verification
+### 11. Final dual-channel verification
 
 Both channels' **IN and OUT status LEDs blink**. Patch both loopbacks simultaneously:
 
@@ -202,12 +229,16 @@ A complete PASS is indicated by **three green full-ring flashes**. The firmware 
 
 Use this after work on the CV input/ADC path when the DAC side does not need to be recalibrated immediately.
 
-The wizard performs the four ADC steps:
+The wizard performs eight ADC steps:
 
-1. A at 0.000 V
-2. A at 9.000 V
-3. B at 0.000 V
-4. B at 9.000 V
+1. A fit at 1.000 V
+2. A fit at 9.000 V
+3. A sanity check at 0.000 V
+4. A independent verification at 5.000 V
+5. B fit at 1.000 V
+6. B fit at 9.000 V
+7. B sanity check at 0.000 V
+8. B independent verification at 5.000 V
 
 The resulting profile is saved after both channels pass. Because changing the ADC reference invalidates any earlier DAC qualification, the previous qualification certificate automatically becomes invalid through the calibration-generation mismatch. Run DAC-only calibration or a full calibration before applying a new calibration label.
 
@@ -245,7 +276,7 @@ A failure is shown as **two red full-ring flashes**, followed by a static group 
 | Red LEDs | Meaning |
 |---:|---|
 | **1** | Input unstable or ADC acquisition timeout |
-| **2** | ADC 0 V/9 V span or fitted endpoint behavior is invalid |
+| **2** | ADC 1 V/9 V fit, 0 V sanity check, or independent 5 V verification is invalid |
 | **3** | Loopback missing, wrong, or non-monotonic |
 | **4** | Loopback range/gain/fit is implausible |
 | **5** | Independent DAC verification residual is too large |
@@ -321,9 +352,25 @@ DAC -> output amplifier -> CV OUT -> patch cable -> CV IN -> input stage -> ADC
 
 The active ADC calibration is treated as the measurement reference. Self-calibration therefore corrects the **DAC/output affine error** against that reference. It cannot mathematically separate simultaneous absolute errors in the input and output paths without an independent voltage reference.
 
-This is why the ADC side is calibrated first with external 0.000 V / 9.000 V references.
+This is why the ADC side is calibrated first from external 1.000 V / 9.000 V fit references and then checked independently at 0.000 V and 5.000 V.
 
 The current implementation deliberately stores affine offset/gain correction only. It does not reserve EEPROM for a 121-note residual table. A non-linear residual correction should be introduced only if real hardware measurements demonstrate that it is justified.
+
+## Recommended independent post-calibration check
+
+The stored PASS report proves that the panel workflow completed and that the DAC loopback verification agreed with the calibrated ADC reference. It is **not an independent laboratory measurement**, because the loopback uses the module's own ADC as its measuring instrument.
+
+For a newly built module, or after changing the analog path, perform one external DMM check after restoring the production firmware:
+
+1. Use neutral Quantizer settings: Track-and-Hold, Glide 0, Delay 0, all shifts 0, Channel B absolute, channels unlinked.
+2. Enable **C only** in the scale.
+3. Apply accurately measured input references such as `0.000 V`, `1.000 V`, `3.000 V`, `5.000 V`, `7.000 V`, and `9.000 V`.
+4. Measure the corresponding CV output with a second breakout/test adapter and the same trustworthy DMM.
+5. Record input, expected output, measured output, and error.
+
+With C as the only enabled pitch class, whole-volt inputs should quantize to the same whole-volt output. A nearly constant error suggests residual offset; an error that grows with voltage suggests residual gain error; irregular point-to-point error suggests non-linearity or measurement noise.
+
+This external check is recommended for hardware qualification and module labeling, but it is not required after every EEPROM-preserving firmware update.
 
 ## Returning to production firmware
 
@@ -352,8 +399,8 @@ The production firmware has no calibration writer, calibration state machine, or
 
 - [ ] Maintenance image flashed with the Eurorack ribbon disconnected.
 - [ ] USB physically disconnected before normal Eurorack power is restored.
-- [ ] 0 V reference made by shorting CV TIP to local GND/SLEEVE.
-- [ ] 9.000 V source measured at the jack adapter with a DMM.
+- [ ] 1.000 V, 5.000 V and 9.000 V references measured at the jack adapter with a DMM.
+- [ ] 0 V sanity reference made by shorting CV TIP to local GND/SLEEVE.
 - [ ] ADC A and B complete without error.
 - [ ] DAC A and B loopback self-calibration complete without error.
 - [ ] Both loopbacks are connected for final verification.

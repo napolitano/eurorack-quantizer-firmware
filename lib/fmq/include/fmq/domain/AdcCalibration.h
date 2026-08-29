@@ -26,13 +26,19 @@ enum class AdcCalibrationStatus : uint8_t {
   EndpointVerificationFailed,
 };
 
-/** Result of fitting raw ADC readings at 0.000 V and 9.000 V. */
+/** Result of fitting raw ADC readings at 1.000 V and 9.000 V. */
 struct AdcCalibrationResult {
   AdcCalibrationStatus status = AdcCalibrationStatus::NonIncreasing;
   LinearCalibration calibration;
-  uint16_t correctedZero = 0u;
+  uint16_t correctedOneVolt = 0u;
   uint16_t correctedNineVolt = 0u;
 };
+
+/** Nominal calibrated ADC code corresponding to exactly 1.000 V of 10 V FS. */
+uint16_t oneVoltNominalAdcCode();
+
+/** Nominal calibrated ADC code corresponding to exactly 5.000 V of 10 V FS. */
+uint16_t fiveVoltNominalAdcCode();
 
 /** Nominal calibrated ADC code corresponding to exactly 9.000 V of 10 V FS. */
 uint16_t nineVoltNominalAdcCode();
@@ -40,11 +46,11 @@ uint16_t nineVoltNominalAdcCode();
 /**
  * Fit an affine ADC correction from two measured raw codes.
  *
- * @param zeroRaw Mean raw ADC code while CV IN is shorted to local ground.
+ * @param oneVoltRaw Mean raw ADC code while exactly 1.000 V is applied.
  * @param nineVoltRaw Mean raw ADC code while exactly 9.000 V is applied.
  * @return Fitted calibration plus endpoint verification status.
  */
-AdcCalibrationResult solveAdcTwoPointCalibration(uint16_t zeroRaw,
+AdcCalibrationResult solveAdcTwoPointCalibration(uint16_t oneVoltRaw,
                                                   uint16_t nineVoltRaw);
 
 }  // namespace fmq

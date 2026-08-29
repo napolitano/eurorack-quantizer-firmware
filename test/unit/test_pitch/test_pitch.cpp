@@ -65,8 +65,7 @@ static void test_dac_clamped(void) {
 
 
 // ADC calibration applies offset before gain and rounds to nearest. This is
-// the concrete two-point case that exposed the calibration-console ambiguity:
-// raw 7 at 0 V and raw 510 at 5 V -> offset -7, gain 1023/1006.
+// representative affine mapping used to verify offset-before-gain semantics.
 static void test_adc_calibration_offset_then_gain(void) {
   const LinearCalibration calibration{-7, 1023, 1006};
   TEST_ASSERT_EQUAL_UINT16(512, applyAdcCalibration(510, calibration));

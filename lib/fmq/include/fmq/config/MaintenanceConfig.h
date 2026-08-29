@@ -23,6 +23,8 @@ constexpr uint16_t kMaintenancePromptPulseMs = 350u;
 constexpr uint16_t kMaintenancePromptGapMs = 250u;
 constexpr uint16_t kMaintenanceAdcCaptureSamples = 128u;
 constexpr uint16_t kMaintenanceAdcMaximumCaptureSpan = 8u;
+constexpr uint16_t kMaintenanceAdcVerificationToleranceCodes = 3u;
+constexpr uint16_t kMaintenanceAdcZeroRawMaximumCode = 8u;
 
 // Visual maintenance-mode feedback. The ring is deliberately static and dim
 // while idle, and completely off during analog measurements.

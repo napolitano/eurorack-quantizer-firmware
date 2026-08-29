@@ -129,7 +129,7 @@
             <entry>Pure time&#8594;red/green-level function for the fixed
             off&#8594;green&#8594;amber&#8594;red&#8594;off power-on fade.</entry></row>
           <row><entry><classname>CalibrationReader</classname> / <classname>CalibrationStore</classname></entry>
-            <entry>Read-only production access to the analogue calibration journal
+            <entry>Read-only production access to the analog calibration journal
             and maintenance-only atomic journal writes respectively.</entry></row>
           <row><entry><classname>EepromPartition</classname></entry>
             <entry>Relative-address EEPROM view that structurally confines the
@@ -254,7 +254,7 @@
       </orderedlist>
     </section>
 
-    <section xml:id="analogue-maintenance">
+    <section xml:id="analog-maintenance">
       <title>Analog calibration/maintenance image (Unreleased)</title>
       <para>The development tree after 0.2.1 moves ADC/DAC calibration and
       loopback self-calibration out of the production image. The maintenance
@@ -263,9 +263,10 @@
       ADC-only calibration and Shift+LOAD runs DAC/self-calibration only. Inside
       a wizard SAVE confirms the current step and LOAD cancels without committing
       the in-progress RAM profile.</para>
-      <para>ADC calibration uses two external reference points: 0.000 V and
-      9.000 V. C in the note ring identifies the 0 V step; A identifies 9 V.
-      Nine volts deliberately leaves ADC headroom below the 10 V nominal input
+      <para>ADC calibration fits from two external reference points inside the linear range: 1.000 V and
+      9.000 V. C# in the note ring identifies the 1 V fit step; A identifies 9 V.
+      The firmware then performs independent 0.000 V and 5.000 V checks, identified by C and F.
+      Keeping the fit away from the lower rail exposes analog offset instead of hiding it in ADC clipping, while 9 V deliberately leaves ADC headroom below the 10 V nominal input; raw ADC code 0 is explicitly anchored to calibrated code 0 so a positive inverse correction cannot create a false non-zero floor
       full scale. Channel input-status LEDs identify A/B. DAC self-calibration
       uses CV OUT to CV IN loopback; matching IN/OUT indicators blink to request
       each patch, and both pairs blink before final dual-channel verification.</para>
@@ -309,7 +310,7 @@
       <listitem><para>Corrected the 1&#160;kHz timer reload for an exact sample
       rate.</para></listitem>
       <listitem><para>Added automatic state restore, CRC-protected and
-      wear-levelled storage, persistent analogue calibration and a compact fixed
+      wear-levelled storage, persistent analog calibration and a compact fixed
       startup fade; maintenance-only calibration tooling is built as a separate
       image to protect production flash headroom.</para></listitem>
     </itemizedlist>

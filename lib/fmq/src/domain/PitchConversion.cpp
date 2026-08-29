@@ -18,6 +18,12 @@ namespace fmq {
 
 uint16_t applyAdcCalibration(uint16_t rawAdc,
                              const LinearCalibration &calibration) {
+  // A negative analog input offset can clip the physical ADC at code zero.
+  // Preserve an exact 0 V floor even when the 1 V / 9 V fit therefore needs
+  // a positive inverse offset. The lost sub-code information below zero cannot
+  // be reconstructed by any affine calibration.
+  if (rawAdc == 0u) return 0u;
+
   int32_t corrected = static_cast<int32_t>(rawAdc) + calibration.offset;
   corrected = clampInt<int32_t>(corrected, 0, config::kAdcMaximumCode);
 

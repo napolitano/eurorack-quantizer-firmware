@@ -23,8 +23,10 @@ namespace {
 
 constexpr uint8_t kChannelA = 0u;
 constexpr uint8_t kChannelB = 1u;
-constexpr uint8_t kZeroVoltNoteIndex = 0u;  // C
-constexpr uint8_t kNineVoltNoteIndex = 9u;  // A
+constexpr uint8_t kZeroVoltNoteIndex = 0u;  // C, verification only
+constexpr uint8_t kOneVoltNoteIndex = 1u;   // C#, fit point
+constexpr uint8_t kFiveVoltNoteIndex = 5u;  // F, verification only
+constexpr uint8_t kNineVoltNoteIndex = 9u;  // A, fit point
 constexpr uint8_t kSelfFitPointCount = 5u;
 constexpr uint8_t kSelfVerifyPointCount = 4u;
 constexpr uint16_t kSelfFitDacCodes[kSelfFitPointCount] = {
@@ -170,15 +172,17 @@ bool CalibrationPanelController::captureAdcStats(uint8_t channel,
 
 CalibrationPanelError CalibrationPanelController::calibrateAdcChannel(
     uint8_t channel, CalibrationProfile &working) {
-  if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
-                           kZeroVoltNoteIndex)) {
+  // Fit only inside the linear ADC range. The 0 V rail is intentionally not a
+  // fit point because a small negative analog offset is indistinguishable
+  // from zero after ADC clipping.
+  if (!waitForSaveOrCancel(PromptKind::Voltage, channel, kOneVoltNoteIndex)) {
     return CalibrationPanelError::None;
   }
   feedback_.beginAdcMeasurement(channel);
-  AdcStats zero;
+  AdcStats one;
   if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
-                       zero) ||
-      zero.maximum - zero.minimum >
+                       one) ||
+      one.maximum - one.minimum >
           config::kMaintenanceAdcMaximumCaptureSpan) {
     return CalibrationPanelError::InputUnstable;
   }
@@ -197,8 +201,47 @@ CalibrationPanelError CalibrationPanelController::calibrateAdcChannel(
   }
 
   const AdcCalibrationResult fit =
-      solveAdcTwoPointCalibration(zero.mean, nine.mean);
+      solveAdcTwoPointCalibration(one.mean, nine.mean);
   if (fit.status != AdcCalibrationStatus::Ok) {
+    return CalibrationPanelError::AdcSpanInvalid;
+  }
+
+  // Independent 0 V sanity check. Evaluate the raw code itself because the
+  // physical ADC floor can clip a negative analog offset to code zero.
+  if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
+                           kZeroVoltNoteIndex)) {
+    return CalibrationPanelError::None;
+  }
+  feedback_.beginAdcMeasurement(channel);
+  AdcStats zero;
+  if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
+                       zero) ||
+      zero.maximum - zero.minimum >
+          config::kMaintenanceAdcMaximumCaptureSpan) {
+    return CalibrationPanelError::InputUnstable;
+  }
+  if (zero.mean > config::kMaintenanceAdcZeroRawMaximumCode) {
+    return CalibrationPanelError::AdcSpanInvalid;
+  }
+
+  // Independent mid-scale verification catches non-linearity that a two-point
+  // fit cannot reveal by checking its own endpoints.
+  if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
+                           kFiveVoltNoteIndex)) {
+    return CalibrationPanelError::None;
+  }
+  feedback_.beginAdcMeasurement(channel);
+  AdcStats five;
+  if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
+                       five) ||
+      five.maximum - five.minimum >
+          config::kMaintenanceAdcMaximumCaptureSpan) {
+    return CalibrationPanelError::InputUnstable;
+  }
+  const uint16_t correctedFive =
+      applyAdcCalibration(five.mean, fit.calibration);
+  if (absoluteDifference(correctedFive, fiveVoltNominalAdcCode()) >
+      config::kMaintenanceAdcVerificationToleranceCodes) {
     return CalibrationPanelError::AdcSpanInvalid;
   }
 
