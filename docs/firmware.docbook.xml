@@ -260,16 +260,55 @@
       loopback self-calibration out of the production image. The maintenance
       image is front-panel driven and accepts no serial commands. SAVE starts a
       complete calibration, LOAD verifies the stored profile, Shift+SAVE runs
-      ADC-only calibration and Shift+LOAD runs DAC/self-calibration only. Inside
-      a wizard SAVE confirms the current step and LOAD cancels without committing
-      the in-progress RAM profile.</para>
-      <para>ADC calibration fits from two external reference points inside the linear range: 1.000 V and
-      9.000 V. C# in the note ring identifies the 1 V fit step; A identifies 9 V.
-      The firmware then performs independent 0.000 V and 5.000 V checks, identified by C and F.
-      Keeping the fit away from the lower rail exposes analog offset instead of hiding it in ADC clipping, while 9 V deliberately leaves ADC headroom below the 10 V nominal input; raw ADC code 0 is explicitly anchored to calibrated code 0 so a positive inverse correction cannot create a false non-zero floor
-      full scale. Channel input-status LEDs identify A/B. DAC self-calibration
+      ADC-only calibration and Shift+LOAD runs DAC/self-calibration only. Holding
+      Shift for one second from idle enters Output Test; CAL uses the stored DAC
+      correction, RAW bypasses software correction for physical output-stage
+      service, note buttons select pitch class, SAVE/LOAD select octave, and a short
+      Shift press toggles Channel A/B. Inside a wizard SAVE confirms the current
+      step and LOAD cancels without committing the in-progress RAM profile.</para>
+      <para>Required bench equipment is documented before the procedure: a
+      trustworthy DMM, an adjustable DC source, normal Eurorack power, TS jack
+      breakout/test adapters, patch cables and suitable probes. An insulated
+      trimmer screwdriver is recommended for optional RAW hardware pre-trim. The
+      bench supply is only the adjustable source; the DMM reading at the actual
+      jack adapter is the calibration reference.</para>
+      <para>ADC calibration fits one affine correction by integer least-squares regression from five external
+      references inside the linear range: 1.000, 3.000, 5.000, 7.000 and 9.000 V. The note-ring
+      indicators are C#, D#, F, G and A respectively. The firmware then performs an independent
+      interleaved verification sweep at 0.000, 2.000, 4.000, 6.000 and 8.000 V, identified by C,
+      D, E, F# and G#. The zero-volt rail is verification-only because ADC clipping can hide a
+      negative analog offset; 9 V preserves headroom below full scale. Raw ADC
+      code 0 is explicitly anchored to calibrated code 0 so a positive inverse
+      correction cannot create a false non-zero floor. The bench supply is only
+      the adjustable source: every requested voltage is trimmed from the DMM
+      reading at the actual jack adapter, never accepted from the supply display
+      alone. Channel input-status LEDs identify A/B. DAC self-calibration
       uses CV OUT to CV IN loopback; matching IN/OUT indicators blink to request
       each patch, and both pairs blink before final dual-channel verification.</para>
+      <para>The Output Test can expose either CAL or RAW output. CAL applies the
+      newest stored DAC correction. RAW bypasses both stored and factory DAC
+      correction and writes the nominal DAC code directly, making the original
+      output-stage trim potentiometers observable before software calibration.
+      With a stored profile SAVE+LOAD toggles CAL/RAW; without one, Output Test
+      starts in RAW. Amber note indication identifies RAW, while calibrated
+      Channel A/B output is green/red. C at each octave checks the 1 V/oct scale;
+      selecting all twelve pitch classes in a middle octave checks the 1/12 V
+      chromatic spacing at representative DAC codes. The digital semitone mapping
+      is exhaustively tested for all 121 targets, while a fully exhaustive
+      physical output qualification can measure the same 121 targets with an
+      external DMM.</para>
+      <para>For hardware pre-trim, compare RAW C1 and C9 and adjust the matching
+      output-stage trimmer until V(C9)-V(C1) is as close as practical to 8.000 V,
+      then cross-check C5. This targets physical gain without using the gain
+      trimmer to hide a residual zero offset. Any trimmer movement invalidates
+      the previous DAC software calibration and must be followed by DAC-only or
+      full calibration.</para>
+      <para>Holding Shift+SAVE+LOAD together for five seconds arms an explicit
+      calibration erase. A pulsing red ring requests SAVE confirmation or LOAD
+      cancel. Confirmation invalidates both redundant calibration journal records
+      and qualification metadata only; musical presets and live state are not
+      erased. RAW Output Test remains available with an empty calibration
+      journal.</para>
       <para>A successful maintenance boot flashes the complete note ring amber
       three times and then holds a dim amber idle indication. The note ring is
       fully off during analog acquisition. Ordinary PASS uses two green flashes;

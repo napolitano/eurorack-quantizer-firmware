@@ -54,7 +54,8 @@ void MaintenanceFeedback::showVoltagePrompt(uint8_t channel,
                                             uint8_t noteIndex, bool lit) {
   setStatus(channel == 0u, false, channel == 1u, false);
   if (lit) {
-    writeSingle(noteIndex, 0u, BrightnessCalibration::kLegacyGreenLevel);
+    writeSingle(noteIndex, LedColor::Green, 0u,
+                BrightnessCalibration::kLegacyGreenLevel);
   } else {
     showRingOff();
   }
@@ -86,6 +87,30 @@ void MaintenanceFeedback::beginDualLoopMeasurement() {
   setStatus(true, true, true, true);
 }
 
+
+void MaintenanceFeedback::showMeasurementSelection(uint8_t channel,
+                                                   uint8_t noteIndex) {
+  setStatus(false, channel == 0u, false, channel == 1u);
+  const LedColor color = channel == 0u ? LedColor::Green : LedColor::Red;
+  writeSingle(noteIndex, color, BrightnessCalibration::kLegacyRedLevel,
+              BrightnessCalibration::kLegacyGreenLevel);
+}
+
+void MaintenanceFeedback::showRawMeasurementSelection(uint8_t channel,
+                                                      uint8_t noteIndex) {
+  setStatus(false, channel == 0u, false, channel == 1u);
+  writeSingle(noteIndex, LedColor::Amber,
+              BrightnessCalibration::kLegacyRedLevel,
+              BrightnessCalibration::kLegacyGreenLevel);
+}
+
+void MaintenanceFeedback::showMeasurementOctave(uint8_t channel,
+                                                uint8_t octave) {
+  setStatus(false, channel == 0u, false, channel == 1u);
+  writeSingle(octave, LedColor::Amber, BrightnessCalibration::kLegacyRedLevel,
+              BrightnessCalibration::kLegacyGreenLevel);
+}
+
 void MaintenanceFeedback::showPass() {
   setStatus(false, false, false, false);
   blink(0u, BrightnessCalibration::kLegacyGreenLevel,
@@ -110,6 +135,23 @@ void MaintenanceFeedback::showQualificationPass() {
 void MaintenanceFeedback::showQualificationFail() {
   setStatus(false, false, false, false);
   blink(BrightnessCalibration::kLegacyRedLevel, 0u,
+        config::kMaintenanceReportBlinkCount);
+  showIdle();
+}
+
+void MaintenanceFeedback::showErasePrompt(bool lit) {
+  setStatus(false, false, false, false);
+  if (lit) {
+    writeUniform(BrightnessCalibration::kLegacyRedLevel, 0u);
+  } else {
+    showRingOff();
+  }
+}
+
+void MaintenanceFeedback::showEraseComplete() {
+  setStatus(false, false, false, false);
+  blink(BrightnessCalibration::kLegacyRedLevel,
+        BrightnessCalibration::kLegacyGreenLevel,
         config::kMaintenanceReportBlinkCount);
   showIdle();
 }
@@ -142,11 +184,12 @@ void MaintenanceFeedback::writeUniform(uint16_t redLevel,
   ring_.writeFrame(bytes);
 }
 
-void MaintenanceFeedback::writeSingle(uint8_t noteIndex, uint16_t redLevel,
+void MaintenanceFeedback::writeSingle(uint8_t noteIndex, LedColor color,
+                                      uint16_t redLevel,
                                       uint16_t greenLevel) {
   LedFrame frame;
   for (uint8_t i = 0u; i < kNoteCount; ++i) frame[i] = LedColor::Off;
-  if (noteIndex < kNoteCount) frame[noteIndex] = LedColor::Green;
+  if (noteIndex < kNoteCount) frame[noteIndex] = color;
   uint8_t bytes[kTlc5947FrameBytes];
   encodeLedFrame(frame, redLevel, greenLevel, bytes);
   ring_.writeFrame(bytes);

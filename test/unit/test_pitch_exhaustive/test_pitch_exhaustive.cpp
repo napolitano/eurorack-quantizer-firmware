@@ -50,6 +50,19 @@ static void test_full_q8_8_pitch_range_maps_monotonically_to_dac(void) {
   TEST_ASSERT_EQUAL_UINT16(config::kDacMaximumCode, previous);
 }
 
+static void test_all_121_integer_semitones_match_the_nominal_dac_formula(void) {
+  for (int16_t semitone = 0; semitone <= kMaxSemitone; ++semitone) {
+    const SemitoneQ8_8 q =
+        static_cast<SemitoneQ8_8>(semitone * kSemitoneOneQ8_8);
+    const uint16_t expected = static_cast<uint16_t>(
+        (static_cast<uint32_t>(semitone) * config::kDacMaximumCode +
+         kMaxSemitone / 2u) /
+        kMaxSemitone);
+    TEST_ASSERT_EQUAL_UINT16(expected, semitonesToDac(q, 0));
+    TEST_ASSERT_EQUAL_UINT16(expected, semitonesToDac(q, 1));
+  }
+}
+
 static void test_both_output_channels_have_identical_factory_transfer_function(void) {
   for (int16_t semitone = 0; semitone <= kMaxSemitone; ++semitone) {
     const SemitoneQ8_8 q = static_cast<SemitoneQ8_8>(semitone * kSemitoneOneQ8_8);
@@ -73,6 +86,7 @@ int main(void) {
   RUN_TEST(test_all_1024_adc_codes_are_monotonic_and_in_range);
   RUN_TEST(test_both_input_channels_have_identical_factory_transfer_function);
   RUN_TEST(test_full_q8_8_pitch_range_maps_monotonically_to_dac);
+  RUN_TEST(test_all_121_integer_semitones_match_the_nominal_dac_formula);
   RUN_TEST(test_both_output_channels_have_identical_factory_transfer_function);
   RUN_TEST(test_adc_to_pitch_to_dac_is_monotonic_and_endpoint_exact);
   return UNITY_END();

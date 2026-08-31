@@ -72,4 +72,13 @@ bool CalibrationQualificationStore::invalidate() {
   return writer_.begin(&address, &value, 1u);
 }
 
+
+bool CalibrationQualificationStore::erase() {
+  if (writer_.busy()) return false;
+  const uint16_t addresses[2] = {kQualificationMarkerAddress,
+                                 kQualificationResidualAddress};
+  const uint8_t values[2] = {kErasedByte, kErasedByte};
+  return writer_.begin(addresses, values, 2u);
+}
+
 }  // namespace fmq

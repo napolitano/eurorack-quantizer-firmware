@@ -52,6 +52,16 @@ uint16_t calibratedAdcCode(uint16_t rawAdc, uint8_t channel = 0);
 uint16_t calibratedDacCode(int32_t rawDacCode, uint8_t channel = 0);
 
 SemitoneQ8_8 adcToSemitones(uint16_t adcValue, uint8_t channel = 0);
+
+/**
+ * Convert pitch to the ideal nominal 12-bit DAC code without DAC calibration.
+ *
+ * Maintenance RAW mode uses this path to expose the physical DAC/reference/
+ * output-amplifier transfer for hardware pre-trim.
+ */
+uint16_t semitonesToNominalDac(SemitoneQ8_8 semitones);
+
+/** Convert pitch through the active per-channel DAC calibration. */
 uint16_t semitonesToDac(SemitoneQ8_8 semitones, uint8_t channel = 0);
 
 }  // namespace fmq

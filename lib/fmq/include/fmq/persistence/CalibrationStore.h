@@ -34,6 +34,14 @@ class CalibrationStore : public CalibrationReader {
   /** Queue an atomic save of @p profile into the alternate journal record. */
   bool save(const CalibrationProfile &profile);
 
+  /**
+   * Invalidate both redundant calibration records.
+   *
+   * Only the record markers are erased; payload bytes become unreachable and
+   * are deliberately left untouched to minimize EEPROM wear.
+   */
+  bool erase();
+
   /** Observe completion of a queued save and advance the in-memory journal head. */
   void observeWriter();
 

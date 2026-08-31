@@ -148,6 +148,28 @@ static void test_journal_status_reports_both_records_and_newest_active(void) {
   TEST_ASSERT_EQUAL_INT8(1, status.activeIndex);
 }
 
+
+static void test_erase_invalidates_both_calibration_records(void) {
+  FakeEeprom eeprom;
+  EepromPartition partition(eeprom, kCalibrationRegionBase, kCalibrationRegionSize);
+  AsyncEepromWriter writer(partition);
+  CalibrationStore store(partition, writer);
+  TEST_ASSERT_TRUE(store.save(makeProfile(4)));
+  store.flush();
+  TEST_ASSERT_TRUE(store.save(makeProfile(8)));
+  store.flush();
+
+  TEST_ASSERT_TRUE(store.erase());
+  store.flush();
+
+  CalibrationProfile loaded;
+  TEST_ASSERT_FALSE(store.load(loaded));
+  const CalibrationJournalStatus status = store.inspect();
+  TEST_ASSERT_FALSE(status.records[0].valid);
+  TEST_ASSERT_FALSE(status.records[1].valid);
+  TEST_ASSERT_EQUAL_INT8(-1, status.activeIndex);
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_blank_eeprom_has_no_calibration_record);
@@ -156,5 +178,6 @@ int main(void) {
   RUN_TEST(test_corrupt_newest_record_falls_back_to_previous);
   RUN_TEST(test_interrupted_replacement_keeps_previous_record_valid);
   RUN_TEST(test_journal_status_reports_both_records_and_newest_active);
+  RUN_TEST(test_erase_invalidates_both_calibration_records);
   return UNITY_END();
 }

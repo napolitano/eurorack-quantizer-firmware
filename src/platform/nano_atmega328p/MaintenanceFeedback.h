@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+#include "fmq/domain/LedColor.h"
 #include "fmq/ports/DigitalOutput.h"
 #include "platform/nano_atmega328p/Tlc5947LedDriver.h"
 
@@ -32,7 +33,7 @@ class MaintenanceFeedback {
   void playBootIndication();
   void showIdle();
 
-  /** Show C#/A fit points or C/F verification points as pulsing green targets. */
+  /** Show one requested 0..9 V reference as its matching pulsing note LED. */
   void showVoltagePrompt(uint8_t channel, uint8_t noteIndex, bool lit);
 
   /** Blink the matching IN/OUT pair to request one loopback patch. */
@@ -50,10 +51,25 @@ class MaintenanceFeedback {
   /** Ring off during dual-channel final verification. */
   void beginDualLoopMeasurement();
 
+  /** Show the selected calibrated output note in the active channel color. */
+  void showMeasurementSelection(uint8_t channel, uint8_t noteIndex);
+
+  /** Show the selected RAW output note in amber. */
+  void showRawMeasurementSelection(uint8_t channel, uint8_t noteIndex);
+
+  /** Briefly encode octave 0..10 as C..A# in amber. */
+  void showMeasurementOctave(uint8_t channel, uint8_t octave);
+
   void showPass();
   void showFail();
   void showQualificationPass();
   void showQualificationFail();
+
+  /** Pulse the full ring red while destructive erase awaits confirmation. */
+  void showErasePrompt(bool lit);
+
+  /** Confirm a completed erase without implying a valid calibration. */
+  void showEraseComplete();
 
   /** Show two red FAIL flashes followed by @p code red note LEDs. */
   void showErrorCode(uint8_t code);
@@ -61,7 +77,8 @@ class MaintenanceFeedback {
  private:
   void setStatus(bool inputA, bool outputA, bool inputB, bool outputB);
   void writeUniform(uint16_t redLevel, uint16_t greenLevel);
-  void writeSingle(uint8_t noteIndex, uint16_t redLevel, uint16_t greenLevel);
+  void writeSingle(uint8_t noteIndex, LedColor color, uint16_t redLevel,
+                   uint16_t greenLevel);
   void writeErrorCode(uint8_t code);
   void showRingOff();
   void blink(uint16_t redLevel, uint16_t greenLevel, uint8_t count);

@@ -1,6 +1,6 @@
 /**
  * @file test_adc_calibration.cpp
- * Unit tests for 1.000 V / 9.000 V ADC two-point calibration.
+ * Unit tests for five-point ADC fit and independent interleaved verification.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -14,56 +14,113 @@ using namespace fmq;
 void setUp(void) {}
 void tearDown(void) {}
 
-static void test_reference_targets_stay_inside_adc_range(void) {
+static void fillIdealFitPoints(uint16_t points[kAdcCalibrationFitPointCount]) {
+  for (uint8_t i = 0u; i < kAdcCalibrationFitPointCount; ++i) {
+    points[i] = nominalAdcCodeForVolts(kAdcCalibrationFitVolts[i]);
+  }
+}
+
+static void test_reference_targets_cover_fit_and_verification_grids(void) {
+  const uint16_t expected[11] = {0u,   102u, 205u, 307u, 409u, 512u,
+                                 614u, 716u, 818u, 921u, 1023u};
+  for (uint8_t volts = 0u; volts <= 10u; ++volts) {
+    TEST_ASSERT_EQUAL_UINT16(expected[volts], nominalAdcCodeForVolts(volts));
+  }
   TEST_ASSERT_EQUAL_UINT16(102u, oneVoltNominalAdcCode());
   TEST_ASSERT_EQUAL_UINT16(512u, fiveVoltNominalAdcCode());
   TEST_ASSERT_EQUAL_UINT16(921u, nineVoltNominalAdcCode());
-  TEST_ASSERT_LESS_THAN_UINT16(1023u, nineVoltNominalAdcCode());
 }
 
-static void test_ideal_one_and_nine_volt_points_produce_unity_mapping(void) {
-  const AdcCalibrationResult result = solveAdcTwoPointCalibration(
-      oneVoltNominalAdcCode(), nineVoltNominalAdcCode());
+static void test_ideal_five_point_fit_produces_unity_mapping(void) {
+  uint16_t points[kAdcCalibrationFitPointCount];
+  fillIdealFitPoints(points);
+
+  const AdcCalibrationResult result = solveAdcMultiPointCalibration(points);
   TEST_ASSERT_EQUAL(AdcCalibrationStatus::Ok, result.status);
   TEST_ASSERT_EQUAL_INT32(0, result.calibration.offset);
   TEST_ASSERT_EQUAL_UINT16(1u, result.calibration.gainNumerator);
   TEST_ASSERT_EQUAL_UINT16(1u, result.calibration.gainDenominator);
-  TEST_ASSERT_EQUAL_UINT16(102u, result.correctedOneVolt);
-  TEST_ASSERT_EQUAL_UINT16(921u, result.correctedNineVolt);
+  TEST_ASSERT_EQUAL_UINT16(0u, result.maxFitResidualCodes);
 }
 
-static void test_offset_and_gain_error_are_corrected_from_linear_points(void) {
-  const AdcCalibrationResult result = solveAdcTwoPointCalibration(110u, 912u);
+static void test_constant_input_offset_is_recovered_from_all_fit_points(void) {
+  uint16_t points[kAdcCalibrationFitPointCount];
+  fillIdealFitPoints(points);
+  for (uint8_t i = 0u; i < kAdcCalibrationFitPointCount; ++i) {
+    points[i] = static_cast<uint16_t>(points[i] + 8u);
+  }
+
+  const AdcCalibrationResult result = solveAdcMultiPointCalibration(points);
   TEST_ASSERT_EQUAL(AdcCalibrationStatus::Ok, result.status);
-  TEST_ASSERT_EQUAL_INT32(-10, result.calibration.offset);
-  TEST_ASSERT_UINT16_WITHIN(2u, 102u,
-                            applyAdcCalibration(110u, result.calibration));
-  TEST_ASSERT_UINT16_WITHIN(2u, 921u,
-                            applyAdcCalibration(912u, result.calibration));
+  TEST_ASSERT_EQUAL_INT32(-8, result.calibration.offset);
+  TEST_ASSERT_EQUAL_UINT16(1u, result.calibration.gainNumerator);
+  TEST_ASSERT_EQUAL_UINT16(1u, result.calibration.gainDenominator);
+  TEST_ASSERT_EQUAL_UINT16(0u, result.maxFitResidualCodes);
 }
 
-static void test_positive_inverse_offset_keeps_saturated_zero_at_zero(void) {
-  const AdcCalibrationResult result = solveAdcTwoPointCalibration(95u, 914u);
+static void test_least_squares_fit_tolerates_one_noisy_fit_point(void) {
+  uint16_t points[kAdcCalibrationFitPointCount];
+  fillIdealFitPoints(points);
+  points[2] = static_cast<uint16_t>(points[2] + 2u);
+
+  const AdcCalibrationResult result = solveAdcMultiPointCalibration(points);
   TEST_ASSERT_EQUAL(AdcCalibrationStatus::Ok, result.status);
-  TEST_ASSERT_EQUAL_INT32(7, result.calibration.offset);
+  TEST_ASSERT_LESS_OR_EQUAL_UINT16(2u, result.maxFitResidualCodes);
+  TEST_ASSERT_UINT16_WITHIN(2u, nominalAdcCodeForVolts(2u),
+                            applyAdcCalibration(nominalAdcCodeForVolts(2u),
+                                                result.calibration));
+  TEST_ASSERT_UINT16_WITHIN(2u, nominalAdcCodeForVolts(8u),
+                            applyAdcCalibration(nominalAdcCodeForVolts(8u),
+                                                result.calibration));
+}
+
+static void test_gain_and_offset_error_are_corrected_across_full_fit_grid(void) {
+  // Synthetic raw path: approximately target / 0.98 + 6 raw codes.
+  uint16_t points[kAdcCalibrationFitPointCount];
+  for (uint8_t i = 0u; i < kAdcCalibrationFitPointCount; ++i) {
+    const uint32_t target = nominalAdcCodeForVolts(kAdcCalibrationFitVolts[i]);
+    points[i] = static_cast<uint16_t>((target * 100u + 49u) / 98u + 6u);
+  }
+
+  const AdcCalibrationResult result = solveAdcMultiPointCalibration(points);
+  TEST_ASSERT_EQUAL(AdcCalibrationStatus::Ok, result.status);
+  TEST_ASSERT_LESS_OR_EQUAL_UINT16(2u, result.maxFitResidualCodes);
+  for (uint8_t i = 0u; i < kAdcCalibrationFitPointCount; ++i) {
+    TEST_ASSERT_UINT16_WITHIN(
+        2u, nominalAdcCodeForVolts(kAdcCalibrationFitVolts[i]),
+        applyAdcCalibration(points[i], result.calibration));
+  }
+}
+
+static void test_zero_floor_remains_exact_with_positive_inverse_offset(void) {
+  const uint16_t points[kAdcCalibrationFitPointCount] = {
+      95u, 300u, 505u, 710u, 914u};
+  const AdcCalibrationResult result = solveAdcMultiPointCalibration(points);
+  TEST_ASSERT_EQUAL(AdcCalibrationStatus::Ok, result.status);
+  TEST_ASSERT_GREATER_THAN_INT32(0, result.calibration.offset);
   TEST_ASSERT_EQUAL_UINT16(0u, applyAdcCalibration(0u, result.calibration));
-  TEST_ASSERT_UINT16_WITHIN(2u, 512u,
-                            applyAdcCalibration(505u, result.calibration));
 }
 
 static void test_non_increasing_or_small_span_is_rejected(void) {
+  const uint16_t nonIncreasing[kAdcCalibrationFitPointCount] = {
+      100u, 300u, 300u, 700u, 900u};
   TEST_ASSERT_EQUAL(AdcCalibrationStatus::NonIncreasing,
-                    solveAdcTwoPointCalibration(100u, 100u).status);
+                    solveAdcMultiPointCalibration(nonIncreasing).status);
+
+  const uint16_t smallSpan[kAdcCalibrationFitPointCount] = {
+      150u, 250u, 350u, 450u, 700u};
   TEST_ASSERT_EQUAL(AdcCalibrationStatus::SpanTooSmall,
-                    solveAdcTwoPointCalibration(150u, 700u).status);
+                    solveAdcMultiPointCalibration(smallSpan).status);
 }
 
 int main(void) {
   UNITY_BEGIN();
-  RUN_TEST(test_reference_targets_stay_inside_adc_range);
-  RUN_TEST(test_ideal_one_and_nine_volt_points_produce_unity_mapping);
-  RUN_TEST(test_offset_and_gain_error_are_corrected_from_linear_points);
-  RUN_TEST(test_positive_inverse_offset_keeps_saturated_zero_at_zero);
+  RUN_TEST(test_reference_targets_cover_fit_and_verification_grids);
+  RUN_TEST(test_ideal_five_point_fit_produces_unity_mapping);
+  RUN_TEST(test_constant_input_offset_is_recovered_from_all_fit_points);
+  RUN_TEST(test_least_squares_fit_tolerates_one_noisy_fit_point);
+  RUN_TEST(test_gain_and_offset_error_are_corrected_across_full_fit_grid);
+  RUN_TEST(test_zero_floor_remains_exact_with_positive_inverse_offset);
   RUN_TEST(test_non_increasing_or_small_span_is_rejected);
   return UNITY_END();
 }

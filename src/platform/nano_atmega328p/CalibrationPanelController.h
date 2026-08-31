@@ -14,6 +14,7 @@
 #include <stdint.h>
 
 #include "fmq/application/Button.h"
+#include "fmq/application/ButtonLadder.h"
 #include "fmq/config/UiConfig.h"
 #include "fmq/domain/CalibrationProfile.h"
 #include "fmq/persistence/AsyncEepromWriter.h"
@@ -58,6 +59,7 @@ class CalibrationPanelController {
         qualificationStore_(qualificationStore), shiftButton_(shiftButton),
         saveButton_(saveButton), loadButton_(loadButton), feedback_(feedback),
         buttonsActiveLow_(buttonsActiveLow),
+        shiftDebouncer_(config::kDigitalDebounceMs),
         saveDebouncer_(config::kDigitalDebounceMs),
         loadDebouncer_(config::kDigitalDebounceMs) {}
 
@@ -79,6 +81,7 @@ class CalibrationPanelController {
   bool waitForSaveOrCancel(PromptKind kind, uint8_t channel = 0u,
                            uint8_t noteIndex = 0u);
   void waitForErrorAcknowledge();
+  bool waitForEraseConfirmation();
 
   bool captureAdcStats(uint8_t channel, uint16_t count, bool calibrated,
                        AdcStats &stats);
@@ -101,6 +104,13 @@ class CalibrationPanelController {
   void runAdcOnlyCalibration();
   void runDacOnlyCalibration();
   void runVerification();
+  void runOutputMeasurement();
+  void runEraseCalibration();
+  void applyMeasurementOutput(uint8_t channel, uint8_t octave,
+                              uint8_t pitchClass, bool rawMode);
+  void showMeasurementState(uint8_t channel, uint8_t octave,
+                            uint8_t pitchClass, bool showOctave,
+                            bool rawMode);
   void failAndRestore(CalibrationPanelError error,
                       const CalibrationProfile &previous);
   void zeroOutputs();
@@ -115,8 +125,10 @@ class CalibrationPanelController {
   IDigitalInput &loadButton_;
   MaintenanceFeedback &feedback_;
   bool buttonsActiveLow_;
+  ButtonDebouncer shiftDebouncer_;
   ButtonDebouncer saveDebouncer_;
   ButtonDebouncer loadDebouncer_;
+  ButtonLadder ladder_;
 };
 
 }  // namespace fmq::platform::nano

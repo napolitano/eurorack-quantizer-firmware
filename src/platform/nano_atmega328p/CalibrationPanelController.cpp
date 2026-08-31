@@ -15,6 +15,7 @@
 #include "fmq/config/AnalogConfig.h"
 #include "fmq/config/MaintenanceConfig.h"
 #include "fmq/domain/AdcCalibration.h"
+#include "fmq/domain/CalibrationMeasurement.h"
 #include "fmq/domain/PitchConversion.h"
 #include "fmq/domain/SelfCalibration.h"
 
@@ -23,10 +24,11 @@ namespace {
 
 constexpr uint8_t kChannelA = 0u;
 constexpr uint8_t kChannelB = 1u;
-constexpr uint8_t kZeroVoltNoteIndex = 0u;  // C, verification only
-constexpr uint8_t kOneVoltNoteIndex = 1u;   // C#, fit point
-constexpr uint8_t kFiveVoltNoteIndex = 5u;  // F, verification only
-constexpr uint8_t kNineVoltNoteIndex = 9u;  // A, fit point
+constexpr uint8_t kAdcFitNoteIndices[kAdcCalibrationFitPointCount] = {
+    1u, 3u, 5u, 7u, 9u};      // C#, D#, F, G, A -> 1/3/5/7/9 V
+constexpr uint8_t
+    kAdcVerifyNoteIndices[kAdcCalibrationVerificationPointCount] = {
+        0u, 2u, 4u, 6u, 8u};  // C, D, E, F#, G# -> 0/2/4/6/8 V
 constexpr uint8_t kSelfFitPointCount = 5u;
 constexpr uint8_t kSelfVerifyPointCount = 4u;
 constexpr uint16_t kSelfFitDacCodes[kSelfFitPointCount] = {
@@ -137,6 +139,31 @@ void CalibrationPanelController::waitForErrorAcknowledge() {
   }
 }
 
+bool CalibrationPanelController::waitForEraseConfirmation() {
+  waitForButtonsReleased();
+  const uint32_t period = static_cast<uint32_t>(config::kMaintenancePromptPulseMs) +
+                          config::kMaintenancePromptGapMs;
+  for (;;) {
+    service();
+    const uint32_t now = static_cast<uint32_t>(millis());
+    feedback_.showErasePrompt((now % period) < config::kMaintenancePromptPulseMs);
+    const ButtonState saveState =
+        saveDebouncer_.sample(pressed(saveButton_), now);
+    const ButtonState loadState =
+        loadDebouncer_.sample(pressed(loadButton_), now);
+    if (loadState == ButtonState::JustPressed) {
+      waitForButtonsReleased();
+      feedback_.showIdle();
+      return false;
+    }
+    if (saveState == ButtonState::JustPressed) {
+      waitForButtonsReleased();
+      return true;
+    }
+    delay(config::kMaintenanceUiPollMs);
+  }
+}
+
 bool CalibrationPanelController::captureAdcStats(uint8_t channel,
                                                  uint16_t count,
                                                  bool calibrated,
@@ -172,77 +199,67 @@ bool CalibrationPanelController::captureAdcStats(uint8_t channel,
 
 CalibrationPanelError CalibrationPanelController::calibrateAdcChannel(
     uint8_t channel, CalibrationProfile &working) {
-  // Fit only inside the linear ADC range. The 0 V rail is intentionally not a
-  // fit point because a small negative analog offset is indistinguishable
-  // from zero after ADC clipping.
-  if (!waitForSaveOrCancel(PromptKind::Voltage, channel, kOneVoltNoteIndex)) {
-    return CalibrationPanelError::None;
-  }
-  feedback_.beginAdcMeasurement(channel);
-  AdcStats one;
-  if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
-                       one) ||
-      one.maximum - one.minimum >
-          config::kMaintenanceAdcMaximumCaptureSpan) {
-    return CalibrationPanelError::InputUnstable;
-  }
-
-  if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
-                           kNineVoltNoteIndex)) {
-    return CalibrationPanelError::None;
-  }
-  feedback_.beginAdcMeasurement(channel);
-  AdcStats nine;
-  if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
-                       nine) ||
-      nine.maximum - nine.minimum >
-          config::kMaintenanceAdcMaximumCaptureSpan) {
-    return CalibrationPanelError::InputUnstable;
+  // Fit one affine line from five points safely inside the ADC range. The
+  // independent 0/2/4/6/8 V sequence then verifies the fitted line without
+  // contributing any data to it. In particular, 0 V remains verification-only
+  // because a negative input-path offset can disappear below ADC code zero.
+  uint16_t rawFitPoints[kAdcCalibrationFitPointCount] = {};
+  for (uint8_t i = 0u; i < kAdcCalibrationFitPointCount; ++i) {
+    if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
+                             kAdcFitNoteIndices[i])) {
+      return CalibrationPanelError::None;
+    }
+    feedback_.beginAdcMeasurement(channel);
+    AdcStats stats;
+    if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
+                         stats) ||
+        stats.maximum - stats.minimum >
+            config::kMaintenanceAdcMaximumCaptureSpan) {
+      return CalibrationPanelError::InputUnstable;
+    }
+    rawFitPoints[i] = stats.mean;
   }
 
   const AdcCalibrationResult fit =
-      solveAdcTwoPointCalibration(one.mean, nine.mean);
-  if (fit.status != AdcCalibrationStatus::Ok) {
+      solveAdcMultiPointCalibration(rawFitPoints);
+  if (fit.status != AdcCalibrationStatus::Ok ||
+      fit.maxFitResidualCodes > config::kMaintenanceAdcFitToleranceCodes) {
     return CalibrationPanelError::AdcSpanInvalid;
   }
 
-  // Independent 0 V sanity check. Evaluate the raw code itself because the
-  // physical ADC floor can clip a negative analog offset to code zero.
-  if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
-                           kZeroVoltNoteIndex)) {
-    return CalibrationPanelError::None;
-  }
-  feedback_.beginAdcMeasurement(channel);
-  AdcStats zero;
-  if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
-                       zero) ||
-      zero.maximum - zero.minimum >
-          config::kMaintenanceAdcMaximumCaptureSpan) {
-    return CalibrationPanelError::InputUnstable;
-  }
-  if (zero.mean > config::kMaintenanceAdcZeroRawMaximumCode) {
-    return CalibrationPanelError::AdcSpanInvalid;
-  }
+  // Verify five interleaved points that were not used by the fit. Code zero is
+  // checked in the raw domain so a clipped negative analog offset cannot be
+  // mistaken for a valid fitted endpoint. All remaining points are evaluated
+  // through the newly fitted calibration.
+  for (uint8_t i = 0u; i < kAdcCalibrationVerificationPointCount; ++i) {
+    if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
+                             kAdcVerifyNoteIndices[i])) {
+      return CalibrationPanelError::None;
+    }
+    feedback_.beginAdcMeasurement(channel);
+    AdcStats stats;
+    if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
+                         stats) ||
+        stats.maximum - stats.minimum >
+            config::kMaintenanceAdcMaximumCaptureSpan) {
+      return CalibrationPanelError::InputUnstable;
+    }
 
-  // Independent mid-scale verification catches non-linearity that a two-point
-  // fit cannot reveal by checking its own endpoints.
-  if (!waitForSaveOrCancel(PromptKind::Voltage, channel,
-                           kFiveVoltNoteIndex)) {
-    return CalibrationPanelError::None;
-  }
-  feedback_.beginAdcMeasurement(channel);
-  AdcStats five;
-  if (!captureAdcStats(channel, config::kMaintenanceAdcCaptureSamples, false,
-                       five) ||
-      five.maximum - five.minimum >
-          config::kMaintenanceAdcMaximumCaptureSpan) {
-    return CalibrationPanelError::InputUnstable;
-  }
-  const uint16_t correctedFive =
-      applyAdcCalibration(five.mean, fit.calibration);
-  if (absoluteDifference(correctedFive, fiveVoltNominalAdcCode()) >
-      config::kMaintenanceAdcVerificationToleranceCodes) {
-    return CalibrationPanelError::AdcSpanInvalid;
+    const uint8_t volts = kAdcCalibrationVerificationVolts[i];
+    if (volts == 0u) {
+      if (stats.mean > config::kMaintenanceAdcZeroRawMaximumCode) {
+        return CalibrationPanelError::AdcSpanInvalid;
+      }
+      continue;
+    }
+
+    const uint16_t corrected =
+        applyAdcCalibration(stats.mean, fit.calibration);
+    const uint16_t target = nominalAdcCodeForVolts(volts);
+    if (absoluteDifference(corrected, target) >
+        config::kMaintenanceAdcVerificationToleranceCodes) {
+      return CalibrationPanelError::AdcSpanInvalid;
+    }
   }
 
   working.adc[channel] = fit.calibration;
@@ -515,6 +532,148 @@ void CalibrationPanelController::runVerification() {
   feedback_.showQualificationPass();
 }
 
+void CalibrationPanelController::applyMeasurementOutput(
+    uint8_t channel, uint8_t octave, uint8_t pitchClass, bool rawMode) {
+  const uint16_t zeroA = rawMode ? 0u : calibratedDacCode(0, kChannelA);
+  const uint16_t zeroB = rawMode ? 0u : calibratedDacCode(0, kChannelB);
+  dac_.write(Mcp4922Dac::Channel::A, zeroA);
+  dac_.write(Mcp4922Dac::Channel::B, zeroB);
+  if (!measurementSelectionValid(octave, pitchClass)) return;
+
+  const SemitoneQ8_8 pitch = measurementPitchQ8_8(octave, pitchClass);
+  const uint16_t code = rawMode ? semitonesToNominalDac(pitch)
+                                : semitonesToDac(pitch, channel);
+  dac_.write(dacChannel(channel), code);
+}
+
+void CalibrationPanelController::showMeasurementState(
+    uint8_t channel, uint8_t octave, uint8_t pitchClass, bool showOctave,
+    bool rawMode) {
+  if (showOctave) {
+    feedback_.showMeasurementOctave(channel, octave);
+    delay(config::kMaintenanceMeasurementOctaveDisplayMs);
+  }
+  if (rawMode) {
+    feedback_.showRawMeasurementSelection(channel, pitchClass);
+  } else {
+    feedback_.showMeasurementSelection(channel, pitchClass);
+  }
+}
+
+void CalibrationPanelController::runOutputMeasurement() {
+  CalibrationProfile stored;
+  const CalibrationProfile previous = activeCalibrationProfile();
+  const bool hasStoredProfile =
+      waitForPersistence() && calibrationStore_.load(stored);
+  if (hasStoredProfile) {
+    (void)setActiveCalibrationProfile(stored);
+  }
+
+  waitForButtonsReleased();
+  uint8_t channel = kChannelA;
+  uint8_t octave = 0u;
+  uint8_t pitchClass = 0u;
+  bool rawMode = !hasStoredProfile;
+  bool dualButtonLatched = false;
+  ButtonWithLongPress measurementShift(config::kDigitalDebounceMs,
+                                      config::kMaintenanceMeasurementModeHoldMs);
+
+  applyMeasurementOutput(channel, octave, pitchClass, rawMode);
+  showMeasurementState(channel, octave, pitchClass, true, rawMode);
+
+  for (;;) {
+    service();
+    const uint32_t now = static_cast<uint32_t>(millis());
+    const LongPressButtonState shiftState =
+        measurementShift.sample(pressed(shiftButton_), now);
+    const bool savePressed = pressed(saveButton_);
+    const bool loadPressed = pressed(loadButton_);
+    const ButtonState saveState =
+        saveDebouncer_.sample(savePressed, now);
+    const ButtonState loadState =
+        loadDebouncer_.sample(loadPressed, now);
+    const ButtonEvent noteEvent = ladder_.sample(now, adc_.read(0u));
+
+    if (shiftState == LongPressButtonState::ButtonJustClickedLong) {
+      zeroOutputs();
+      (void)setActiveCalibrationProfile(previous);
+      waitForButtonsReleased();
+      feedback_.showIdle();
+      return;
+    }
+    if (shiftState == LongPressButtonState::ButtonJustClickedShort) {
+      channel = channel == kChannelA ? kChannelB : kChannelA;
+      applyMeasurementOutput(channel, octave, pitchClass, rawMode);
+      showMeasurementState(channel, octave, pitchClass, false, rawMode);
+    }
+
+    const bool saveDebouncedDown =
+        saveState == ButtonState::JustPressed || saveState == ButtonState::HeldDown;
+    const bool loadDebouncedDown =
+        loadState == ButtonState::JustPressed || loadState == ButtonState::HeldDown;
+    if (savePressed && loadPressed) {
+      if (saveDebouncedDown && loadDebouncedDown && !dualButtonLatched) {
+        dualButtonLatched = true;
+        if (hasStoredProfile) rawMode = !rawMode;
+        applyMeasurementOutput(channel, octave, pitchClass, rawMode);
+        showMeasurementState(channel, octave, pitchClass, false, rawMode);
+      }
+    } else {
+      dualButtonLatched = false;
+      if (saveState == ButtonState::JustPressed) {
+        if (octave < 9u) {
+          ++octave;
+        } else if (octave == 9u) {
+          octave = kMeasurementMaximumOctave;
+          pitchClass = 0u;
+        }
+        applyMeasurementOutput(channel, octave, pitchClass, rawMode);
+        showMeasurementState(channel, octave, pitchClass, true, rawMode);
+      } else if (loadState == ButtonState::JustPressed) {
+        if (octave > 0u) --octave;
+        applyMeasurementOutput(channel, octave, pitchClass, rawMode);
+        showMeasurementState(channel, octave, pitchClass, true, rawMode);
+      }
+    }
+
+    if (noteEvent.type == ButtonEventType::JustPressed) {
+      const uint8_t requested = noteEvent.index;
+      if (measurementSelectionValid(octave, requested)) {
+        pitchClass = requested;
+      } else {
+        // Octave 10 contains only the top C (120 semitones / 10.000 V).
+        pitchClass = 0u;
+      }
+      applyMeasurementOutput(channel, octave, pitchClass, rawMode);
+      showMeasurementState(channel, octave, pitchClass, false, rawMode);
+    }
+
+    delay(config::kMaintenanceUiPollMs);
+  }
+}
+
+void CalibrationPanelController::runEraseCalibration() {
+  const CalibrationProfile previous = activeCalibrationProfile();
+  zeroOutputs();
+  if (!waitForEraseConfirmation()) return;
+
+  // Invalidate qualification first. If power fails before the journal erase,
+  // an old calibration may survive but it can no longer be certified as PASS.
+  if (!qualificationStore_.erase() || !waitForPersistence() ||
+      !calibrationStore_.erase() || !waitForPersistence()) {
+    failAndRestore(CalibrationPanelError::PersistenceOrProfileUnavailable,
+                   previous);
+    return;
+  }
+
+  CalibrationProfile ignored;
+  (void)calibrationStore_.load(ignored);  // resets journal head to empty state
+  resetActiveCalibrationProfile();
+  dac_.write(Mcp4922Dac::Channel::A, 0u);
+  dac_.write(Mcp4922Dac::Channel::B, 0u);
+  feedback_.showEraseComplete();
+}
+
 void CalibrationPanelController::zeroOutputs() {
   dac_.write(Mcp4922Dac::Channel::A, calibratedDacCode(0, kChannelA));
   dac_.write(Mcp4922Dac::Channel::B, calibratedDacCode(0, kChannelB));
@@ -522,24 +681,66 @@ void CalibrationPanelController::zeroOutputs() {
 
 [[noreturn]] void CalibrationPanelController::run() {
   feedback_.showIdle();
+  uint32_t shiftPressedAt = 0u;
+  uint32_t erasePressedAt = 0u;
+  bool measurementModeEntered = false;
+  bool eraseTriggered = false;
+
   for (;;) {
     service();
     const uint32_t now = static_cast<uint32_t>(millis());
-    const ButtonState saveState =
-        saveDebouncer_.sample(pressed(saveButton_), now);
-    const ButtonState loadState =
-        loadDebouncer_.sample(pressed(loadButton_), now);
+    const bool shiftPressed = pressed(shiftButton_);
+    const bool savePressed = pressed(saveButton_);
+    const bool loadPressed = pressed(loadButton_);
+    const ButtonState shiftState =
+        shiftDebouncer_.sample(shiftPressed, now);
+    const ButtonState saveState = saveDebouncer_.sample(savePressed, now);
+    const ButtonState loadState = loadDebouncer_.sample(loadPressed, now);
 
-    if (saveState == ButtonState::JustPressed &&
-        loadState != ButtonState::JustPressed) {
-      if (pressed(shiftButton_)) {
+    const bool eraseChord = shiftPressed && savePressed && loadPressed;
+    if (eraseChord) {
+      if (erasePressedAt == 0u) {
+        erasePressedAt = now;
+        eraseTriggered = false;
+      } else if (!eraseTriggered &&
+                 now - erasePressedAt >= config::kMaintenanceEraseHoldMs) {
+        eraseTriggered = true;
+        runEraseCalibration();
+        erasePressedAt = 0u;
+        shiftPressedAt = 0u;
+        feedback_.showIdle();
+        continue;
+      }
+    } else {
+      erasePressedAt = 0u;
+      eraseTriggered = false;
+    }
+
+    if (shiftState == ButtonState::JustPressed) {
+      shiftPressedAt = now;
+      measurementModeEntered = false;
+    }
+    if (!shiftPressed || savePressed || loadPressed) {
+      shiftPressedAt = 0u;
+    } else if (!measurementModeEntered && shiftPressedAt != 0u &&
+               now - shiftPressedAt >=
+                   config::kMaintenanceMeasurementModeHoldMs) {
+      measurementModeEntered = true;
+      runOutputMeasurement();
+      shiftPressedAt = 0u;
+      feedback_.showIdle();
+      continue;
+    }
+
+    if (!eraseChord && saveState == ButtonState::JustPressed && !loadPressed) {
+      if (shiftPressed) {
         runAdcOnlyCalibration();
       } else {
         runFullCalibration();
       }
-    } else if (loadState == ButtonState::JustPressed &&
-               saveState != ButtonState::JustPressed) {
-      if (pressed(shiftButton_)) {
+    } else if (!eraseChord && loadState == ButtonState::JustPressed &&
+               !savePressed) {
+      if (shiftPressed) {
         runDacOnlyCalibration();
       } else {
         runVerification();

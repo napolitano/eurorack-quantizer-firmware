@@ -35,6 +35,8 @@ jobs:
         run: |
           VERSION="$(python -c 'import json; print(json.load(open("lib/fmq/library.json", encoding="utf-8"))["version"])')"
           python scripts/test_select_release_manual.py
+          python scripts/test_interactive_calibration_guide.py
+          node scripts/test_interactive_calibration_guide.js
           python scripts/test_check_native_coverage.py
           python scripts/check_requirement_traceability.py
           python scripts/check_persistence_fixtures.py

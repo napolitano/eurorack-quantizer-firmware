@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>FM Quantizer Interactive Calibration Guide</title>
+  <link rel="stylesheet" href="calibration.css">
+</head>
+<body>
+  <main class="app-shell" id="calibration-app">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">FM QUANTIZER · SERVICE TOOL</p>
+        <h1>Interactive Calibration Guide</h1>
+        <p class="version" id="guide-version">Firmware 0.2.2 · Unreleased</p>
+      </div>
+      <button class="secondary-button" id="restart-button" type="button">Restart</button>
+    </header>
+
+    <noscript>
+      <div class="alert danger"><strong>JavaScript is required.</strong> Use the normative README_CALIBRATION.md when scripting is disabled.</div>
+    </noscript>
+
+    <section class="progress-region" aria-label="Calibration progress">
+      <div class="progress-meta">
+        <span id="flow-label">Complete calibration</span>
+        <span id="step-counter">Step 1</span>
+      </div>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
+    </section>
+
+    <section class="step-card" id="step-card" aria-live="polite">
+      <div class="step-heading">
+        <p class="step-kicker" id="step-kicker"></p>
+        <h2 id="step-title"></h2>
+        <p class="step-summary" id="step-summary"></p>
+      </div>
+
+      <div id="alerts"></div>
+      <div class="visual-stage" id="visual-stage" hidden>
+        <img id="step-illustration" alt="">
+      </div>
+      <div id="step-body"></div>
+      <div class="validation-message" id="validation-message" role="status"></div>
+    </section>
+
+    <nav class="wizard-nav" aria-label="Guide navigation">
+      <button class="secondary-button" id="back-button" type="button">Back</button>
+      <div class="nav-spacer"></div>
+      <button class="secondary-button" id="skip-button" type="button" hidden>Skip optional step</button>
+      <button class="primary-button" id="next-button" type="button">Continue</button>
+    </nav>
+
+    <footer class="app-footer">
+      <p><strong>Normative procedure:</strong> <code>README_CALIBRATION.md</code>. This guide does not control hardware, execute PlatformIO, or detect power connections.</p>
+    </footer>
+  </main>
+
+  <script src="calculations.js"></script>
+  <script src="steps.js"></script>
+  <script src="flows.js"></script>
+  <script src="calibration.js"></script>
+</body>
+</html>

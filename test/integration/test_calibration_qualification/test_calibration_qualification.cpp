@@ -71,6 +71,25 @@ static void test_residuals_above_four_bit_range_are_rejected(void) {
   TEST_ASSERT_FALSE(store.save(1u, 0u, 16u));
 }
 
+
+static void test_erase_clears_marker_and_residual_byte(void) {
+  FakeEeprom eeprom;
+  AsyncEepromWriter writer(eeprom);
+  CalibrationQualificationStore store(eeprom, writer);
+  TEST_ASSERT_TRUE(store.save(2u, 3u, 4u));
+  store.flush();
+  TEST_ASSERT_TRUE(store.load(2u).valid);
+
+  TEST_ASSERT_TRUE(store.erase());
+  store.flush();
+
+  TEST_ASSERT_FALSE(store.load(2u).valid);
+  TEST_ASSERT_EQUAL_UINT8(kErasedByte,
+                          eeprom.readByte(kQualificationMarkerAddress));
+  TEST_ASSERT_EQUAL_UINT8(kErasedByte,
+                          eeprom.readByte(kQualificationResidualAddress));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_blank_eeprom_has_no_qualification);
@@ -78,5 +97,6 @@ int main(void) {
   RUN_TEST(test_commit_marker_is_written_last);
   RUN_TEST(test_marker_cannot_be_misread_as_legacy_live_state);
   RUN_TEST(test_residuals_above_four_bit_range_are_rejected);
+  RUN_TEST(test_erase_clears_marker_and_residual_byte);
   return UNITY_END();
 }

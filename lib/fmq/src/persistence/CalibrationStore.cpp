@@ -100,6 +100,19 @@ bool CalibrationStore::save(const CalibrationProfile &profile) {
   return true;
 }
 
+
+bool CalibrationStore::erase() {
+  if (writer_.busy() || pendingCommit_) return false;
+
+  uint16_t addresses[kCalibrationRecordCount];
+  uint8_t values[kCalibrationRecordCount];
+  for (uint8_t index = 0u; index < kCalibrationRecordCount; ++index) {
+    addresses[index] = recordAddress(index);
+    values[index] = kErasedByte;
+  }
+  return writer_.begin(addresses, values, kCalibrationRecordCount);
+}
+
 void CalibrationStore::observeWriter() {
   if (pendingCommit_ && !writer_.busy()) {
     activeIndex_ = pendingIndex_;

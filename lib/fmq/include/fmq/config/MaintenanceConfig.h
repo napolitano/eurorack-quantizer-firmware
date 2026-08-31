@@ -21,8 +21,12 @@ constexpr uint16_t kMaintenancePersistenceTimeoutMs = 1500u;
 constexpr uint16_t kMaintenanceUiPollMs = 2u;
 constexpr uint16_t kMaintenancePromptPulseMs = 350u;
 constexpr uint16_t kMaintenancePromptGapMs = 250u;
+constexpr uint16_t kMaintenanceMeasurementModeHoldMs = 1000u;
+constexpr uint16_t kMaintenanceEraseHoldMs = 5000u;
+constexpr uint16_t kMaintenanceMeasurementOctaveDisplayMs = 300u;
 constexpr uint16_t kMaintenanceAdcCaptureSamples = 128u;
 constexpr uint16_t kMaintenanceAdcMaximumCaptureSpan = 8u;
+constexpr uint16_t kMaintenanceAdcFitToleranceCodes = 3u;
 constexpr uint16_t kMaintenanceAdcVerificationToleranceCodes = 3u;
 constexpr uint16_t kMaintenanceAdcZeroRawMaximumCode = 8u;
 

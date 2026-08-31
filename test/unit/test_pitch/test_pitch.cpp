@@ -129,6 +129,22 @@ static void test_runtime_calibration_wrappers_use_configured_values(void) {
                            calibratedDacCode(2048, 1));
 }
 
+
+// RAW maintenance mode must expose the ideal nominal DAC mapping even when
+// the active runtime profile contains a non-identity DAC correction.
+static void test_nominal_dac_conversion_bypasses_active_calibration(void) {
+  const CalibrationProfile previous = activeCalibrationProfile();
+  CalibrationProfile modified = previous;
+  modified.dac[0] = {37, 2u, 1u};
+  TEST_ASSERT_TRUE(setActiveCalibrationProfile(modified));
+
+  const SemitoneQ8_8 pitch = 60 * kSemitoneOneQ8_8;
+  TEST_ASSERT_EQUAL_UINT16(2048u, semitonesToNominalDac(pitch));
+  TEST_ASSERT_NOT_EQUAL(semitonesToNominalDac(pitch), semitonesToDac(pitch, 0u));
+
+  TEST_ASSERT_TRUE(setActiveCalibrationProfile(previous));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_adc_zero_is_zero);
@@ -144,5 +160,6 @@ int main(void) {
   RUN_TEST(test_dac_calibration_gain_then_offset);
   RUN_TEST(test_dac_calibration_clamps);
   RUN_TEST(test_runtime_calibration_wrappers_use_configured_values);
+  RUN_TEST(test_nominal_dac_conversion_bypasses_active_calibration);
   return UNITY_END();
 }

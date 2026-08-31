@@ -19,7 +19,7 @@ namespace fmq {
 uint16_t applyAdcCalibration(uint16_t rawAdc,
                              const LinearCalibration &calibration) {
   // A negative analog input offset can clip the physical ADC at code zero.
-  // Preserve an exact 0 V floor even when the 1 V / 9 V fit therefore needs
+  // Preserve an exact 0 V floor even when the interior-point fit therefore needs
   // a positive inverse offset. The lost sub-code information below zero cannot
   // be reconstructed by any affine calibration.
   if (rawAdc == 0u) return 0u;
@@ -69,16 +69,19 @@ SemitoneQ8_8 adcToSemitones(uint16_t adcValue, uint8_t channel) {
   return static_cast<SemitoneQ8_8>(pitchQ8_8);
 }
 
-uint16_t semitonesToDac(SemitoneQ8_8 semitones, uint8_t channel) {
+uint16_t semitonesToNominalDac(SemitoneQ8_8 semitones) {
   const int32_t maximumPitchQ8_8 =
       static_cast<int32_t>(config::kPitchRangeSemitones) * kSemitoneOneQ8_8;
   const int32_t clampedPitch =
       clampInt<int32_t>(semitones, 0, maximumPitchQ8_8);
 
-  const int32_t rawDacCode =
+  return static_cast<uint16_t>(
       (clampedPitch * config::kDacMaximumCode + maximumPitchQ8_8 / 2) /
-      maximumPitchQ8_8;
-  return calibratedDacCode(rawDacCode, channel);
+      maximumPitchQ8_8);
+}
+
+uint16_t semitonesToDac(SemitoneQ8_8 semitones, uint8_t channel) {
+  return calibratedDacCode(semitonesToNominalDac(semitones), channel);
 }
 
 }  // namespace fmq

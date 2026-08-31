@@ -19,6 +19,9 @@ jobs:
   build-release:
     name: Build release firmware
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.release_version.outputs.version }}
+      social_text: ${{ steps.social_post.outputs.text }}
 
     steps:
       - name: Check out repository
@@ -73,6 +76,8 @@ jobs:
       - name: Validate requirement traceability
         run: |
           python scripts/test_check_native_coverage.py
+          python scripts/test_interactive_calibration_guide.py
+          node scripts/test_interactive_calibration_guide.js
           python scripts/check_requirement_traceability.py
           python scripts/check_persistence_fixtures.py
 
@@ -149,6 +154,16 @@ jobs:
             echo "::warning title=User manual PDF::LibreOffice could not export the selected manual to PDF. The ODT manual will still be released."
           fi
 
+      - name: Package interactive calibration guide
+        run: |
+          rm -rf /tmp/fmq-calibration-guide
+          mkdir -p /tmp/fmq-calibration-guide/docs/calibration /tmp/fmq-calibration-guide/docs/manual/assets
+          cp -R docs/calibration/interactive /tmp/fmq-calibration-guide/docs/calibration/
+          cp -R docs/manual/assets/calibration /tmp/fmq-calibration-guide/docs/manual/assets/
+          cp README_CALIBRATION.md /tmp/fmq-calibration-guide/
+          (cd /tmp/fmq-calibration-guide && zip -qr "${GITHUB_WORKSPACE}/dist/fm-quantizer-interactive-calibration-guide.zip" README_CALIBRATION.md docs)
+          unzip -t dist/fm-quantizer-interactive-calibration-guide.zip
+
       - name: Generate release checksums
         working-directory: dist
         run: |
@@ -177,6 +192,22 @@ jobs:
             > release-notes.md
           cat release-notes.md
 
+      - name: Generate release social announcement
+        id: social_post
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          SOCIAL_TEXT="$(python scripts/generate_release_social.py \
+            --version "${RELEASE_VERSION}" \
+            --repository "${REPOSITORY}" \
+            --server-url "${SERVER_URL}" \
+            --max-length 280)"
+          echo "text=${SOCIAL_TEXT}" >> "${GITHUB_OUTPUT}"
+          echo "Release social announcement (${#SOCIAL_TEXT} chars): ${SOCIAL_TEXT}"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -193,3 +224,49 @@ jobs:
             --fail-on-no-commits \
             --notes-file release-notes.md \
             --title "${GITHUB_REF_NAME}"
+
+  notify-ifttt:
+    name: Notify IFTTT after successful release
+    needs: build-release
+    if: >-
+      ${{ github.event_name == 'push' &&
+          startsWith(github.ref, 'refs/tags/') &&
+          needs.build-release.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions: {}
+
+    steps:
+      - name: Send release notification webhook
+        env:
+          IFTTT_EVENT: fm_quantizer_release
+          IFTTT_KEY: ${{ secrets.IFTTT_RELEASE_NOTIFICATION_HOOK_KEY }}
+          RELEASE_VERSION: ${{ needs.build-release.outputs.version }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+          SOCIAL_TEXT: ${{ needs.build-release.outputs.social_text }}
+        run: |
+          if [[ -z "${IFTTT_KEY}" ]]; then
+            echo "::warning title=IFTTT release notification::Secret IFTTT_RELEASE_NOTIFICATION_HOOK_KEY is not configured; skipping notification."
+            exit 0
+          fi
+
+          PAYLOAD="$(python - <<'PYJSON'
+          import json
+          import os
+
+          print(json.dumps({
+              "value1": os.environ["SOCIAL_TEXT"],
+              "value2": os.environ["RELEASE_VERSION"],
+              "value3": os.environ["REPOSITORY_URL"],
+          }))
+          PYJSON
+          )"
+
+          if ! curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 \
+            -H 'Content-Type: application/json' \
+            -X POST \
+            --data "${PAYLOAD}" \
+            "https://maker.ifttt.com/trigger/${IFTTT_EVENT}/with/key/${IFTTT_KEY}"; then
+            echo "::warning title=IFTTT release notification::The GitHub Release succeeded, but the IFTTT webhook could not be delivered."
+          fi
+

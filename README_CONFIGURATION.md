@@ -8,7 +8,7 @@ Configuration is split by responsibility under `lib/fmq/include/fmq/config/`:
 - `LedConfig.h` — normal LED brightness and fixed startup-fade timing.
 - `PersistenceConfig.h` — EEPROM/autosave timing.
 - `RuntimeConfig.h` — production scheduler, diagnostics and startup-input timing.
-- `MaintenanceConfig.h` — serial, persistence, self-calibration timing, and maintenance-only visual feedback timing/brightness used only by the dedicated maintenance image.
+- `MaintenanceConfig.h` — read-only report baud rate, persistence/self-calibration limits, panel measurement-mode timing, and maintenance-only visual feedback used only by the dedicated maintenance image.
 - `FirmwareConfig.h` — convenience umbrella include for the configuration above.
 - `src/platform/nano_atmega328p/BoardConfig.h` — selected board profile, pin map, ADC-reference choice and electrical polarities.
 
@@ -95,10 +95,12 @@ Per-channel analog calibration uses integer affine corrections:
 - ADC: offset, then gain numerator/denominator.
 - DAC: gain numerator/denominator, then offset.
 
-`AnalogConfig.h` defines the **factory/fallback** profile only. On boot, a valid persistent `CalibrationProfile` from the redundant EEPROM calibration journal takes precedence. The production firmware loads this profile through a read-only `CalibrationReader`. Editing, diagnostics, persistence and loopback self-calibration live only in the separate calibration/maintenance image, which uses a partition-limited `CalibrationStore`.
+`AnalogConfig.h` defines the **factory/fallback** profile only. On boot, a valid persistent `CalibrationProfile` from the redundant EEPROM calibration journal takes precedence. The production firmware loads this profile through a read-only `CalibrationReader`. Editing, persistence, loopback self-calibration and direct calibrated CV output measurement live only in the separate calibration/maintenance image, which uses a partition-limited `CalibrationStore`.
 
 > [!NOTE]
 > The maintenance image is not part of routine updating. A valid, verified analog calibration remains in EEPROM across normal flash-only firmware updates. Recalibrate only for an uncalibrated module, lost/erased calibration data, relevant analog-path hardware changes, or a measured pitch / 1 V/oct problem. The maintenance workflow deliberately separates flashing/reporting from analog calibration: flash the maintenance image with USB only and the Eurorack ribbon disconnected; then disconnect USB completely and perform the actual panel-guided calibration under normal Eurorack `+12 V / -12 V / +5 V` power. Power the case off and disconnect the ribbon again before reconnecting USB for stored-report readback or the production-image flash.
+
+The maintenance Output Test has two views. **CAL** uses the newest stored DAC correction; **RAW** bypasses both stored and factory DAC correction and writes the nominal 12-bit code directly, allowing the physical output-stage trim potentiometers to be characterized or pre-adjusted before software calibration. A five-second `SHIFT + SAVE + LOAD` hold arms explicit calibration-data erase; confirmation invalidates only the redundant ADC/DAC journal and its qualification metadata, not user presets or live state.
 
 > [!NOTE]
 > These software gain/offset corrections are an extension of this firmware. Quinn Freedman's original Rust Quantizer maps the ADC value directly into the semitone domain and the resulting pitch directly into a DAC code; the shared upstream MCP4922 driver writes that code without a per-channel calibration transform. The detailed measurement, persistence and loopback workflow is documented in [README_CALIBRATION.md](README_CALIBRATION.md).
@@ -148,7 +150,7 @@ EEPROM byte 1023, formerly used by development builds for rotating startup metad
 
 ## Runtime and diagnostics
 
-`RuntimeConfig.h` centralizes production UI/LED task dividers, diagnostics period, startup input settle time and ladder-calibration timeout. `MaintenanceConfig.h` separately contains the panel-wizard polling/debounce timing, 1 V/9 V ADC fit capture limits, 0 V sanity limits and 5 V verification tolerance, self-calibration thresholds, read-only report baud rate, and maintenance visual-feedback timing/brightness. The maintenance defaults are three amber boot flashes, an 8% dim-amber idle ring, two green/red normal result flashes, and three green/red final qualification flashes; the ring is forced off during analog acquisition. The maintenance image accepts no serial commands. Automatic live-state restore and asynchronous autosave remain production concerns. The musical state and the active Quantizer/Arpeggiator UI layer are restored on production boot; layer restoration is side-effect free and does not replay activation feedback.
+`RuntimeConfig.h` centralizes production UI/LED task dividers, diagnostics period, startup input settle time and ladder-calibration timeout. `MaintenanceConfig.h` separately contains the panel-wizard polling/debounce timing, 1/3/5/7/9 V ADC fit capture limits, 0 V sanity limits and 0/2/4/6/8 V verification tolerance, self-calibration thresholds, read-only report baud rate, the one-second direct-output-test entry/exit hold, octave-display timing, and maintenance visual-feedback timing/brightness. The maintenance defaults are three amber boot flashes, an 8% dim-amber idle ring, two green/red normal result flashes, and three green/red final qualification flashes; the ring is forced off during analog acquisition. The maintenance image accepts no serial commands. Automatic live-state restore and asynchronous autosave remain production concerns. The musical state and the active Quantizer/Arpeggiator UI layer are restored on production boot; layer restoration is side-effect free and does not replay activation feedback.
 
 
 ### LED calibration scale
@@ -194,7 +196,7 @@ The per-channel persistent configuration contains enable, rate/clock ratio, patt
 
 Scale slots remain compact scale-only records. A full-configuration payload is 32 bytes and contains the Quantizer state, both Arpeggiator configurations, the selected channel and the active Quantizer/Arpeggiator UI layer. The layer uses a spare bit in the selected-channel byte, so the payload size does not grow. Full-configuration records are versioned and CRC-protected. New writes use save-format v5; v4 scale/config records remain readable for in-place firmware upgrades.
 
-The live-state record additionally stores the two-byte LED brightness calibration. The current `Unreleased` development layout uses **11 × 42-byte** wear-levelled live-state records at EEPROM bytes 504…965. Byte 966 is retained as the former twelfth-slot marker for upgrade detection. Two **28-byte** redundant analog-calibration records occupy bytes 967…1022. Byte 1023 is reserved and deliberately left unwritten. Calibration record validity markers are committed last.
+The live-state record additionally stores the two-byte LED brightness calibration. The current `Unreleased` development layout uses **11 × 42-byte** wear-levelled live-state records at EEPROM bytes 504…965. Byte 966 is retained as the former twelfth-slot marker for upgrade detection. Two **28-byte** redundant analog-calibration records occupy bytes 967…1022. Byte 1023 stores the packed A/B qualification residuals; byte 966 is the generation-bound qualification commit marker after legacy migration. Calibration and qualification validity markers are committed last.
 
 A <=0.2.1 image may have its newest live state in the former twelfth slot beginning at byte 966. The current `Unreleased` migration path scans that record and migrates it into the eleven-slot ring before the overlapping tail bytes are reused by the calibration journal.
 

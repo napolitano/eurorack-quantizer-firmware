@@ -50,6 +50,9 @@ class CalibrationQualificationStore {
   /** Invalidate any existing certificate marker. */
   bool invalidate();
 
+  /** Erase both qualification bytes for an explicit maintenance reset. */
+  bool erase();
+
   bool busy() const { return writer_.busy(); }
   void service() { writer_.service(); }
 

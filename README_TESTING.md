@@ -5,12 +5,13 @@
 
 The test suite is intended to be a safety net for firmware changes, not a collection of smoke tests. Native tests execute the production domain/application code against deterministic simulated inputs and verify externally observable outputs and millisecond control-loop timing wherever the hardware boundary permits it; dedicated Arpeggiator tests additionally exercise ISR-style external-clock timestamps in microsecond units.
 
-The current development tree contains **36 independently runnable PlatformIO test suites / 291 top-level test cases**. CI remains authoritative for the exact executed total rather than treating that number as a compatibility contract; several cases execute exhaustive or matrix checks internally, so assertion coverage is substantially larger than the top-level case count.
+The current development tree contains **37 independently runnable PlatformIO test suites / 300 top-level test cases**. CI remains authoritative for the exact executed total rather than treating that number as a compatibility contract; several cases execute exhaustive or matrix checks internally, so assertion coverage is substantially larger than the top-level case count.
 
 Examples of exhaustive work performed by the suite include:
 
 - all 1024 legal ADC input codes;
 - the complete Q8.8 output pitch range for DAC monotonicity;
+- all 121 integer semitone targets for nominal 1 V/oct DAC mapping;
 - all 4095 non-empty 12-bit scale masks against boundary/probe pitches;
 - all twelve supported trigger-delay values in both Track-and-Hold and Sample-and-Hold;
 - all twelve Glide settings;
@@ -51,10 +52,11 @@ Unit tests verify deterministic components in isolation and intentionally push t
 | `unit/test_scale` | scale navigation and empty-scale safety |
 | `unit/test_quantizer_boundaries` | pitch boundaries, first-sample tie handling, hysteresis and all scale masks |
 | `unit/test_transposition_matrix` | full signed pre/scale/post shift ranges and ordering |
-| `unit/test_pitch` | representative ADC/DAC conversion vectors plus explicit ADC offset-before-gain and DAC gain-before-offset calibration, rounding and clipping |
-| `unit/test_adc_calibration` | 1 V / 9 V affine ADC fitting, full-scale headroom, inferred positive/negative offset behavior and exact raw-zero anchoring |
+| `unit/test_pitch` | representative ADC/DAC conversion vectors plus explicit ADC offset-before-gain and DAC gain-before-offset calibration, rounding/clipping, and RAW nominal-DAC conversion that bypasses the active calibration profile |
+| `unit/test_adc_calibration` | five-point 1/3/5/7/9 V least-squares ADC fitting, interleaved 0/2/4/6/8 V targets, noisy-point robustness, offset/gain behavior and exact raw-zero anchoring |
 | `unit/test_self_calibration` | integer loopback solver: ideal loop, gain/offset inversion, missing/non-monotonic/implausible loops |
-| `unit/test_pitch_exhaustive` | exhaustive monotonic ADC/DAC transfer functions |
+| `unit/test_pitch_exhaustive` | exhaustive monotonic ADC/DAC transfer functions plus all 121 integer semitone targets |
+| `unit/test_calibration_measurement` | panel output-test mapping for all 121 semitones, octave-10 boundary and nominal 1/12-V spacing |
 | `unit/test_buttons` | button and long-press state machines |
 | `unit/test_ladder_boundaries` | exact ladder values, plausibility windows, invalid gaps, calibration and 64 ms debounce boundary |
 | `unit/test_crc` | CRC reference vectors and bit-error detection |
@@ -74,7 +76,7 @@ Integration tests verify collaborating production components rather than reimple
 |---|---|
 | `integration/test_arpeggiator_layer` | full SHIFT double-click entry → enable → two green flashes → audible FREE-running step path, explicit same-gesture double-click exit → disable all → two red flashes, unchanged scale display/editing in the second layer, SHIFT-based Arpeggiator menu grammar, every Arpeggiator parameter, Link/A/B navigation, full-config UI-layer restore, reboot restoration and first-double-click OFF regression coverage |
 | `integration/test_controls` | raw front-panel input -> debounced menu input, including pre-debounce ladder activity used to cancel a pending SHIFT double-click before it can collide with a normal shortcut |
-| `integration/test_calibration_persistence` | redundant calibration journal round-trip, newest-record selection, CRC fallback and interrupted-write safety |
+| `integration/test_calibration_persistence` | redundant calibration journal round-trip, newest-record selection, CRC fallback, interrupted-write safety, and explicit two-record erase/invalidation |
 | `integration/test_menu` | menu operations, configuration, save/load and calibration flow |
 | `integration/test_menu_shortcuts` | one dedicated test for every SHIFT + note command |
 | `integration/test_persistence` | save/load, CRC, full-config/live UI-layer round-trips including ARP-off layer state, wear levelling, v5→v6 live-state migration and <=0.2.1 former-twelfth-slot migration |
@@ -133,6 +135,8 @@ The native build is compiled with:
 
 A separate aggregate coverage job runs the complete instrumented suite and uploads text, XML and detailed HTML coverage reports. AVR CI builds both **production** and **calibration/maintenance** images for both Nano bootloader generations. `scripts/check_avr_resource_budget.py` applies the same engineering limits to every AVR image: no more than 95% of the 30,720-byte application-flash budget (29,184 bytes) and no more than 70% of the ATmega328P's 2 KB static SRAM. Keeping maintenance code out of the production link is a deliberate part of meeting that production budget, not a waiver of the budget for the maintenance image.
 
+The release-metadata gate also validates the interactive calibration assistant. `scripts/test_interactive_calibration_guide.py` checks the static file/asset contract, required safety wording, full-flow ordering, 20-point ADC sequence and self-contained/no-remote-dependency policy. `scripts/test_interactive_calibration_guide.js` executes the guide's real calculation/report parser and flow data under Node, including 1 mV -> 1.2 cent conversion, RAW C1/C9 span math, qualification-report parsing, all ten ADC points per channel and the requirement that RAW pre-trim is followed by DAC calibration. These tooling tests are separate from the 37 PlatformIO firmware suites and therefore do not change the firmware test-count figure above.
+
 ## Running tests locally
 
 All supported native tests:
@@ -184,7 +188,7 @@ The complete acceptance-criterion mapping is maintained in [docs/testing/require
 
 ## Coverage regression policy
 
-Source coverage is guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The `Unreleased` development tree currently has 36 suites / 291 top-level cases; GitHub Actions/gcovr is authoritative for the exact executed/coverage result and the next release must satisfy the unchanged floors.
+Source coverage is guarded by an explicit regression policy in `scripts/native_coverage_policy.json`. The current hard floors are **92.0% line coverage** and **70.0% branch coverage** for `lib/fmq/src/`. The `Unreleased` development tree currently has 37 suites / 300 top-level cases; GitHub Actions/gcovr is authoritative for the exact executed/coverage result and the next release must satisfy the unchanged floors.
 
 The floor is deliberately below the reference so minor compiler/gcovr accounting differences do not create noise, but it is high enough to catch a material loss of exercised production paths. Lowering the floor just to make a change pass is not an accepted fix. See [docs/testing/coverage.md](docs/testing/coverage.md).
 
@@ -232,7 +236,7 @@ Native tests cannot validate analog or physical effects such as:
 
 The stored calibration certificate/label path is therefore part of **real-hardware qualification**, not a substitute for it. Hardware qualification verifies the complete front-panel ADC/DAC wizard under normal Eurorack power, the final two-channel loopback verification, the generation-bound residual metadata, and the later USB-only readback of the stored report. The USB report itself performs no fresh analog measurement.
 
-The maintenance-image visual state machine is also hardware-qualified rather than inferred from native tests: three amber boot flashes followed by steady dim amber; C#/A green fit prompts for 1 V/9 V followed by C/F verification prompts for 0 V/5 V; channel IN/OUT loopback prompts; ring-off measurement phases; two green/red flashes for ordinary PASS/FAIL; one-to-six red note LEDs for explicit error codes; and three green/red flashes for final qualification PASS/FAIL. The ring-off requirement is specifically checked during analog capture so maintenance feedback does not add changing TLC5947 PWM load to the measurement interval.
+The maintenance-image visual state machine is also hardware-qualified rather than inferred from native tests: three amber boot flashes followed by steady dim amber; C#/D#/F/G/A green fit prompts for 1/3/5/7/9 V followed by C/D/E/F#/G# verification prompts for 0/2/4/6/8 V; channel IN/OUT loopback prompts; ring-off measurement phases; two green/red flashes for ordinary PASS/FAIL; one-to-six red note LEDs for explicit error codes; three green/red flashes for final qualification PASS/FAIL; and the long-SHIFT direct output-test mode with channel-colored pitch-class selection and octave indication. The ring-off requirement is specifically checked during analog capture so maintenance feedback does not add changing TLC5947 PWM load to the measurement interval.
 
 Those require calibrated hardware-in-the-loop measurements. The native suite exists to make the digital behaviour deterministic before hardware uncertainty is introduced.
 

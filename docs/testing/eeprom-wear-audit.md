@@ -85,7 +85,7 @@ LED brightness calibration is carried inside the wear-levelled live state rather
 
 ### Analog ADC/DAC calibration
 
-The hardware-specific affine profile is stored only by the dedicated panel-driven maintenance image, after the selected calibration workflow has passed its required verification. It uses two alternating 28-byte records. The destination marker is invalidated first and committed last, so the previous valid record remains the fallback until the replacement is complete. Qualification metadata is written for the intended journal generation before the calibration commit; until that matching calibration generation becomes valid, the qualification record is ignored. These writes are service operations rather than periodic autosaves.
+The hardware-specific affine profile is stored only by the dedicated panel-driven maintenance image, after the selected calibration workflow has passed its required verification. It uses two alternating 28-byte records. The destination marker is invalidated first and committed last, so the previous valid record remains the fallback until the replacement is complete. Qualification metadata is written for the intended journal generation before the calibration commit; until that matching calibration generation becomes valid, the qualification record is ignored. These writes are service operations rather than periodic autosaves. Explicit maintenance erase invalidates only the two journal markers and clears the two qualification bytes; calibration payload bytes are deliberately not rewritten because invalid markers already make them unreachable. This keeps destructive reset behavior isolated while avoiding unnecessary EEPROM wear.
 
 ## Verification
 

@@ -31,6 +31,7 @@ The hardware platform is fixed for this firmware project. Qualification never as
 - [ ] Firmware was flashed using the documented installation procedure.
 - [ ] Test module is powered from a known-good Eurorack supply.
 - [ ] Oscilloscope/DMM setup is referenced to module ground correctly.
+- [ ] Bench supply set/readback is not used as the calibration reference; every requested CV reference is trimmed until the DMM at the actual jack adapter reads the requested value.
 
 > [!CAUTION]
 > Do not connect or disconnect the Eurorack power ribbon while the rack is powered. Follow the installation safety procedure in [`docs/installation/README.md`](../installation/README.md).
@@ -93,14 +94,19 @@ The detailed oscilloscope procedure is in [`timing-qualification.md`](timing-qua
 - [ ] DAC/output B reaches the expected calibrated range monotonically.
 - [ ] The maintenance image boots with exactly three amber full-ring flashes and then holds a steady dim-amber idle ring.
 - [ ] `SAVE`, `LOAD`, `SHIFT + SAVE`, and `SHIFT + LOAD` select the documented full-calibration, verify-only, ADC-only, and DAC-only workflows without any serial input.
-- [ ] Channel A/B ADC fit prompts identify C# as 1.000 V and A as 9.000 V; the subsequent independent verification prompts identify C as 0.000 V and F as 5.000 V; the correct channel Input LED is on.
+- [ ] Holding SHIFT for one second from maintenance idle enters Output Test; with a stored profile it starts in CAL, SAVE+LOAD toggles CAL/RAW, RAW is shown amber and bypasses all DAC correction, a short SHIFT toggles A/B, SAVE/LOAD change octave, note buttons select pitch class, and another one-second SHIFT hold exits.
+- [ ] With no stored calibration profile, Output Test still starts successfully in RAW mode and produces nominal DAC codes without requiring factory/stored DAC correction.
+- [ ] RAW C1/C9 measurements can be used to pre-trim the two physical output stages toward an 8.000 V span before software calibration; trimmer movement is followed by a fresh DAC-only or full calibration.
+- [ ] Holding SHIFT+SAVE+LOAD for five seconds arms calibration erase, pulsing red prompts for SAVE confirmation/LOAD cancel, and confirmed erase invalidates calibration + qualification only; user presets and live state remain intact.
+- [ ] Channel A/B ADC fit prompts identify C#/D#/F/G/A as 1/3/5/7/9 V; the subsequent independent verification prompts identify C/D/E/F#/G# as 0/2/4/6/8 V; the correct channel Input LED is on.
 - [ ] During ADC acquisition the note ring is completely off; Channel A/B behavior is symmetrical.
 - [ ] Matching channel Input + Output LEDs blink to request a single-channel OUT->IN loopback; both pairs blink for final dual-channel verification.
 - [ ] During loopback acquisition the note ring is completely off and only the documented status LEDs remain active.
 - [ ] A normal maintenance PASS produces exactly two green full-ring flashes; a failure produces two red flashes followed by the documented 1..6 red-note error code.
 - [ ] Complete qualification PASS produces exactly three green full-ring flashes; qualification FAIL produces three red flashes where applicable.
 - [ ] No changing TLC5947 ring PWM activity occurs during ADC/DAC measurement windows.
-- [ ] Full calibration fits ADC A/B from 1.000 V and 9.000 V, verifies each input independently at 0.000 V and 5.000 V, then self-calibrates DAC A/B and persists only after final two-channel verification.
+- [ ] The bench supply is treated only as an adjustable source: each positive ADC reference is adjusted until the DMM at the actual input adapter reads the requested value before SAVE is pressed; 0 V is obtained by a local TIP-to-SLEEVE short.
+- [ ] Full calibration fits ADC A/B by least squares from 1/3/5/7/9 V, verifies each input independently at 0/2/4/6/8 V, then self-calibrates DAC A/B and persists only after final two-channel verification.
 - [ ] ADC-only calibration changes the calibration generation and thereby invalidates any older qualification metadata.
 - [ ] DAC-only calibration refuses to run without a valid stored calibration profile.
 - [ ] Self-calibration with the loop absent or deliberately mispatched fails with the documented code and does not commit the in-progress RAM profile.
@@ -108,7 +114,8 @@ The detailed oscilloscope procedure is in [`timing-qualification.md`](timing-qua
 - [ ] Final verification stores qualification residuals bound to the active/new calibration generation.
 - [ ] With Eurorack power disconnected and USB connected, the maintenance image prints the stored calibration report at 115200 baud without accepting command input or performing analog verification.
 - [ ] The stored report emits a compact label block only when qualification metadata matches the newest valid calibration generation.
-- [ ] After restoring production firmware, perform an external DMM cross-check with C as the only enabled pitch class at representative whole-volt inputs (at minimum 0 V, 1 V, 5 V and 9 V); record input, expected output, measured output and error for both channels.
+- [ ] In maintenance direct output test mode, verify C at every octave from 0 V through 10 V on both channels and all twelve pitch classes in at least one middle octave; for exhaustive physical qualification, verify all 121 semitone targets.
+- [ ] After restoring production firmware, perform a separate end-to-end DMM cross-check with C as the only enabled pitch class at representative whole-volt inputs (at minimum 0 V, 1 V, 5 V and 9 V); record input, expected output, measured output and error for both channels.
 - [ ] Calibration-journal writes are confined to bytes 967…1022; qualification writes are confined to bytes 966 and 1023; preset/current-live-state regions remain unchanged.
 - [ ] A sweep on CV A does not create measurable digital-path movement on B in Absolute mode beyond analog noise/crosstalk expectations.
 - [ ] A sweep on CV B does not create movement on A beyond analog noise/crosstalk expectations.

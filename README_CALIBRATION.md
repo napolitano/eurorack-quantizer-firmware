@@ -1,410 +1,487 @@
 # Analog calibration and maintenance firmware
 
-The Quantizer has a dedicated maintenance firmware image for calibrating the two CV inputs and two CV outputs without consuming production-firmware flash. Since the current `Unreleased` development tree, the calibration workflow is **front-panel driven**: no command shell and no typed serial input are required.
+The Quantizer uses a dedicated maintenance firmware image for hardware calibration, verification, output measurement, and service operations. The maintenance image is front-panel driven; no serial command input is required.
 
-Calibration is **not periodic maintenance**. Run it only when:
+Calibration is **not periodic maintenance**. Run a full calibration only when:
 
 - a newly built module has never been individually calibrated;
-- the calibration EEPROM data were erased or lost;
-- components in the analog CV input/output path were replaced or materially changed; or
-- measured pitch / 1 V/oct behavior indicates a calibration problem.
+- calibration data were deliberately erased or lost;
+- the analog CV input/output path or its trimmers were changed; or
+- independent measurements show a pitch or 1 V/oct problem.
 
-A normal EEPROM-preserving firmware update does **not** require recalibration.
+A normal firmware update does **not** require recalibration as long as EEPROM is preserved.
 
-## Front-panel reference
+> [!TIP]
+> A self-contained step-by-step browser assistant is available at [`docs/calibration/interactive/index.html`](docs/calibration/interactive/index.html). It guides the complete process from PlatformIO build/upload through the safe power transitions, every analog calibration step, external DMM measurements, stored-report validation and the final production-firmware reflash. This document remains the normative calibration procedure.
+
+## 1. What you need
+
+Prepare the measurement setup before flashing the maintenance image.
+
+### Required
+
+- **A DMM with trustworthy DC-voltage accuracy and millivolt resolution.** A 4.5-digit bench DMM is suitable for this procedure when used consistently.
+- **An adjustable low-noise DC source or bench power supply** capable of supplying 0...9 V. The supply is the source only; its display is **not** the calibration reference.
+- **Normal Eurorack power** for the actual analog calibration (`+12 V / -12 V / +5 V / GND`).
+- **At least one 3.5 mm TS jack breakout/test adapter** with accessible TIP and SLEEVE/GND terminals.
+- **Normal Eurorack patch cables** for the DAC loopback steps.
+- **DMM probes / banana leads** suitable for the breakout adapter.
+- **A USB cable and computer** for flashing the maintenance image and later reading the stored report. USB is not connected during analog calibration.
+
+### Strongly recommended
+
+- A source adapter with a switch or jumper that can short **TIP directly to SLEEVE** for the 0.000 V sanity point.
+- A second simple output-measurement adapter so the reference source and DMM wiring do not need to be rebuilt repeatedly.
+- An **insulated trimmer screwdriver** if the optional hardware pre-trim is used.
+
+<p align="center"><img src="docs/manual/assets/calibration/00-calibration-bench-layout.svg" width="920" alt="Recommended calibration bench with laboratory power supply on the left, Quantizer in the centre, and bench DMM on the right"></p>
+
+### Direct patch-cable access and recommended helper adapter
+
+Calibration can be performed without a dedicated adapter when suitable clips, mini-grabbers, or other secure test leads are available. In that case, connect directly to the conductors of a normal 3.5 mm TS patch cable:
+
+- **TIP** is the CV signal conductor;
+- **SLEEVE** is the module ground / return conductor.
+
+This is electrically valid, but it is mechanically awkward and makes accidental shorts or intermittent contacts more likely. For repeated calibration work, use a small passive **3.5 mm TS breakout/helper PCB** instead. A practical adapter needs only:
+
+- one 3.5 mm TS jack, for example a Thonkiconn-compatible type;
+- clearly identified **TIP** and **SLEEVE / GND** connections;
+- terminal pins, screw terminals, test posts, or another secure means of attaching DMM and PSU leads; and
+- optionally, a jumper or switch that can short **TIP directly to SLEEVE**.
+
+The helper PCB contains no active circuitry. Its purpose is to make the two conductors of the patch cable mechanically secure, accessible, and unambiguous during calibration.
+
+> [!IMPORTANT]
+> Verify the adapter wiring before calibration. **TIP must connect to the CV signal and SLEEVE must connect to GND.** Incorrect or reversed wiring invalidates the measurement setup.
+
+For a **0.000 V reference**, disconnect the external voltage source and short **TIP directly to SLEEVE** at the adapter or patch cable. Do **not** obtain the 0 V reference by setting the bench power supply to `0.000 V`. The required reference is the module's actual local ground potential.
+
+## 2. Measurement rule: the PSU is the source; the DMM is the reference
+
+This rule is mandatory for every positive ADC calibration point:
+
+> **The PSU is the source; the DMM is the reference.**
+
+Do not assume that a bench supply set to `5.000 V` actually produces exactly `5.000 V`. General-purpose laboratory supplies can have set/readback errors of many millivolts even when their displays show three decimal places.
+
+<p align="center"><img src="docs/manual/assets/calibration/01-adc-reference-channel-a.svg" width="920" alt="Positive ADC reference wiring with bench PSU, Channel A CV input, and bench DMM measuring at the jack adapter"></p>
+
+For every requested positive voltage:
+
+1. Set the bench source approximately to the requested voltage with its output disabled.
+2. Use a conservative current limit, for example **5-10 mA**.
+3. Connect supply COM / `-` to adapter SLEEVE/GND.
+4. Connect supply `+` to adapter TIP.
+5. Enable the output.
+6. Measure the voltage **at the actual jack adapter** with the DMM.
+7. Adjust the supply until the **DMM** reads the requested value.
+8. Only then press **SAVE** on the Quantizer.
+
+For the 0.000 V sanity point, do not use a supply set to zero. Short TIP directly to SLEEVE/GND so the CV input sees the module's local ground reference.
+
+<p align="center"><img src="docs/manual/assets/calibration/03-adc-zero-channel-a.svg" width="920" alt="Zero-volt ADC reference wiring with TIP shorted directly to SLEEVE and the bench power supply disconnected"></p>
+
+Using the same DMM for calibration and the later independent output sweep is recommended. Its absolute specification still limits absolute accuracy, but a consistent instrument prevents the power-supply display from becoming an uncontrolled calibration reference.
+
+## 3. Front-panel reference and quick controls
 
 <p align="center"><img src="docs/manual/assets/front-panel-reference.png" width="620" alt="Quantizer front panel showing the note ring, SHIFT, LOAD, SAVE, Channel A and Channel B CV inputs, outputs, and status LEDs"></p>
 
-The maintenance image reuses the existing controls only:
+From dim-amber maintenance idle:
 
-| Control | Maintenance function |
+| Control | Function |
 |---|---|
-| **SAVE** | Start the complete ADC + DAC calibration wizard |
-| **LOAD** | Verify the currently stored calibration |
-| **SHIFT + SAVE** | Calibrate the two ADC/input channels only |
-| **SHIFT + LOAD** | Calibrate the two DAC/output channels only |
-| **SAVE inside a wizard** | Confirm the displayed wiring/voltage step and continue |
-| **LOAD inside a wizard** | Cancel safely and return to maintenance idle |
+| **SAVE** | Full ADC + DAC calibration |
+| **LOAD** | Verify the currently stored DAC calibration |
+| **SHIFT + SAVE** | ADC/input calibration only |
+| **SHIFT + LOAD** | DAC/output self-calibration only |
+| **Hold SHIFT for 1 s** | Enter output test / RAW service mode |
+| **Hold SHIFT + SAVE + LOAD for 5 s** | Arm calibration-data erase |
 
-The twelve note LEDs are used as voltage instructions. The maintenance wizard deliberately distinguishes **fit points** from **verification points**:
+Inside a calibration wizard:
 
-- **C#** means **1.000 V** - lower affine fit point;
-- **A** means **9.000 V** - upper affine fit point;
-- **C** (12 o'clock) means **0.000 V** - independent zero sanity check;
-- **F** means **5.000 V** - independent mid-scale verification point.
+| Control | Function |
+|---|---|
+| **SAVE** | Confirm the current wiring/voltage step and continue |
+| **LOAD** | Cancel safely; no incomplete calibration is committed |
 
-The small Channel A/B status LEDs identify which CV path is being measured. When a loopback is requested, the matching **IN and OUT status LEDs blink together**.
-
-## Power safety - read before calibration
+## 4. Power safety and the three-phase workflow
 
 > [!CAUTION]
-> **Never connect normal Eurorack bus power and the Nano USB connection at the same time on this module.** The Eurorack +5 V rail and USB-derived +5 V must not be allowed to drive the module simultaneously.
+> **Never connect normal Eurorack bus power and the Nano USB connection at the same time on this module.** The Eurorack +5 V rail and USB-derived +5 V must not drive the module simultaneously.
 
-The safe workflow deliberately separates flashing/reporting from actual analog calibration:
+Use three physically separate phases:
 
 ```text
-1. Eurorack case OFF
-2. Disconnect the module power ribbon
-3. Connect USB
-4. Flash the maintenance firmware
-5. Disconnect USB completely
-6. Reconnect the normal Eurorack ribbon
-7. Power the case ON
-8. Perform calibration from the front panel only
-9. Power the case OFF
-10. Disconnect the Eurorack ribbon
-11. Connect USB again
-12. Read the stored report and/or flash the production firmware
+A. Flash maintenance firmware
+   Eurorack ribbon disconnected
+   USB connected
+
+B. Perform analog calibration / RAW trim / output tests
+   USB completely disconnected
+   normal Eurorack ribbon connected
+
+C. Read stored report or flash production firmware
+   Eurorack ribbon disconnected
+   USB connected
 ```
 
-During the **actual analog measurements**, the module must be powered exactly as it is in normal use: from the regular Eurorack `+12 V / -12 V / +5 V / GND` bus connection, with **USB physically disconnected**. This ensures that the DAC reference and analog input/output stages operate under their normal supply conditions.
+During phase B the module must run from its normal `+12 V / -12 V / +5 V / GND` Eurorack supply so the DAC reference and analog stages operate under their real operating conditions.
 
-During **USB flashing or report reading**, the Eurorack ribbon must be disconnected.
+## 5. Flash the maintenance image
 
-## Flashing the maintenance image
-
-For a current Nano bootloader:
+Current Nano bootloader:
 
 ```text
 pio run -e nanoatmega328new_calibration -t upload
 ```
 
-For an older Nano bootloader:
+Older Nano bootloader:
 
 ```text
 pio run -e nanoatmega328_calibration -t upload
 ```
 
-The normal bootloader upload writes program flash only. It must not be replaced with a chip-erase or EEPROM-upload operation. The calibration profile lives in EEPROM and is intended to survive normal firmware-image swaps.
+The normal bootloader upload writes program flash only. Do not substitute a chip-erase or EEPROM-upload operation unless EEPROM loss is explicitly intended.
 
-After the maintenance image has been flashed, **disconnect USB before reconnecting Eurorack power**.
+After flashing: disconnect USB completely before reconnecting the Eurorack ribbon.
 
-## Maintenance-mode visual language
-
-A successful maintenance boot is intentionally unmistakable:
+## 6. Maintenance visual language
 
 | Indication | Meaning |
 |---|---|
-| Full note ring flashes **amber three times** | Maintenance firmware booted |
-| Full ring remains **dim amber** | Maintenance idle / ready |
-| One note pulses **green** | Apply the voltage represented by that note and press SAVE |
-| Matching channel **Input LED** on | ADC/input channel being measured |
-| Matching **Input + Output LEDs blink together** | Patch that channel's `CV OUT -> CV IN` loopback |
-| Both channels' **Input + Output LEDs blink** | Patch both loopbacks for final verification |
-| Note ring **off** during acquisition | Analog measurement is in progress |
-| **Two green** full-ring flashes | Non-qualification operation passed |
-| **Two red** full-ring flashes | Operation failed; an error code follows |
-| **Three green** full-ring flashes | Complete verification/qualification passed |
-| **Three red** full-ring flashes | Complete verification/qualification failed |
+| Full ring flashes **amber three times** | Maintenance firmware booted |
+| Full ring remains **dim amber** | Idle / ready |
+| Green pulsing note + channel Input LED | Apply requested ADC reference, then press SAVE |
+| Matching IN + OUT LEDs blink | Patch that channel's `CV OUT -> CV IN` |
+| Both IN + OUT pairs blink | Patch both loopbacks for final verification |
+| Ring off during acquisition | Analog measurement in progress |
+| **2 green / 2 red** full-ring flashes | Ordinary PASS / FAIL |
+| **3 green / 3 red** full-ring flashes | Final qualification PASS / FAIL |
+| **Amber selected note** in output test | RAW output; software DAC correction bypassed |
+| **Green/red selected note** in output test | CAL output; stored correction active for A/B |
+| **Pulsing full red ring** | Destructive calibration erase awaiting confirmation |
 
-The ring is deliberately dark while analog samples are captured so changing TLC5947 PWM load does not add avoidable switching activity during the measurement window.
+A failed operation is followed by the error code described later in this guide.
 
-## Preparing the ADC reference voltages
+## 7. Decide what to do
 
-### 0.000 V
+### Newly built or obviously mismatched A/B hardware
 
-Zero volts is used only as an **independent sanity check**, not as an affine fit point. That distinction matters: a small negative analogue offset can already be clipped to ADC code 0, so fitting against the lower rail can falsely appear to have zero offset.
-
-The best 0 V reference is the module's **own local ground**. Do not rely on a bench supply set to `0.000 V` when a direct ground reference is available.
-
-Use a TS jack adapter or shorting plug so that the CV input sees:
+Recommended sequence:
 
 ```text
-TIP ----+
-        +---- local 0 V
-SLEEVE -+
+optional erase of old test calibration
+-> RAW hardware pre-trim
+-> full software calibration
+-> calibrated output sweep
+-> stored report / label
 ```
 
-A 3.5 mm TS breakout with screw terminals is useful: short TIP to SLEEVE for the 0 V verification step, and use the same adapter for the positive reference voltages.
+### Existing module that already measures correctly
 
-### 1.000 V, 5.000 V and 9.000 V
+Do not recalibrate merely because new firmware was flashed. Use **LOAD** for loopback verification or the calibrated Output Test mode for an independent DMM check.
 
-The affine ADC correction is fitted from **1.000 V and 9.000 V**. Both points are intentionally inside the converter's linear range:
+### Input-side hardware was changed
 
-- using **1.000 V instead of 0 V** exposes input-path offset that could otherwise be hidden by clipping at ADC code 0;
-- using **9.000 V instead of 10.000 V** preserves useful headroom below full scale and avoids hiding an over-range condition once the ADC has saturated at code 1023.
+Use **SHIFT + SAVE** or run the full calibration.
 
-After the fit, **0.000 V** is checked as a lower-rail sanity point and **5.000 V** is measured as an independent mid-scale verification point. The 5 V measurement is not used to compute the fit, so it can reveal non-linearity or a poor two-point solution.
+### Output-side hardware or RV1/RV2 was changed
 
-At runtime, raw ADC code `0` is explicitly anchored to calibrated code `0`. This boundary rule is intentional: if a small negative analog offset is clipped by the converter, the 1 V / 9 V fit can correctly infer a positive inverse offset, but applying that offset blindly at raw code 0 would create a false positive CV floor.
+Use RAW pre-trim if desired, then **SHIFT + LOAD** or run the full calibration. Any trimmer movement invalidates the previous DAC calibration even though the firmware cannot detect the mechanical change itself.
 
-A laboratory supply is suitable for the 1 V, 5 V and 9 V references when used carefully:
+## 8. Optional hardware pre-trim in RAW mode
 
-1. Use one normal positive output channel, not a series/tracking dual-rail configuration.
-2. Set the required voltage with the output disabled.
-3. Set a conservative current limit, for example **5-10 mA**.
-4. Connect supply **COM / -** to the adapter SLEEVE (module ground).
-5. Connect supply **+** to the adapter TIP (CV).
-6. Verify polarity before enabling the output.
-7. Measure the actual voltage at the adapter with a trustworthy DMM and trim the supply to **1.000 V, 5.000 V or 9.000 V based on the DMM**, not merely the supply display.
-8. Only then press SAVE to capture the displayed point.
+The upstream Quantizer output circuit contains two **1 kOhm trim potentiometers, RV1 and RV2**, in the two output-amplifier paths. RAW mode exists specifically to expose that physical DAC/reference/output-stage transfer without software correction. This is useful when Channel A and B require noticeably different software gain coefficients.
 
-> [!WARNING]
-> Apply the reference voltage only to the module's **CV input jack**. Never apply these voltages directly to Arduino A6/A7 or another logic/MCU pin. The module input jack is followed by the intended protection/scaling hardware; the MCU pin is not a 10 V input.
+RAW mode bypasses **both stored and factory DAC offset/gain correction**. It writes only the ideal nominal DAC code. The mode therefore remains useful even when no calibration record exists.
 
-A breakout adapter is strongly recommended because it gives a mechanically secure place for the bench-supply and DMM leads while retaining a normal Eurorack patch cable to the module.
+### Enter RAW output mode
 
-## Complete calibration workflow - SAVE
+1. From dim-amber idle, **hold SHIFT for 1 second**.
+2. If a valid stored profile exists, Output Test starts in CAL mode. Press **SAVE + LOAD together briefly** to toggle RAW/CAL.
+3. If no stored profile exists, Output Test starts directly in RAW mode.
+4. RAW selection is shown **amber**. CAL selection is green for Channel A and red for Channel B.
 
-Press **SAVE** from dim-amber maintenance idle to start the complete wizard. Release SAVE after the wizard begins; SAVE is then used to confirm each displayed step. LOAD cancels without committing the in-progress RAM profile.
+Output Test controls:
 
-### 1. ADC / CV IN A fit at 1 V
+| Control | Function |
+|---|---|
+| Note C..B | Select pitch class |
+| SAVE | Octave up |
+| LOAD | Octave down |
+| SAVE + LOAD | Toggle CAL / RAW when a stored profile exists |
+| Short SHIFT | Toggle Channel A/B |
+| Hold SHIFT 1 s | Exit |
 
-- Channel A **Input LED** is on.
-- **C#** pulses green.
-- Apply exactly **1.000 V** to CV IN A.
-- Press **SAVE**.
+### Preferred gain pre-trim procedure
 
-The ring turns off while the firmware captures repeated ADC samples. An unstable input is rejected.
+<p align="center"><img src="docs/manual/assets/calibration/05-raw-pretrim-channel-a.svg" width="920" alt="RAW hardware pre-trim of Channel A with the CV output connected to a bench DMM"></p>
 
-### 2. ADC / CV IN A fit at 9 V
+A single 9 V adjustment can be influenced by output offset. A better gain-oriented adjustment uses two RAW points:
 
-- Channel A **Input LED** remains the channel indicator.
-- **A** pulses green.
-- Apply exactly **9.000 V** to CV IN A.
-- Press **SAVE**.
+1. Select the channel to trim.
+2. Select **C1 = 1.000 V nominal** and record the DMM reading `V1`.
+3. Select **C9 = 9.000 V nominal** and record `V9`.
+4. Adjust the matching hardware trim potentiometer in small increments.
+5. Repeat C1/C9 until:
 
-The firmware computes the Channel A affine ADC correction from the 1 V and 9 V means.
+```text
+V9 - V1 ~= 8.000 V
+```
 
-### 3. ADC / CV IN A zero sanity check
+6. Cross-check **C5 = 5.000 V nominal**.
+7. Repeat for the other channel.
 
-- **C** pulses green.
-- Short CV IN A to local 0 V.
-- Press **SAVE**.
+Use PCB/schematic labeling to identify the matching trimmer; if necessary, make only a very small adjustment and observe which CV output changes.
 
-This point is **not used for fitting**. The firmware checks that the raw ADC reading is still plausibly at the lower rail. This prevents a gross positive input offset from being silently accepted while avoiding the original mistake of deriving offset from a potentially clipped zero measurement.
+The goal is a sensible, closely matched physical gain baseline. Do **not** try to force a substantial zero-offset error away with a gain trimmer. Software calibration handles residual affine offset/gain after the hardware has been brought into a reasonable range.
 
-### 4. ADC / CV IN A independent 5 V verification
+> [!IMPORTANT]
+> Any trimmer movement changes the hardware transfer function and invalidates the previous DAC calibration. Always run DAC-only or full software calibration afterwards.
 
-- **F** pulses green.
-- Apply exactly **5.000 V** to CV IN A.
-- Press **SAVE**.
+## 9. Full calibration - SAVE
 
-The firmware applies the newly fitted ADC correction and verifies the independent mid-scale point against the expected code. A failure here indicates that the two-point affine fit does not adequately describe the measured input path.
+The complete wizard calibrates both inputs, then both outputs, then performs final dual-channel loopback verification. New coefficients remain in RAM until all required steps pass.
 
-### 5-8. Repeat the four ADC steps for CV IN B
+### ADC fit and independent verification
 
-The same **C# / 1 V -> A / 9 V -> C / 0 V -> F / 5 V** sequence is repeated with the Channel B Input LED.
+Each channel uses ten reference measurements.
 
-After the B-channel 5 V verification, disable and disconnect the external voltage source before moving to loopback calibration.
+**Five fit points** determine one integer least-squares affine line:
 
-### 9. DAC / CV OUT A self-calibration
+| Note | Voltage | Role |
+|---|---:|---|
+| C# | 1.000 V | Fit |
+| D# | 3.000 V | Fit |
+| F | 5.000 V | Fit |
+| G | 7.000 V | Fit |
+| A | 9.000 V | Fit |
 
-The Channel A **Input and Output status LEDs blink together**.
+**Five independent points** do not influence the fit:
 
-Patch:
+| Note | Voltage | Role |
+|---|---:|---|
+| C | 0.000 V | Raw zero sanity |
+| D | 2.000 V | Verification |
+| E | 4.000 V | Verification |
+| F# | 6.000 V | Verification |
+| G# | 8.000 V | Verification |
+
+The interior fit deliberately avoids both ADC rails. A negative analog offset can disappear below ADC code zero; using 0 V as a fit point would therefore hide information. Likewise 9 V retains headroom below full-scale saturation.
+
+Raw ADC code 0 remains explicitly anchored to calibrated code 0 at runtime.
+
+### Channel A ADC
+
+<p align="center"><img src="docs/manual/assets/calibration/01-adc-reference-channel-a.svg" width="920" alt="Channel A ADC calibration wiring"></p>
+
+Follow the pulsing green note instructions for `1/3/5/7/9 V`, then `0/2/4/6/8 V`. For every positive point, adjust the source until the **DMM at the jack adapter** reads the requested value. Press SAVE only after the DMM is correct.
+
+### Channel B ADC
+
+<p align="center"><img src="docs/manual/assets/calibration/02-adc-reference-channel-b.svg" width="920" alt="Channel B ADC calibration wiring"></p>
+
+Move the reference connection to CV IN B and repeat the same ten-point sequence.
+
+### DAC A self-calibration
+
+<p align="center"><img src="docs/manual/assets/calibration/07-dac-selfcal-channel-a.svg" width="920" alt="Channel A DAC self-calibration loopback from CV OUT A to CV IN A"></p>
+
+When Channel A IN and OUT LEDs blink together:
 
 ```text
 CV OUT A -> CV IN A
 ```
 
-Press **SAVE**. The firmware drives several DAC values, measures them through the already calibrated Channel A ADC path, fits the inverse output correction, and independently verifies the result. The ADC calibration remains the measurement reference; loopback self-calibration does not create an independent laboratory voltage standard.
+Press SAVE. The firmware drives several DAC points, measures them through the already calibrated ADC A path, fits an affine DAC correction, and independently verifies it.
 
-### 10. DAC / CV OUT B self-calibration
+### DAC B self-calibration
 
-Move or add the loopback so that:
+<p align="center"><img src="docs/manual/assets/calibration/08-dac-selfcal-channel-b.svg" width="920" alt="Channel B DAC self-calibration loopback from CV OUT B to CV IN B"></p>
+
+When Channel B IN and OUT LEDs blink together:
 
 ```text
 CV OUT B -> CV IN B
 ```
 
-Press **SAVE** when the B IN/OUT indicators blink.
+Press SAVE.
 
-### 11. Final dual-channel verification
+### Final dual-channel verification
 
-Both channels' **IN and OUT status LEDs blink**. Patch both loopbacks simultaneously:
+<p align="center"><img src="docs/manual/assets/calibration/09-final-dual-loopback.svg" width="920" alt="Final dual-channel verification with both CV output-to-input loopbacks patched"></p>
+
+When both IN/OUT pairs blink, patch both loopbacks simultaneously:
 
 ```text
 CV OUT A -> CV IN A
 CV OUT B -> CV IN B
 ```
 
-Press **SAVE**. Both channels are verified at independent DAC points.
+Press SAVE. Only a complete PASS commits the new profile and generation-bound qualification data to EEPROM. Three green flashes indicate qualification PASS.
 
-Only after this final verification passes are the new calibration coefficients committed to the redundant EEPROM calibration journal. The associated qualification residuals are stored only for that exact journal generation.
+## 10. Partial workflows
 
-A complete PASS is indicated by **three green full-ring flashes**. The firmware then returns to dim-amber idle.
+### ADC only - SHIFT + SAVE
 
-## ADC-only calibration - SHIFT + SAVE
+Runs the ten-point ADC fit/verification sequence for A and B and saves the resulting ADC profile. Because the input reference has changed, any previous DAC qualification must be considered invalid until DAC-only or full calibration is run afterwards.
 
-Use this after work on the CV input/ADC path when the DAC side does not need to be recalibrated immediately.
+### DAC only - SHIFT + LOAD
 
-The wizard performs eight ADC steps:
+Requires a valid stored ADC calibration. Performs A selfcal, B selfcal, and final dual-loop verification, then commits the new DAC profile and qualification metadata.
 
-1. A fit at 1.000 V
-2. A fit at 9.000 V
-3. A sanity check at 0.000 V
-4. A independent verification at 5.000 V
-5. B fit at 1.000 V
-6. B fit at 9.000 V
-7. B sanity check at 0.000 V
-8. B independent verification at 5.000 V
+### Verify stored calibration - LOAD
 
-The resulting profile is saved after both channels pass. Because changing the ADC reference invalidates any earlier DAC qualification, the previous qualification certificate automatically becomes invalid through the calibration-generation mismatch. Run DAC-only calibration or a full calibration before applying a new calibration label.
+Does not change ADC/DAC coefficients. Patch both loopbacks when requested and press SAVE. PASS refreshes qualification metadata for the current calibration generation only.
 
-A successful ADC-only operation ends with **two green flashes**.
+### Cancel safely
 
-## DAC/self-calibration only - SHIFT + LOAD
+Press LOAD during a wizard prompt. Incomplete coefficients remain uncommitted and the previously active profile is restored.
 
-This mode requires an already valid stored ADC calibration profile. It performs:
+## 11. Output Test: calibrated and RAW measurements
 
-1. Channel A `OUT -> IN` fit and verification
-2. Channel B `OUT -> IN` fit and verification
-3. final dual-channel verification with both loopbacks patched
-4. atomic persistence of the new DAC profile and its generation-bound qualification metadata
+<p align="center"><img src="docs/manual/assets/calibration/10-cal-output-test-channel-a.svg" width="920" alt="Calibrated Channel A output measurement with bench DMM"></p>
 
-A complete PASS ends with **three green flashes**.
+Hold SHIFT for one second from idle to enter Output Test.
 
-If no valid stored calibration profile exists, the operation fails with error code 6.
+- With a stored calibration, the mode starts in **CAL**.
+- Without a stored calibration, it starts in **RAW**.
+- Press **SAVE + LOAD together** to toggle CAL/RAW when CAL is available.
 
-## Verify an existing calibration - LOAD
+The inactive output is held at zero. Octave 10 contains only C10 = 10.000 V.
 
-Press **LOAD** from idle to verify the currently stored profile without changing its ADC/DAC coefficients.
+Target voltage is:
 
-Both IN/OUT pairs blink. Patch both loopbacks and press SAVE. The firmware re-runs the independent DAC verification points for A and B. On PASS, only the compact qualification metadata for the **current** calibration generation is refreshed; the calibration journal itself is not rewritten.
+```text
+voltage = octave + pitchClass / 12 volts
+```
 
-A successful verification ends with **three green flashes**.
+Example, octave 4:
 
-## Canceling safely
+| Note | Target |
+|---|---:|
+| C | 4.000000 V |
+| C# | 4.083333 V |
+| D | 4.166667 V |
+| D# | 4.250000 V |
+| E | 4.333333 V |
+| F | 4.416667 V |
+| F# | 4.500000 V |
+| G | 4.583333 V |
+| G# | 4.666667 V |
+| A | 4.750000 V |
+| A# | 4.833333 V |
+| B | 4.916667 V |
 
-Press **LOAD** during any wizard prompt to cancel. Until a workflow has passed its required final verification, newly fitted parameters live only in RAM. Canceling or a measurement failure restores the previously active profile and leaves the last valid persistent calibration record usable.
+A C-only whole-volt sweep checks zero, octave scale, and gross 1 V/oct gain. It does **not** physically prove every chromatic step. For fast hardware QA:
 
-## Error codes
+1. Measure C at every octave.
+2. Measure all twelve notes in one middle octave, for example octave 4.
 
-A failure is shown as **two red full-ring flashes**, followed by a static group of red note LEDs. Count the illuminated notes:
+For exhaustive physical qualification, measure all 121 targets C0...C10. One semitone is approximately 83.333 mV; 1 mV error is approximately 1.2 cents.
+
+RAW mode is the right view for hardware-trimmer work. CAL mode is the right view for checking the finished stored DAC correction.
+
+## 12. Erase stored calibration data
+
+Erasing calibration is intentionally difficult to trigger accidentally.
+
+1. From dim-amber idle, hold **SHIFT + SAVE + LOAD together for 5 seconds**.
+2. Release the buttons when the full ring begins pulsing red.
+3. Press **SAVE** to confirm the erase, or **LOAD** to cancel.
+4. A completed erase is acknowledged by **three amber flashes** and returns to dim-amber idle.
+
+The operation invalidates:
+
+- both redundant ADC/DAC calibration journal records; and
+- the stored qualification/label metadata.
+
+It does **not** erase user scales, full-configuration presets, or the musical live-state ring.
+
+After erase there is no stored module-specific calibration. Production firmware falls back to `AnalogConfig.h` factory defaults until a new profile is calibrated and saved. RAW Output Test remains available because it does not depend on any calibration record.
+
+## 13. Stored calibration report and label
+
+The maintenance image has no writable serial console. Serial output is read-only.
+
+After successful qualification:
+
+1. Power the case OFF.
+2. Disconnect the Eurorack ribbon.
+3. Connect USB.
+4. Open a serial monitor at 115200 baud.
+
+On boot the firmware prints the newest stored calibration and its matching qualification generation. The USB-only report does not perform a fresh analog measurement because the +/-12 V analog stages are intentionally unpowered in this phase.
+
+A label block is emitted only when a matching verified qualification exists. Date, serial number, and tester identity remain host-side or handwritten metadata because the Nano has no real-time clock.
+
+## 14. Error codes
+
+A failure is shown as two red flashes followed by a static number of red note LEDs:
 
 | Red LEDs | Meaning |
 |---:|---|
-| **1** | Input unstable or ADC acquisition timeout |
-| **2** | ADC 1 V/9 V fit, 0 V sanity check, or independent 5 V verification is invalid |
-| **3** | Loopback missing, wrong, or non-monotonic |
-| **4** | Loopback range/gain/fit is implausible |
-| **5** | Independent DAC verification residual is too large |
-| **6** | Required persistent profile unavailable or persistence operation failed |
+| 1 | Input unstable or ADC acquisition timeout |
+| 2 | ADC fit or independent verification invalid |
+| 3 | Loopback missing, wrong, or non-monotonic |
+| 4 | Loopback range/gain/fit implausible |
+| 5 | Independent DAC verification residual too large |
+| 6 | Required persistent profile unavailable or persistence failed |
 
-Press **LOAD** to acknowledge the error and return to dim-amber idle.
+Press LOAD to acknowledge the error and return to idle.
 
-## Stored calibration report and module label
+## 15. EEPROM isolation and power-fail behavior
 
-The maintenance firmware has **no serial command console**. Serial is read-only and used only to print the most recently stored calibration/qualification record.
-
-After a successful calibration:
-
-1. Power the Eurorack case OFF.
-2. Disconnect the module's Eurorack ribbon.
-3. Connect the Nano by USB.
-4. Open a serial monitor at **115200 baud**. Opening the port normally resets the Nano, so the maintenance image prints the stored report during startup.
-
-Example:
-
-```text
-FM QUANTIZER STORED CALIBRATION REPORT
-Firmware target: 0.2.2 (Unreleased)
-Calibration format: 1
-Generation: 7
-ADC A: offset=-3 gain=.../...
-ADC B: offset=-4 gain=.../...
-DAC A: offset=... gain=.../...
-DAC B: offset=... gain=.../...
-DAC A verification: PASS / max residual 2 codes
-DAC B verification: PASS / max residual 1 codes
-OVERALL: PASS
------ LABEL -----
-CALIBRATION VERIFIED
-ADC A/B: STORED PROFILE
-DAC A: PASS / max 2 codes
-DAC B: PASS / max 1 codes
-CAL fmt 1 / gen 7
------------------
-```
-
-The USB-only report does **not** perform a fresh analog measurement: the +/-12 V analog stages are intentionally not powered in this state. It reports the residuals captured by the last successful panel verification and accepts them only when their stored generation matches the newest valid calibration record.
-
-If no matching verified qualification exists, the firmware explicitly prints that no calibration label may be applied.
-
-Date, module serial number, and tester identity are not generated by the Nano because there is no real-time clock. Add those as host-side or handwritten label metadata.
-
-## EEPROM layout and isolation
-
-The ATmega328P provides 1024 bytes of EEPROM. The current `Unreleased` layout is intentionally partitioned:
+The current Unreleased EEPROM layout is intentionally partitioned:
 
 | EEPROM bytes | Purpose |
 |---:|---|
 | `0..503` | User scale/full-configuration presets |
 | `504..965` | 11-slot wear-leveled live-state ring |
-| `966` | Qualification commit marker / legacy <=0.2.1 live-slot marker during migration |
+| `966` | Qualification marker / legacy <=0.2.1 migration marker |
 | `967..1022` | Two redundant 28-byte calibration records |
 | `1023` | Packed A/B qualification residuals |
 
-The writable `CalibrationStore` receives an `EepromPartition` that exposes only bytes `967..1022`. It cannot address presets or live state. Qualification metadata is handled by a separate fixed-address component that can touch only bytes 966 and 1023.
+The writable `CalibrationStore` receives an EEPROM partition exposing only `967..1022`, so it cannot address presets or live state. The qualification component can touch only bytes 966 and 1023.
 
-A direct upgrade from <=0.2.1 can still contain the newest live-state record in the former twelfth slot beginning at byte 966. The maintenance image completes that migration into the current 11-slot ring before byte 966 is ever reused as qualification metadata.
+The calibration journal is redundant, CRC-protected, versioned, and committed marker-last. Erase invalidates only the journal markers; stale payload bytes are unreachable and intentionally not rewritten, reducing EEPROM wear.
 
-Calibration records are redundant, CRC-protected, versioned, and committed by writing their marker last. Qualification metadata uses the same principle: its marker is invalidated first, residuals are written, and the generation-bound marker is committed last. A qualification written for a future calibration generation remains invalid until the matching calibration journal record itself commits.
+A direct upgrade from <=0.2.1 migrates a newest legacy twelfth live-state slot before byte 966 is reused as qualification metadata.
 
-## What loopback self-calibration can and cannot correct
+## 16. What loopback self-calibration can and cannot prove
 
-The loopback path is:
+Loopback sees the composition of the output path and the already calibrated input path. It can correct output offset and gain relative to that ADC reference, but it does not create an independent absolute voltage standard.
 
-```text
-DAC -> output amplifier -> CV OUT -> patch cable -> CV IN -> input stage -> ADC
-```
+That is why final hardware acceptance should include DMM measurements in CAL Output Test mode. RAW/CAL comparison is also useful diagnostically:
 
-The active ADC calibration is treated as the measurement reference. Self-calibration therefore corrects the **DAC/output affine error** against that reference. It cannot mathematically separate simultaneous absolute errors in the input and output paths without an independent voltage reference.
+- RAW A/B mismatch -> primarily physical output-stage mismatch;
+- RAW close, CAL wrong -> software profile or calibration workflow problem;
+- RAW and CAL both nonlinear at the same locations -> investigate DAC/reference/analog hardware rather than adding more affine correction.
 
-This is why the ADC side is calibrated first from external 1.000 V / 9.000 V fit references and then checked independently at 0.000 V and 5.000 V.
+## 17. Return to production firmware
 
-The current implementation deliberately stores affine offset/gain correction only. It does not reserve EEPROM for a 121-note residual table. A non-linear residual correction should be introduced only if real hardware measurements demonstrate that it is justified.
+1. Power the Eurorack case OFF.
+2. Disconnect the ribbon.
+3. Connect USB.
+4. Flash the production image.
+5. Disconnect USB.
+6. Reconnect the normal Eurorack ribbon.
+7. Power the case ON.
 
-## Recommended independent post-calibration check
+Normal flash-only uploads preserve EEPROM calibration.
 
-The stored PASS report proves that the panel workflow completed and that the DAC loopback verification agreed with the calibrated ADC reference. It is **not an independent laboratory measurement**, because the loopback uses the module's own ADC as its measuring instrument.
+## 18. Recommended final acceptance
 
-For a newly built module, or after changing the analog path, perform one external DMM check after restoring the production firmware:
+For a newly built module:
 
-1. Use neutral Quantizer settings: Track-and-Hold, Glide 0, Delay 0, all shifts 0, Channel B absolute, channels unlinked.
-2. Enable **C only** in the scale.
-3. Apply accurately measured input references such as `0.000 V`, `1.000 V`, `3.000 V`, `5.000 V`, `7.000 V`, and `9.000 V`.
-4. Measure the corresponding CV output with a second breakout/test adapter and the same trustworthy DMM.
-5. Record input, expected output, measured output, and error.
+1. Optional RAW hardware pre-trim if A/B output scale is noticeably different.
+2. Full calibration with DMM-referenced 1/3/5/7/9 V fit points and independent 0/2/4/6/8 V verification.
+3. Final DAC loopback qualification PASS.
+4. CAL Output Test: C at all octaves.
+5. CAL Output Test: all twelve notes in one middle octave.
+6. Read and archive the stored USB report.
+7. Apply a calibration label only when qualification and external measurements are satisfactory.
 
-With C as the only enabled pitch class, whole-volt inputs should quantize to the same whole-volt output. A nearly constant error suggests residual offset; an error that grows with voltage suggests residual gain error; irregular point-to-point error suggests non-linearity or measurement noise.
-
-This external check is recommended for hardware qualification and module labeling, but it is not required after every EEPROM-preserving firmware update.
-
-## Returning to production firmware
-
-After calibration/reporting:
-
-1. Keep the Eurorack ribbon disconnected.
-2. Flash the production image via normal USB:
-
-```text
-pio run -e nanoatmega328new -t upload
-```
-
-or, for an old bootloader:
-
-```text
-pio run -e nanoatmega328 -t upload
-```
-
-3. Disconnect USB.
-4. Reconnect the normal Eurorack ribbon.
-5. Power the case ON.
-
-The production firmware has no calibration writer, calibration state machine, or serial shell. It only reads the newest valid calibration journal record during boot and applies that profile to the real-time ADC/DAC conversion path.
-
-## Checklist for a newly built module
-
-- [ ] Maintenance image flashed with the Eurorack ribbon disconnected.
-- [ ] USB physically disconnected before normal Eurorack power is restored.
-- [ ] 1.000 V, 5.000 V and 9.000 V references measured at the jack adapter with a DMM.
-- [ ] 0 V sanity reference made by shorting CV TIP to local GND/SLEEVE.
-- [ ] ADC A and B complete without error.
-- [ ] DAC A and B loopback self-calibration complete without error.
-- [ ] Both loopbacks are connected for final verification.
-- [ ] Three green flashes confirm full qualification PASS.
-- [ ] Case powered OFF and ribbon disconnected before USB is connected again.
-- [ ] Stored USB report says `OVERALL: PASS` for the active generation.
-- [ ] Production image flashed without EEPROM erase.
+The objective is not to make software hide a badly adjusted analog stage. RAW pre-trim establishes a good hardware baseline; the affine firmware calibration then removes the remaining practical offset/gain error.
