@@ -1,5 +1,5 @@
 # Reproducible CI/release Python tooling.
 # Update deliberately and record the change under Unreleased when behavior or
 # generated artifacts may change.
-platformio==6.1.19
+platformio==6.2.0
 gcovr==8.6
