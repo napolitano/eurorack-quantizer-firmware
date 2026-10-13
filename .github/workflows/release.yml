@@ -209,7 +209,7 @@ jobs:
           echo "Release social announcement (${#SOCIAL_TEXT} chars): ${SOCIAL_TEXT}"
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: release-firmware
           path: dist/
