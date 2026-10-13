@@ -157,7 +157,7 @@ jobs:
           python scripts/check_native_coverage.py coverage/coverage.xml
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: native-coverage
           path: coverage/
@@ -271,7 +271,7 @@ jobs:
           cp .pio/build/${{ matrix.environment }}/firmware.elf dist/fm-quantizer-${{ matrix.environment }}.elf
 
       - name: Upload firmware artifacts
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: firmware-${{ matrix.environment }}
           path: dist/
